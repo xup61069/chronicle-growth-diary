@@ -1,0 +1,397 @@
+/**
+ * Design reminder — personal growth archive: structured like a private editorial desk,
+ * with a live chronological canvas, tactile index cards, and deliberate cinnabar markers.
+ */
+import DashboardLayout from "@/components/DashboardLayout";
+import { trpc } from "@/lib/trpc";
+import {
+  Archive,
+  ArrowDownUp,
+  CalendarDays,
+  Check,
+  ChevronRight,
+  ImagePlus,
+  Loader2,
+  MapPin,
+  PencilLine,
+  Plus,
+  Sparkles,
+  Tag,
+  Trash2,
+  X,
+} from "lucide-react";
+import { ChangeEvent, FormEvent, useMemo, useState } from "react";
+import { toast } from "sonner";
+
+const eventTypes = [
+  { value: "memory", label: "回憶" },
+  { value: "learning", label: "學習" },
+  { value: "achievement", label: "成就" },
+  { value: "chapter", label: "人生章節" },
+] as const;
+
+const diaryColors = ["#EE623B", "#587A8B", "#78976D", "#A06A82", "#D19B43"] as const;
+
+type EventType = (typeof eventTypes)[number]["value"];
+type DatePrecision = "day" | "month" | "year";
+type EventForm = {
+  title: string;
+  occurredAt: string;
+  datePrecision: DatePrecision;
+  eventType: EventType;
+  body: string;
+  ageLabel: string;
+  place: string;
+  color: (typeof diaryColors)[number];
+  tagNames: string[];
+};
+type PendingImage = { name: string; type: string; base64: string; preview: string };
+
+const today = new Date().toISOString().slice(0, 10);
+
+const makeEmptyForm = (): EventForm => ({
+  title: "",
+  occurredAt: today,
+  datePrecision: "day",
+  eventType: "memory",
+  body: "",
+  ageLabel: "",
+  place: "",
+  color: "#EE623B",
+  tagNames: [],
+});
+
+function formatInputDate(timestamp: number) {
+  const date = new Date(timestamp);
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
+function formatDate(timestamp: number, precision: DatePrecision) {
+  const date = new Date(timestamp);
+  if (precision === "year") return `${date.getFullYear()} 年`;
+  if (precision === "month") return `${date.getFullYear()} 年 ${date.getMonth() + 1} 月`;
+  return new Intl.DateTimeFormat("zh-TW", { year: "numeric", month: "long", day: "numeric" }).format(date);
+}
+
+function toTimestamp(value: string, precision: DatePrecision) {
+  const [year, month = "01", day = "01"] = value.split("-");
+  return new Date(Number(year), precision === "year" ? 0 : Number(month) - 1, precision === "day" ? Number(day) : 1).getTime();
+}
+
+async function readImage(file: File): Promise<PendingImage> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("無法讀取這張圖片。"));
+    reader.onload = () => {
+      const dataUrl = String(reader.result);
+      resolve({ name: file.name, type: file.type, base64: dataUrl.split(",")[1] ?? "", preview: dataUrl });
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function DiaryEditorContent() {
+  const utils = trpc.useUtils();
+  const { data, isLoading, error } = trpc.diary.get.useQuery();
+  const [form, setForm] = useState<EventForm>(makeEmptyForm);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [tagDraft, setTagDraft] = useState("");
+  const [pendingImage, setPendingImage] = useState<PendingImage | null>(null);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [filterType, setFilterType] = useState<"all" | EventType>("all");
+  const [filterTag, setFilterTag] = useState("all");
+  const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("oldest");
+
+  const saveMutation = trpc.diary.createEvent.useMutation();
+  const updateMutation = trpc.diary.updateEvent.useMutation();
+  const uploadMutation = trpc.diary.uploadImage.useMutation();
+  const deleteMutation = trpc.diary.deleteEvent.useMutation();
+  const deleteImageMutation = trpc.diary.deleteImage.useMutation();
+
+  const events = data?.events ?? [];
+  const visibleEvents = useMemo(
+    () => events
+      .filter((event) => filterType === "all" || event.eventType === filterType)
+      .filter((event) => filterTag === "all" || event.tags.some((tag) => tag.name === filterTag))
+      .sort((left, right) => sortOrder === "oldest" ? left.occurredAt - right.occurredAt : right.occurredAt - left.occurredAt),
+    [events, filterTag, filterType, sortOrder],
+  );
+  const selectedEvent = events.find((event) => event.id === (selectedId ?? editingId)) ?? visibleEvents[0] ?? events[0];
+  const isSaving = saveMutation.isPending || updateMutation.isPending || uploadMutation.isPending;
+  const eventCountLabel = `${events.length.toString().padStart(2, "0")} 篇記憶`;
+  const hasMedia = useMemo(() => events.reduce((total, event) => total + event.media.length, 0), [events]);
+
+  const addTag = (rawTag = tagDraft) => {
+    const tag = rawTag.trim().replace(/\s+/g, " ");
+    if (!tag) return;
+    if (tag.length > 24) return toast.error("每個標籤最多 24 個字元。");
+    if (form.tagNames.some((name) => name.toLocaleLowerCase() === tag.toLocaleLowerCase())) {
+      setTagDraft("");
+      return;
+    }
+    if (form.tagNames.length >= 8) return toast.error("每筆記憶最多保留 8 個標籤。");
+    setForm((current) => ({ ...current, tagNames: [...current.tagNames, tag] }));
+    setTagDraft("");
+  };
+
+  const startNewEvent = () => {
+    setEditingId(null);
+    setSelectedId(null);
+    setPendingImage(null);
+    setTagDraft("");
+    setForm(makeEmptyForm());
+  };
+
+  const editEvent = (event: (typeof events)[number]) => {
+    setEditingId(event.id);
+    setSelectedId(event.id);
+    setTagDraft("");
+    setPendingImage(null);
+    setForm({
+      title: event.title,
+      occurredAt: formatInputDate(event.occurredAt),
+      datePrecision: event.datePrecision,
+      eventType: event.eventType,
+      body: event.body,
+      ageLabel: event.ageLabel ?? "",
+      place: event.place ?? "",
+      color: event.color as (typeof diaryColors)[number],
+      tagNames: event.tags.map((tag) => tag.name),
+    });
+  };
+
+  const handleImageChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("image/")) return toast.error("請選擇 JPG、PNG、WebP 或 GIF 圖片。");
+    if (file.size > 4 * 1024 * 1024) return toast.error("圖片檔案不可超過 4MB。");
+    try {
+      setPendingImage(await readImage(file));
+    } catch (uploadError) {
+      toast.error(uploadError instanceof Error ? uploadError.message : "圖片暫存失敗。");
+    }
+  };
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!form.title.trim()) return toast.error("先為這段記憶寫下標題。");
+    const payload = {
+      ...form,
+      occurredAt: toTimestamp(form.occurredAt, form.datePrecision),
+      ageLabel: form.ageLabel.trim() || null,
+      place: form.place.trim() || null,
+    };
+
+    try {
+      const saved = editingId
+        ? await updateMutation.mutateAsync({ id: editingId, ...payload })
+        : await saveMutation.mutateAsync(payload);
+
+      if (pendingImage) {
+        await uploadMutation.mutateAsync({
+          eventId: saved.id,
+          fileName: pendingImage.name,
+          mimeType: pendingImage.type,
+          base64: pendingImage.base64,
+          caption: form.title.trim(),
+        });
+      }
+
+      await utils.diary.get.invalidate();
+      toast.success(editingId ? "這段記憶已更新。" : "新的成長事件已存入時間帶。" );
+      startNewEvent();
+    } catch (saveError) {
+      toast.error(saveError instanceof Error ? saveError.message : "儲存時發生問題，請稍後再試。");
+    }
+  };
+
+  const removeEvent = async (id: number) => {
+    if (!window.confirm("確定要刪除這段記憶嗎？這個動作無法還原。")) return;
+    try {
+      await deleteMutation.mutateAsync({ id });
+      await utils.diary.get.invalidate();
+      if (editingId === id) startNewEvent();
+      toast.success("這段記憶已從時間帶移除。");
+    } catch (deleteError) {
+      toast.error(deleteError instanceof Error ? deleteError.message : "刪除失敗，請稍後再試。");
+    }
+  };
+
+  const removeImage = async (id: number) => {
+    try {
+      await deleteImageMutation.mutateAsync({ id });
+      await utils.diary.get.invalidate();
+      toast.success("圖片已移除。");
+    } catch (deleteError) {
+      toast.error(deleteError instanceof Error ? deleteError.message : "圖片移除失敗。");
+    }
+  };
+
+  if (isLoading) {
+    return <div className="editor-loading"><Loader2 size={24} className="animate-spin" /> 正在開啟你的成長檔案…</div>;
+  }
+
+  if (error) {
+    return <div className="editor-error"><Archive size={24} /><p>暫時無法讀取你的成長檔案。請重新整理頁面後再試。</p></div>;
+  }
+
+  return (
+    <div className="diary-editor">
+      <header className="editor-header">
+        <div>
+          <p className="editor-kicker"><span /> PERSONAL ARCHIVE / 01</p>
+          <h1>{data?.diary.title ?? "我的成長史"}</h1>
+          <p>將童年、學習、轉折與每一個值得記住的成就，編輯成一條只屬於你的時間帶。</p>
+        </div>
+        <div className="editor-stats" aria-label="成長日記統計">
+          <span><b>{eventCountLabel}</b><small>已整理的故事</small></span>
+          <span><b>{hasMedia.toString().padStart(2, "0")} 張</b><small>珍藏的影像</small></span>
+        </div>
+      </header>
+
+      <div className="editor-workspace">
+        <aside className="event-index" aria-label="已整理的成長事件">
+          <div className="panel-title"><span>事件索引</span><b>{eventCountLabel}</b></div>
+          <button className="new-event-button" onClick={startNewEvent}><Plus size={16} /> 新增一段記憶</button>
+          <div className="index-filters">
+            <select aria-label="依事件類型篩選" value={filterType} onChange={(event) => setFilterType(event.target.value as "all" | EventType)}>
+              <option value="all">全部類型</option>
+              {eventTypes.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}
+            </select>
+            <select aria-label="依標籤篩選" value={filterTag} onChange={(event) => setFilterTag(event.target.value)}>
+              <option value="all">全部標籤</option>
+              {data?.tags.map((tag) => <option key={tag.id} value={tag.name}>{tag.name}</option>)}
+            </select>
+            <button type="button" className="index-sort" onClick={() => setSortOrder((order) => order === "oldest" ? "newest" : "oldest")}><ArrowDownUp size={13} /> {sortOrder === "oldest" ? "由早至晚" : "由晚至早"}</button>
+          </div>
+          <div className="event-list">
+            {events.length === 0 ? (
+              <div className="empty-index"><Sparkles size={18} /><p>第一筆記憶，會是這條時間帶的起點。</p></div>
+            ) : visibleEvents.length === 0 ? (
+              <div className="empty-index"><Tag size={18} /><p>沒有符合目前條件的記憶。試著調整類型或標籤篩選。</p></div>
+            ) : visibleEvents.map((event) => (
+              <button
+                key={event.id}
+                className={`event-index-card ${selectedEvent?.id === event.id ? "is-selected" : ""}`}
+                onClick={() => editEvent(event)}
+              >
+                <span className="index-line" style={{ backgroundColor: event.color }} />
+                <span className="index-date">{new Date(event.occurredAt).getFullYear()}</span>
+                <span className="index-title">{event.title}</span>
+                <ChevronRight size={15} />
+              </button>
+            ))}
+          </div>
+        </aside>
+
+        <section className="editor-form-panel" aria-labelledby="composer-title">
+          <div className="form-heading">
+            <div><p className="editor-kicker"><span /> {editingId ? "編輯中" : "新的篇章"}</p><h2 id="composer-title">{editingId ? "調整這段記憶" : "記下一個發生過的瞬間"}</h2></div>
+            {editingId ? <button className="quiet-action" onClick={startNewEvent}>放棄編輯</button> : null}
+          </div>
+
+          <form onSubmit={handleSubmit} className="event-form">
+            <label className="form-field form-title">
+              <span>這段記憶的標題</span>
+              <input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} placeholder="例如：第一次站上舞台" maxLength={180} />
+            </label>
+
+            <div className="form-row">
+              <label className="form-field">
+                <span><CalendarDays size={14} /> 發生時間</span>
+                <input type="date" value={form.occurredAt} onChange={(event) => setForm({ ...form, occurredAt: event.target.value })} required />
+              </label>
+              <fieldset className="precision-field">
+                <legend>時間精度</legend>
+                <div>
+                  {(["day", "month", "year"] as DatePrecision[]).map((precision) => (
+                    <button type="button" key={precision} className={form.datePrecision === precision ? "active" : ""} onClick={() => setForm({ ...form, datePrecision: precision })}>
+                      {precision === "day" ? "日" : precision === "month" ? "月" : "年"}
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+            </div>
+
+            <div className="form-row">
+              <label className="form-field">
+                <span>事件類型</span>
+                <select value={form.eventType} onChange={(event) => setForm({ ...form, eventType: event.target.value as EventType })}>
+                  {eventTypes.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}
+                </select>
+              </label>
+              <label className="form-field">
+                <span>那時的年紀（選填）</span>
+                <input value={form.ageLabel} onChange={(event) => setForm({ ...form, ageLabel: event.target.value })} placeholder="例如：8 歲、國二" maxLength={80} />
+              </label>
+            </div>
+
+            <label className="form-field">
+              <span>把故事寫下來</span>
+              <textarea value={form.body} onChange={(event) => setForm({ ...form, body: event.target.value })} placeholder="發生了什麼？你當時怎麼想？這段經驗後來帶給了你什麼？" rows={5} maxLength={8000} />
+            </label>
+
+            <label className="form-field">
+              <span><MapPin size={14} /> 地點（選填）</span>
+              <input value={form.place} onChange={(event) => setForm({ ...form, place: event.target.value })} placeholder="例如：外婆家、學校禮堂" maxLength={180} />
+            </label>
+
+            <div className="form-field tags-field">
+              <span><Tag size={14} /> 標籤</span>
+              <div className="tag-input-row">
+                <input value={tagDraft} onChange={(event) => setTagDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addTag(); } }} placeholder="輸入後按 Enter，例如：家庭" maxLength={24} />
+                <button type="button" onClick={() => addTag()}>加入</button>
+              </div>
+              <div className="tag-chips">
+                {form.tagNames.map((tag) => <button type="button" key={tag} onClick={() => setForm({ ...form, tagNames: form.tagNames.filter((item) => item !== tag) })}>{tag}<X size={12} /></button>)}
+              </div>
+              {data?.tags.length ? <div className="tag-suggestions">常用：{data.tags.slice(0, 5).map((tag) => <button type="button" key={tag.id} onClick={() => addTag(tag.name)}>{tag.name}</button>)}</div> : null}
+            </div>
+
+            <div className="form-field color-field">
+              <span>事件標記色</span>
+              <div>{diaryColors.map((color) => <button type="button" key={color} aria-label={`選擇${color}標記色`} className={form.color === color ? "selected" : ""} style={{ backgroundColor: color }} onClick={() => setForm({ ...form, color })}><Check size={13} /></button>)}</div>
+            </div>
+
+            <div className="form-field media-field">
+              <span><ImagePlus size={14} /> 珍藏一張影像</span>
+              <label className="image-dropzone">
+                <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={handleImageChange} />
+                {pendingImage ? <img src={pendingImage.preview} alt="待上傳的事件影像預覽" /> : <><ImagePlus size={20} /><b>選擇圖片</b><small>JPG、PNG、WebP 或 GIF，最大 4MB</small></>}
+              </label>
+              {pendingImage ? <button type="button" className="remove-pending" onClick={() => setPendingImage(null)}><X size={14} /> 移除待上傳圖片</button> : null}
+            </div>
+
+            <div className="form-actions"><span>{editingId ? "修改將立即更新你的私人時間帶。" : "儲存後，這段記憶會出現在左側索引與時間預覽。"}</span><button type="submit" disabled={isSaving}>{isSaving ? <Loader2 size={16} className="animate-spin" /> : <PencilLine size={16} />}{editingId ? "儲存變更" : "存入時間帶"}</button></div>
+          </form>
+        </section>
+
+        <aside className="timeline-preview" aria-label="選取事件的時間帶預覽">
+          <div className="panel-title"><span>時間帶預覽</span><b>LIVE</b></div>
+          {selectedEvent ? (
+            <>
+              <div className="preview-date"><span>{formatDate(selectedEvent.occurredAt, selectedEvent.datePrecision)}</span><i style={{ backgroundColor: selectedEvent.color }} /></div>
+              <article className="preview-card">
+                {selectedEvent.media[0] ? <div className="preview-image"><img src={selectedEvent.media[0].url} alt={selectedEvent.media[0].caption ?? selectedEvent.title} /><button onClick={() => removeImage(selectedEvent.media[0].id)} aria-label="移除這張圖片"><Trash2 size={14} /></button></div> : null}
+                <p className="preview-type">{eventTypes.find((type) => type.value === selectedEvent.eventType)?.label} {selectedEvent.ageLabel ? `/ ${selectedEvent.ageLabel}` : ""}</p>
+                <h3>{selectedEvent.title}</h3>
+                <p className="preview-body">{selectedEvent.body || "這段記憶還在等待你寫下細節。"}</p>
+                {selectedEvent.place ? <p className="preview-place"><MapPin size={13} /> {selectedEvent.place}</p> : null}
+                <div className="preview-tags">{selectedEvent.tags.map((tag) => <span key={tag.id}>{tag.name}</span>)}</div>
+                <div className="preview-actions"><button onClick={() => editEvent(selectedEvent)}><PencilLine size={14} /> 編輯</button><button className="delete" onClick={() => removeEvent(selectedEvent.id)}><Trash2 size={14} /> 刪除</button></div>
+              </article>
+              <div className="preview-ruler" aria-hidden="true"><i /><b>{new Date(selectedEvent.occurredAt).getFullYear()}</b><i /><span>NOW</span></div>
+            </>
+          ) : <div className="empty-preview"><Archive size={23} /><h3>尚未有事件</h3><p>在中間的編輯區寫下第一段記憶，時間軸就會從這裡開始。</p></div>}
+        </aside>
+      </div>
+    </div>
+  );
+}
+
+export default function DiaryEditor() {
+  return <DashboardLayout><DiaryEditorContent /></DashboardLayout>;
+}

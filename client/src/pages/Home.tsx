@@ -193,12 +193,9 @@ export default function Home() {
           >
             登入
           </button>
-          <button
-            className="nav-cta"
-            onClick={() => toast.success("示範版已準備好，開始編輯你的第一條時間軸。")}
-          >
+          <a className="nav-cta" href="/editor">
             開始建立 <ArrowUpRight size={15} />
-          </button>
+          </a>
         </nav>
 
         <button
@@ -225,9 +222,7 @@ export default function Home() {
               讓脈絡不再埋沒於訊息與試算表。
             </p>
             <div className="hero-actions">
-              <button className="solid-button" onClick={scrollToTimeline}>
-                探索互動時間軸 <ArrowDown size={17} />
-              </button>
+              <a className="solid-button" href="/editor">開始書寫成長故事 <ArrowUpRight size={17} /></a>
               <button className="text-button" onClick={() => toast.info("已開啟一份範例時間軸。")}>觀看範例 <ChevronRight size={17} /></button>
             </div>
           </div>
@@ -375,14 +370,14 @@ export default function Home() {
                 <h3>自由編輯</h3>
                 <p>適合個人研究與第一個公開故事。</p>
                 <ul><li><Check size={15} /> 1 條時間帶</li><li><Check size={15} /> 50 個事件</li><li><Check size={15} /> 公開分享連結</li></ul>
-                <button onClick={() => toast.success("已開始建立你的免費工作台。")}>免費開始 <ArrowUpRight size={16} /></button>
+                <a href="/editor">免費開始 <ArrowUpRight size={16} /></a>
               </div>
               <div className="plan-card plan-team">
                 <span>STUDIO</span>
                 <h3>共同編輯</h3>
                 <p>適合團隊、專案與需要嵌入網站的敘事。</p>
                 <ul><li><Check size={15} /> 多條時間帶</li><li><Check size={15} /> 成員協作與標註</li><li><Check size={15} /> 嵌入與品牌設定</li></ul>
-                <button onClick={() => toast.info("Studio 方案可在正式版中開啟。")}>查看方案 <ArrowUpRight size={16} /></button>
+                <a href="/editor">開啟我的檔案 <ArrowUpRight size={16} /></a>
               </div>
             </div>
           </div>
