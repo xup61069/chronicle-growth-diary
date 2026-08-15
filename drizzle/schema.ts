@@ -41,6 +41,7 @@ export const growthDiaries = mysqlTable(
     childhoodEndYear: int("childhoodEndYear"),
     educationEndYear: int("educationEndYear"),
     careerEndYear: int("careerEndYear"),
+    aiEnabled: boolean("aiEnabled").notNull().default(true),
     shareMode: mysqlEnum("shareMode", ["private", "public", "link"]).notNull().default("private"),
     shareSlug: varchar("shareSlug", { length: 96 }).unique(),
     shareTokenHash: varchar("shareTokenHash", { length: 128 }),

@@ -302,9 +302,14 @@ export async function updateDiaryPhaseBoundaries(userId: number, input: DiaryPha
   return input;
 }
 
+export function assertAiEnabled(aiEnabled: boolean) {
+  if (!aiEnabled) throw new Error("你已關閉 AI 回顧。重新啟用後才可根據事件生成文字。 ");
+}
+
 export async function generatePhaseReflection(userId: number, phaseKey: "childhood" | "education" | "career") {
   const db = await requireDb();
   const diary = await getOrCreateDiary(userId);
+  assertAiEnabled(diary.aiEnabled);
   const events = await getEnrichedDiaryEvents(diary.id);
   const phase = makeLifePhaseSnapshot(diary, events).find((item) => item.key === phaseKey);
   if (!phase?.events.length) throw new Error("這個人生階段還沒有足夠事件可供回顧。");
@@ -339,6 +344,20 @@ export async function updatePhaseReflection(userId: number, input: { phaseKey: "
   if (!existing[0]) throw new Error("請先生成一段 AI 回顧後再進行手動調整。");
   await db.update(growthPhaseReflections).set({ recap: input.recap.trim(), reflection: input.reflection.trim(), model: "manual-edit" }).where(eq(growthPhaseReflections.id, existing[0].id));
   return { phaseKey: input.phaseKey, recap: input.recap.trim(), reflection: input.reflection.trim(), model: "manual-edit" };
+}
+
+export async function updateDiaryAiPreference(userId: number, aiEnabled: boolean) {
+  const db = await requireDb();
+  const diary = await getOrCreateDiary(userId);
+  await db.update(growthDiaries).set({ aiEnabled }).where(eq(growthDiaries.id, diary.id));
+  return { aiEnabled };
+}
+
+export async function deletePhaseReflection(userId: number, phaseKey: "childhood" | "education" | "career") {
+  const db = await requireDb();
+  const diary = await getOrCreateDiary(userId);
+  await db.delete(growthPhaseReflections).where(and(eq(growthPhaseReflections.diaryId, diary.id), eq(growthPhaseReflections.phaseKey, phaseKey)));
+  return { phaseKey };
 }
 
 export async function updateDiarySharing(userId: number, input: DiarySharingInput) {

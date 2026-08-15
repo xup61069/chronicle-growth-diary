@@ -1,0 +1,1 @@
+ALTER TABLE `growth_diaries` ADD `aiEnabled` boolean DEFAULT true NOT NULL;

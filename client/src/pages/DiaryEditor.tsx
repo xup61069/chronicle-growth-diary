@@ -118,6 +118,8 @@ function DiaryEditorContent() {
   const phaseBoundariesMutation = trpc.diary.updatePhaseBoundaries.useMutation();
   const reflectionMutation = trpc.diary.generatePhaseReflection.useMutation();
   const reflectionSaveMutation = trpc.diary.updatePhaseReflection.useMutation();
+  const aiPreferenceMutation = trpc.diary.updateAiPreference.useMutation();
+  const deleteReflectionMutation = trpc.diary.deletePhaseReflection.useMutation();
   const importMutation = trpc.diary.importEvents.useMutation();
 
   type DiaryEvent = NonNullable<typeof data>["events"][number];
@@ -402,6 +404,29 @@ function DiaryEditorContent() {
     }
   };
 
+  const updateAiPreference = async (aiEnabled: boolean) => {
+    if (!aiEnabled && !window.confirm("關閉 AI 後，系統不會再將事件內容送去生成新的回顧；已保存的回顧仍可手動刪除。要繼續嗎？")) return;
+    try {
+      await aiPreferenceMutation.mutateAsync({ aiEnabled });
+      await utils.diary.get.invalidate();
+      toast.success(aiEnabled ? "AI 回顧已啟用。生成時只會使用你選定階段的事件。" : "AI 回顧已關閉。原始日記與既有文字不會被更動。" );
+    } catch (preferenceError) {
+      toast.error(preferenceError instanceof Error ? preferenceError.message : "無法更新 AI 偏好。 ");
+    }
+  };
+
+  const removePhaseReflection = async (phaseKey: PhaseKey) => {
+    if (!window.confirm("確定要刪除這個階段的已保存回顧嗎？原始日記事件不會受到影響。")) return;
+    try {
+      await deleteReflectionMutation.mutateAsync({ phaseKey });
+      await utils.diary.get.invalidate();
+      setEditingReflectionKey(null);
+      toast.success("這段已保存的回顧已刪除。原始事件維持不變。" );
+    } catch (reflectionError) {
+      toast.error(reflectionError instanceof Error ? reflectionError.message : "無法刪除這段回顧。 ");
+    }
+  };
+
   const beginReflectionEdit = (phaseKey: PhaseKey) => {
     const existing = reflectionsByPhase.get(phaseKey);
     if (!existing) return;
@@ -516,11 +541,12 @@ function DiaryEditorContent() {
                   <p><BrainCircuit size={14} /> {reflection.model === "manual-edit" ? "已保留的手動回顧" : "AI 成長回顧"}</p>
                   {editingReflectionKey === phaseKey ? <div className="reflection-editor"><label>成長回顧<textarea value={reflectionDraft.recap} onChange={(event) => setReflectionDraft((draft) => ({ ...draft, recap: event.target.value }))} rows={4} maxLength={3000} /></label><label>我的反思<textarea value={reflectionDraft.reflection} onChange={(event) => setReflectionDraft((draft) => ({ ...draft, reflection: event.target.value }))} rows={3} maxLength={3000} /></label><div><button type="button" onClick={() => saveReflectionEdit(phaseKey)} disabled={reflectionSaveMutation.isPending}>{reflectionSaveMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} 保存我的調整</button><button type="button" className="reflection-cancel" onClick={() => setEditingReflectionKey(null)}>取消</button></div></div> : <><strong>{reflection.recap}</strong><em>{reflection.reflection}</em></>}
                 </> : <p><BrainCircuit size={14} /> 尚未生成這個階段的成長回顧。</p>}
-                <div className="reflection-actions"><button type="button" onClick={() => generateReflection(phaseKey)} disabled={reflectionMutation.isPending}>{reflectionMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <WandSparkles size={14} />}{reflection ? "重新生成回顧" : "生成成長回顧"}</button>{reflection && editingReflectionKey !== phaseKey ? <button type="button" className="reflection-edit" onClick={() => beginReflectionEdit(phaseKey)}><FilePenLine size={14} /> 手動調整</button> : null}</div>
+                <div className="reflection-actions">{data?.diary.aiEnabled ? <button type="button" onClick={() => generateReflection(phaseKey)} disabled={reflectionMutation.isPending}>{reflectionMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <WandSparkles size={14} />}{reflection ? "重新生成回顧" : "生成成長回顧"}</button> : <span className="ai-disabled-note"><LockKeyhole size={13} /> AI 已關閉</span>}{reflection && editingReflectionKey !== phaseKey ? <button type="button" className="reflection-edit" onClick={() => beginReflectionEdit(phaseKey)}><FilePenLine size={14} /> 手動調整</button> : null}{reflection ? <button type="button" className="reflection-delete" onClick={() => removePhaseReflection(phaseKey)} disabled={deleteReflectionMutation.isPending}><Trash2 size={14} /> 刪除回顧</button> : null}</div>
               </div>
             </article>;
           }) : <div className="phase-empty"><BookOpenCheck size={21} /><p>當你寫下更多記憶，童年、求學與職涯會在這裡逐步浮現。</p></div>}
         </div>
+        <div className="ai-privacy-control"><div><p><BrainCircuit size={15} /> AI 回顧資料控制</p><span>{data?.diary.aiEnabled ? "啟用時，生成只會使用你選定階段的事件；你可隨時關閉或刪除已保存文字。" : "AI 已關閉。系統不會針對任何事件發出新的 AI 生成請求。"}</span></div><button type="button" onClick={() => updateAiPreference(!data?.diary.aiEnabled)} disabled={aiPreferenceMutation.isPending}>{aiPreferenceMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : data?.diary.aiEnabled ? <LockKeyhole size={14} /> : <WandSparkles size={14} />}{data?.diary.aiEnabled ? "關閉 AI 回顧" : "啟用 AI 回顧"}</button></div>
         {data?.lifePhases.length ? <div className="phase-boundary-actions"><span>拖曳完成後，儲存就會重新分配事件所屬的階段。</span><button type="button" onClick={savePhaseBoundaries} disabled={phaseBoundariesMutation.isPending}>{phaseBoundariesMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <GripVertical size={14} />} 儲存階段邊界</button></div> : null}
         <div className="export-event-records">
           {events.map((event) => <article key={event.id}><span style={{ backgroundColor: event.color }} /><div className="export-record-content">{event.media[0] ? <img src={event.media[0].url} alt={event.media[0].caption ?? event.title} /> : null}<div className="export-record-copy"><b>{formatDate(event.occurredAt, event.datePrecision)} · {event.ageLabel ?? "成長記事"}</b><h3>{event.title}</h3><p>{event.body}</p>{event.place ? <small><MapPin size={12} /> {event.place}</small> : null}<div>{event.tags.map((tag) => <em key={tag.id}>{tag.name}</em>)}</div></div></div></article>)}
