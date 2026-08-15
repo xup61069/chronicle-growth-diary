@@ -5,6 +5,7 @@ import {
   deleteDiaryEventMedia,
   generatePhaseReflection,
   getDiarySnapshot,
+  importDiaryEvents,
   getSharedDiary,
   reorderDiaryEventMedia,
   reorderDiaryEvents,
@@ -37,6 +38,7 @@ const year = z.number().int().min(1900).max(2200).nullable().optional();
 export const diaryRouter = router({
   get: protectedProcedure.query(({ ctx }) => getDiarySnapshot(ctx.user.id)),
   createEvent: protectedProcedure.input(diaryEventInput).mutation(({ ctx, input }) => createDiaryEvent(ctx.user.id, input)),
+  importEvents: protectedProcedure.input(z.object({ events: z.array(diaryEventInput).min(1).max(250) })).mutation(({ ctx, input }) => importDiaryEvents(ctx.user.id, input.events)),
   updateEvent: protectedProcedure.input(diaryEventInput.extend({ id: z.number().int().positive() })).mutation(({ ctx, input }) => {
     const { id, ...event } = input;
     return updateDiaryEvent(ctx.user.id, id, event);

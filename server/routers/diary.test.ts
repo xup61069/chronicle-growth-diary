@@ -39,4 +39,10 @@ describe("diary router validation", () => {
     const caller = appRouter.createCaller({ ...authenticatedContext, user: null });
     await expect(caller.share.get({ slug: "not-a-chronicle-story" })).rejects.toThrow();
   });
+
+  it("rejects an over-sized batch import before calling persistence", async () => {
+    const caller = appRouter.createCaller(authenticatedContext);
+    const event = { occurredAt: Date.now(), datePrecision: "day" as const, eventType: "memory" as const, title: "匯入事件", body: "內容", color: "#EE623B", tagNames: [] };
+    await expect(caller.diary.importEvents({ events: Array.from({ length: 251 }, () => event) })).rejects.toThrow();
+  });
 });

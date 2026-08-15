@@ -10,6 +10,7 @@ import { diaryColors, eventTypes, formatDate, formatInputDate, makeEmptyForm, re
 import { filterDiaryEvents, type DiarySortOrder } from "@/lib/diaryFilters";
 import { exportDiaryAsLongImage, exportDiaryAsPdf } from "@/lib/diaryExport";
 import { createPortableDiaryExport, downloadPortableDiary } from "@/lib/diaryPortable";
+import { parseChronicleImport, type ChronicleImportPreview } from "@/lib/diaryImport";
 import { trpc } from "@/lib/trpc";
 import {
   Archive,
@@ -90,7 +91,9 @@ function DiaryEditorContent() {
   const [editingReflectionKey, setEditingReflectionKey] = useState<PhaseKey | null>(null);
   const [reflectionDraft, setReflectionDraft] = useState({ recap: "", reflection: "" });
   const [mobileWorkspacePanel, setMobileWorkspacePanel] = useState<MobileWorkspacePanel>("compose");
+  const [importPreview, setImportPreview] = useState<ChronicleImportPreview | null>(null);
   const exportRef = useRef<HTMLElement>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!isLoading) {
@@ -115,6 +118,7 @@ function DiaryEditorContent() {
   const phaseBoundariesMutation = trpc.diary.updatePhaseBoundaries.useMutation();
   const reflectionMutation = trpc.diary.generatePhaseReflection.useMutation();
   const reflectionSaveMutation = trpc.diary.updatePhaseReflection.useMutation();
+  const importMutation = trpc.diary.importEvents.useMutation();
 
   type DiaryEvent = NonNullable<typeof data>["events"][number];
   const events: DiaryEvent[] = data?.events ?? [];
@@ -451,6 +455,33 @@ function DiaryEditorContent() {
     }
   };
 
+  const selectImportFile = () => importInputRef.current?.click();
+
+  const handleImportFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) return toast.error("匯入檔案不可超過 2MB；媒體請在匯入後自行重新上傳。 ");
+    try {
+      setImportPreview(parseChronicleImport(await file.text()));
+    } catch (importError) {
+      toast.error(importError instanceof Error ? importError.message : "無法讀取這份備份檔。 ");
+    }
+  };
+
+  const confirmImport = async () => {
+    if (!importPreview) return;
+    try {
+      const result = await importMutation.mutateAsync({ events: importPreview.events });
+      await utils.diary.get.invalidate();
+      setImportPreview(null);
+      startNewEvent();
+      toast.success(`已建立 ${result.importedCount} 段私人記事。媒體請自行重新上傳。`);
+    } catch (importError) {
+      toast.error(importError instanceof Error ? importError.message : "匯入未完成，沒有保留這批內容。 ");
+    }
+  };
+
   if (isLoading && !loadTimedOut) return <DiaryLoadState status="loading" />;
 
   if (error || loadTimedOut) {
@@ -464,7 +495,7 @@ function DiaryEditorContent() {
       <section className="life-phase-overview" ref={exportRef} aria-labelledby="life-phase-title">
         <div className="phase-heading">
           <div><p className="editor-kicker"><span /> LIFE CHAPTERS / EDITABLE</p><h2 id="life-phase-title">人生階段總覽</h2><p>系統會先依事件時間與錨點編排階段；你也可以拖曳每個階段的起訖時間，讓分段更貼近自己的敘事。</p></div>
-          <div className="export-actions"><span>完整成長史備份</span><button onClick={() => exportArchive("pdf")}><FileDown size={15} /> 匯出 PDF</button><button onClick={() => exportArchive("image")}><ImageDown size={15} /> 匯出長圖片</button><button onClick={() => exportArchive("json")}><FileJson size={15} /> 匯出 JSON</button><button onClick={() => exportArchive("markdown")}><FilePenLine size={15} /> 匯出 Markdown</button></div>
+          <div className="export-actions"><span>完整成長史備份</span><input ref={importInputRef} type="file" accept="application/json,.json" onChange={handleImportFile} hidden /><button onClick={() => exportArchive("pdf")}><FileDown size={15} /> 匯出 PDF</button><button onClick={() => exportArchive("image")}><ImageDown size={15} /> 匯出長圖片</button><button onClick={() => exportArchive("json")}><FileJson size={15} /> 匯出 JSON</button><button onClick={() => exportArchive("markdown")}><FilePenLine size={15} /> 匯出 Markdown</button><button onClick={selectImportFile}><Archive size={15} /> 匯入 JSON</button></div>
         </div>
         <div className="phase-grid">
           {data?.lifePhases.length ? data.lifePhases.map((phase) => {
@@ -495,6 +526,13 @@ function DiaryEditorContent() {
           {events.map((event) => <article key={event.id}><span style={{ backgroundColor: event.color }} /><div className="export-record-content">{event.media[0] ? <img src={event.media[0].url} alt={event.media[0].caption ?? event.title} /> : null}<div className="export-record-copy"><b>{formatDate(event.occurredAt, event.datePrecision)} · {event.ageLabel ?? "成長記事"}</b><h3>{event.title}</h3><p>{event.body}</p>{event.place ? <small><MapPin size={12} /> {event.place}</small> : null}<div>{event.tags.map((tag) => <em key={tag.id}>{tag.name}</em>)}</div></div></div></article>)}
         </div>
       </section>
+
+      {importPreview ? <section className="import-studio" aria-labelledby="import-title">
+        <div><p className="editor-kicker"><span /> REVIEW BEFORE IMPORT</p><h2 id="import-title">確認要帶進來的舊日記</h2><p>來源為「{importPreview.title}」，共 {importPreview.events.length} 段事件。這次匯入一律建立為私人記事，不會帶入媒體、分享設定、帳號資料或任何私密憑證。</p></div>
+        <div className="import-preview-list">{importPreview.events.slice(0, 5).map((event) => <article key={`${event.occurredAt}-${event.title}`}><span>{formatDate(event.occurredAt, event.datePrecision)}</span><b>{event.title}</b><small>{event.tagNames.length ? event.tagNames.map((tag) => `#${tag}`).join(" ") : "未標記"}</small></article>)}{importPreview.events.length > 5 ? <p>另有 {importPreview.events.length - 5} 段事件將一併建立。</p> : null}</div>
+        <div className="import-warning"><Archive size={15} /> {importPreview.warnings[0]}</div>
+        <div className="import-actions"><button type="button" onClick={() => setImportPreview(null)} disabled={importMutation.isPending}>取消</button><button type="button" onClick={confirmImport} disabled={importMutation.isPending}>{importMutation.isPending ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />} 確認建立 {importPreview.events.length} 段事件</button></div>
+      </section> : null}
 
       <section className="annual-review-studio" aria-labelledby="annual-review-title">
         <div className="annual-review-heading"><p className="editor-kicker"><span /> YEAR IN REVIEW</p><h2 id="annual-review-title">把一年，整理成下一段故事的起點。</h2><p>從已經寫下的事件建立年度回顧。模板只重組你的日記內容，不會虛構新的經歷。</p></div>

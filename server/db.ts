@@ -242,6 +242,20 @@ export async function createDiaryEvent(userId: number, input: DiaryEventInput) {
   return { id: created[0].id };
 }
 
+export async function importDiaryEvents(userId: number, inputs: DiaryEventInput[]) {
+  const createdIds: number[] = [];
+  try {
+    for (const input of inputs) {
+      const created = await createDiaryEvent(userId, { ...input, tagNames: input.tagNames.slice(0, 8) });
+      createdIds.push(created.id);
+    }
+    return { importedCount: createdIds.length, eventIds: createdIds };
+  } catch (error) {
+    await Promise.all(createdIds.map((eventId) => deleteDiaryEvent(userId, eventId)));
+    throw new Error("匯入未完成，這次建立的事件已清除，請檢查備份檔後再試。", { cause: error });
+  }
+}
+
 export async function updateDiaryEvent(userId: number, eventId: number, input: DiaryEventInput) {
   const db = await requireDb();
   await assertEventOwnership(eventId, userId);
