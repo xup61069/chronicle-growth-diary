@@ -1,6 +1,7 @@
 /** Design reminder — a generous public reading surface that reveals only explicitly shared memories. */
 import { trpc } from "@/lib/trpc";
 import { Archive, CalendarDays, LockKeyhole, MapPin, Share2 } from "lucide-react";
+import { FormEvent, useState } from "react";
 import { useRoute } from "wouter";
 
 function formatDate(timestamp: number, precision: "day" | "month" | "year") {
@@ -14,12 +15,27 @@ export default function SharedStory() {
   const [, params] = useRoute("/story/:slug");
   const token = new URLSearchParams(window.location.search).get("token") ?? undefined;
   const slug = params?.slug ?? "";
-  const { data, isLoading } = trpc.share.get.useQuery({ slug, token }, { enabled: Boolean(slug) });
+  const [password, setPassword] = useState("");
+  const [submittedPassword, setSubmittedPassword] = useState<string | undefined>();
+  const { data, isLoading } = trpc.share.get.useQuery({ slug, token, password: submittedPassword }, { enabled: Boolean(slug) });
+
+  const submitPassword = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setSubmittedPassword(password);
+  };
 
   if (isLoading) return <main className="shared-loading"><Archive size={25} /> 正在開啟這段成長故事…</main>;
 
-  if (!data) {
+  if (!data || data.status === "not_found" || data.status === "locked") {
     return <main className="shared-lock"><LockKeyhole size={26} /><h1>這段故事目前無法閱覽</h1><p>它可能仍是私人檔案，或分享連結已經更新。</p></main>;
+  }
+
+  if (data.status === "expired") {
+    return <main className="shared-lock"><CalendarDays size={26} /><h1>這條分享連結已到期</h1><p>請向故事擁有者索取新的分享連結。</p></main>;
+  }
+
+  if (data.status === "password_required" || data.status === "password_invalid") {
+    return <main className="shared-lock shared-password"><LockKeyhole size={26} /><h1>這段故事需要密碼</h1><p>{data.status === "password_invalid" ? "密碼不正確，請再試一次。" : "請輸入故事擁有者提供的密碼後繼續閱讀。"}</p><form onSubmit={submitPassword}><input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="輸入分享密碼" autoFocus /><button type="submit">開啟故事</button></form></main>;
   }
 
   return (

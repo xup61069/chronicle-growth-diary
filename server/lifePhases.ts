@@ -8,6 +8,10 @@ export type LifePhaseAnchors = {
   birthYear?: number | null;
   educationStartYear?: number | null;
   careerStartYear?: number | null;
+  childhoodStartYear?: number | null;
+  childhoodEndYear?: number | null;
+  educationEndYear?: number | null;
+  careerEndYear?: number | null;
 };
 
 export const LIFE_PHASES = [
@@ -35,6 +39,9 @@ export function inferLifePhaseKey(event: LifePhaseInput, anchors: LifePhaseAncho
     if (age < 23) return "education";
     return "career";
   }
+  if (anchors.childhoodEndYear && year <= anchors.childhoodEndYear) return "childhood";
+  if (anchors.educationEndYear && year <= anchors.educationEndYear && (!schoolYear || year >= schoolYear)) return "education";
+  if (anchors.careerStartYear && year >= anchors.careerStartYear) return "career";
   if (careerYear !== undefined && year >= careerYear) return "career";
   if (schoolYear !== undefined && year >= schoolYear) return "education";
   if (event.eventType === "learning") return "education";
@@ -49,6 +56,8 @@ export function deriveLifePhases<T extends LifePhaseInput>(events: T[], anchors:
       ...phase,
       count: phaseEvents.length,
       yearRange: years.length ? `${Math.min(...years)} — ${Math.max(...years)}` : undefined,
+      startYear: phase.key === "childhood" ? anchors.childhoodStartYear ?? anchors.birthYear ?? (years.length ? Math.min(...years) : undefined) : phase.key === "education" ? anchors.educationStartYear ?? (years.length ? Math.min(...years) : undefined) : anchors.careerStartYear ?? (years.length ? Math.min(...years) : undefined),
+      endYear: phase.key === "childhood" ? anchors.childhoodEndYear ?? (years.length ? Math.max(...years) : undefined) : phase.key === "education" ? anchors.educationEndYear ?? (years.length ? Math.max(...years) : undefined) : anchors.careerEndYear ?? (years.length ? Math.max(...years) : undefined),
       events: phaseEvents,
     };
   }).filter((phase) => phase.count > 0);

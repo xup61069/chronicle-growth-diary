@@ -35,9 +35,17 @@ export const growthDiaries = mysqlTable(
     birthYear: int("birthYear"),
     educationStartYear: int("educationStartYear"),
     careerStartYear: int("careerStartYear"),
+    childhoodStartYear: int("childhoodStartYear"),
+    childhoodEndYear: int("childhoodEndYear"),
+    educationEndYear: int("educationEndYear"),
+    careerEndYear: int("careerEndYear"),
     shareMode: mysqlEnum("shareMode", ["private", "public", "link"]).notNull().default("private"),
     shareSlug: varchar("shareSlug", { length: 96 }).unique(),
     shareTokenHash: varchar("shareTokenHash", { length: 128 }),
+    sharePasswordHash: varchar("sharePasswordHash", { length: 256 }),
+    shareExpiresAt: bigint("shareExpiresAt", { mode: "number" }),
+    shareAccessCount: int("shareAccessCount").notNull().default(0),
+    lastSharedAt: timestamp("lastSharedAt"),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },
@@ -109,9 +117,38 @@ export const growthEventMedia = mysqlTable(
   (table) => [index("growth_event_media_event_idx").on(table.eventId)],
 );
 
+/** A user-approved AI recap attached to a single stage of the personal story. */
+export const growthPhaseReflections = mysqlTable(
+  "growth_phase_reflections",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    diaryId: int("diaryId").notNull().references(() => growthDiaries.id, { onDelete: "cascade" }),
+    phaseKey: varchar("phaseKey", { length: 32 }).notNull(),
+    recap: text("recap").notNull(),
+    reflection: text("reflection").notNull(),
+    model: varchar("model", { length: 80 }).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => [uniqueIndex("growth_phase_reflection_unique").on(table.diaryId, table.phaseKey)],
+);
+
+/** Minimal, privacy-respecting access log for the owner’s share analytics. */
+export const growthShareAccessLogs = mysqlTable(
+  "growth_share_access_logs",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    diaryId: int("diaryId").notNull().references(() => growthDiaries.id, { onDelete: "cascade" }),
+    channel: mysqlEnum("channel", ["public", "link"]).notNull(),
+    accessedAt: timestamp("accessedAt").defaultNow().notNull(),
+  },
+  (table) => [index("growth_share_access_diary_idx").on(table.diaryId, table.accessedAt)],
+);
+
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 export type GrowthDiary = typeof growthDiaries.$inferSelect;
 export type GrowthEvent = typeof growthEvents.$inferSelect;
 export type GrowthTag = typeof growthTags.$inferSelect;
 export type GrowthEventMedia = typeof growthEventMedia.$inferSelect;
+export type GrowthPhaseReflection = typeof growthPhaseReflections.$inferSelect;

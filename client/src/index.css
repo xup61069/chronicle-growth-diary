@@ -314,6 +314,21 @@ a { color: inherit; text-decoration: none; }
 .phase-anchor-fields label { color: #c9d3d7; font-size: 10px; }
 .phase-anchor-fields input { box-sizing: border-box; width: 100%; margin-top: 6px; border: 1px solid rgba(255,255,255,.35); outline: 0; color: #fff; background: rgba(255,255,255,.08); padding: 9px; font-size: 12px; }
 .phase-anchor-fields input:focus { border-color: var(--cinnabar); }
+/* Advanced diary studio — editable boundaries, retained reflections, and privacy-aware sharing. */
+.sharing-security-fields { margin-top: 15px; padding: 13px; border: 1px solid rgba(255,255,255,.28); background: rgba(255,255,255,.055); }
+.sharing-security-fields > p { display: flex; align-items: center; gap: 6px; margin: 0 0 11px; color: #fff; font: 500 10px "IBM Plex Mono", monospace; letter-spacing: .05em; }
+.sharing-security-fields > p svg { color: var(--cinnabar); }
+.sharing-security-fields > label:not(.share-checkbox) { display: block; margin-top: 10px; color: #c9d3d7; font-size: 10px; }
+.sharing-security-fields input[type="password"], .sharing-security-fields input[type="date"] { box-sizing: border-box; width: 100%; margin-top: 6px; border: 1px solid rgba(255,255,255,.35); outline: 0; color: #fff; background: rgba(255,255,255,.08); padding: 9px; font-size: 12px; }
+.sharing-security-fields input:focus { border-color: var(--cinnabar); }
+.share-checkbox { display: flex; align-items: center; gap: 6px; margin-top: 9px; color: #c9d3d7; font-size: 10px; }
+.share-checkbox input { accent-color: var(--cinnabar); }
+.share-access-summary { display: flex; gap: 18px; margin-top: 15px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,.18); }
+.share-access-summary span { min-width: 86px; }
+.share-access-summary b, .share-access-summary small { display: block; }
+.share-access-summary b { color: #fff; font: 400 22px "DM Serif Display", serif; }
+.share-access-summary small, .share-log-note { color: #c9d3d7; font-size: 9px; line-height: 1.7; }
+.share-log-note { margin: 11px 0 0; }
 .sharing-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 16px; }
 .sharing-actions .save-sharing { color: #fff; border-color: var(--cinnabar); background: var(--cinnabar); }
 .sharing-actions .save-sharing:hover { background: #fff; color: var(--ink); border-color: #fff; }
@@ -336,8 +351,11 @@ a { color: inherit; text-decoration: none; }
 .index-sort { grid-column: 1 / -1; display: flex; align-items: center; justify-content: center; gap: 5px; color: var(--ink-soft); background: transparent; border: 1px solid rgba(20,38,58,.24); padding: 7px; font-size: 10px; }
 .index-sort:hover { color: var(--cinnabar); border-color: var(--cinnabar); }
 .event-list { display: flex; flex-direction: column; }
-.event-index-card { min-height: 72px; display: grid; grid-template-columns: 7px 32px 1fr 14px; gap: 8px; align-items: center; text-align: left; color: var(--ink); border: 0; background: transparent; padding: 10px 0; border-bottom: 1px solid rgba(20,38,58,.17); transition: padding .18s ease-out, color .18s ease-out; }
+.event-index-card { min-height: 72px; display: grid; grid-template-columns: 14px 7px 32px 1fr 14px; gap: 8px; align-items: center; text-align: left; color: var(--ink); border: 0; background: transparent; padding: 10px 0; border-bottom: 1px solid rgba(20,38,58,.17); transition: padding .18s ease-out, color .18s ease-out; }
 .event-index-card:hover, .event-index-card.is-selected { padding-left: 7px; color: var(--cinnabar); }
+.event-index-card[draggable="true"] { cursor: grab; }
+.event-index-card[draggable="true"]:active { cursor: grabbing; }
+.event-drag-handle { color: #a4a39d; }
 .index-line { width: 3px; height: 38px; display: block; }
 .index-date { color: var(--ink-soft); font: 500 10px "IBM Plex Mono", monospace; }
 .index-title { font-size: 12px; line-height: 1.45; }
@@ -457,6 +475,34 @@ a { color: inherit; text-decoration: none; }
 .shared-lock svg { color: var(--cinnabar); }
 .shared-lock h1 { margin: 0; color: var(--ink); font: 400 37px "DM Serif Display", serif; }
 .shared-lock p { margin: 0; font-size: 13px; }
+.shared-password form { display: flex; width: min(310px, calc(100% - 42px)); margin-top: 12px; }
+.shared-password input { min-width: 0; flex: 1; border: 1px solid rgba(20,38,58,.36); outline: 0; background: #fffdf8; color: var(--ink); padding: 11px; font-size: 12px; }
+.shared-password button { color: #fff; border: 1px solid var(--ink); background: var(--ink); padding: 0 14px; font-size: 11px; }
+.shared-password button:hover { border-color: var(--cinnabar); background: var(--cinnabar); }
+
+.phase-boundary-editor { margin-top: 17px; padding-top: 12px; border-top: 1px dashed rgba(20,38,58,.34); }
+.phase-boundary-editor > p { display: flex; align-items: center; gap: 5px; margin: 0 0 9px; color: var(--ink-soft); font: 500 9px "IBM Plex Mono", monospace; }
+.phase-boundary-editor label { display: grid; grid-template-columns: 29px 1fr 30px; gap: 6px; align-items: center; margin-top: 7px; color: var(--ink-soft); font-size: 9px; }
+.phase-boundary-editor strong { grid-column: 3; font: 500 9px "IBM Plex Mono", monospace; text-align: right; }
+.phase-boundary-editor input { grid-column: 2 / -1; grid-row: 2; width: 100%; accent-color: var(--cinnabar); }
+.phase-reflection { margin-top: 15px; padding: 12px; background: rgba(255,253,248,.7); border: 1px solid rgba(20,38,58,.18); }
+.phase-reflection > p { display: flex; align-items: center; gap: 5px; margin: 0; color: var(--ink-soft); font: 500 9px "IBM Plex Mono", monospace; }
+.phase-reflection > p svg { color: var(--cinnabar); }
+.phase-reflection > strong, .phase-reflection > em { display: block; margin-top: 9px; font-size: 11px; line-height: 1.7; font-style: normal; }
+.phase-reflection > strong { color: var(--ink); font-weight: 500; }
+.phase-reflection > em { color: var(--ink-soft); }
+.phase-reflection button, .phase-boundary-actions button { display: inline-flex; align-items: center; gap: 5px; margin-top: 11px; color: #fff; border: 1px solid var(--ink); background: var(--ink); padding: 7px 9px; font-size: 10px; }
+.phase-reflection button:hover:not(:disabled), .phase-boundary-actions button:hover:not(:disabled) { background: var(--cinnabar); border-color: var(--cinnabar); }
+.reflection-editor { margin-top: 10px; }
+.reflection-editor label { display: block; margin-top: 9px; color: var(--ink-soft); font: 500 9px "IBM Plex Mono", monospace; }
+.reflection-editor textarea { box-sizing: border-box; width: 100%; margin-top: 5px; resize: vertical; outline: 0; border: 1px solid rgba(20,38,58,.3); background: #fffdf8; color: var(--ink); padding: 8px; font: 11px/1.7 "Noto Sans TC", sans-serif; }
+.reflection-editor textarea:focus { border-color: var(--cinnabar); }
+.reflection-editor > div, .reflection-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+.reflection-cancel, .reflection-edit { color: var(--ink) !important; background: transparent !important; border-color: rgba(20,38,58,.45) !important; }
+.reflection-cancel:hover, .reflection-edit:hover { color: var(--cinnabar) !important; border-color: var(--cinnabar) !important; }
+.phase-boundary-actions { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 18px; padding-top: 14px; border-top: 1px solid rgba(20,38,58,.24); }
+.phase-boundary-actions span { max-width: 440px; color: var(--ink-soft); font-size: 10px; line-height: 1.7; }
+.phase-boundary-actions button { flex: none; margin-top: 0; }
 
 @media (prefers-reduced-motion: no-preference) {
   .hero-copy, .hero-side-note { animation: reveal-up .7s cubic-bezier(.23,1,.32,1) both; }
@@ -521,6 +567,7 @@ a { color: inherit; text-decoration: none; }
   .export-actions { justify-content: flex-start; max-width: none; }
   .export-actions > span { text-align: left; }
   .sharing-studio { gap: 25px; padding: 24px; }
+  .phase-boundary-actions { align-items: flex-start; flex-direction: column; }
   .event-index { border-right: 0; border-bottom: 1px solid rgba(20,38,58,.24); }
   .event-list { max-height: 270px; overflow: auto; }
   .timeline-preview { border-left: 0; border-top: 1px solid rgba(20,38,58,.24); }
@@ -551,6 +598,10 @@ a { color: inherit; text-decoration: none; }
   .phase-anchor-fields { grid-template-columns: 1fr; }
   .share-mode-options { grid-template-columns: 1fr; }
   .share-mode-options button { min-height: 60px; }
+  .share-access-summary { gap: 12px; }
+  .phase-boundary-actions button { width: 100%; justify-content: center; }
+  .shared-password form { flex-direction: column; gap: 8px; }
+  .shared-password button { padding: 11px; }
   .shared-story { padding: 0 20px 55px; }
   .shared-hero { padding-bottom: 40px; }
   .shared-hero > p { margin-top: 42px; }

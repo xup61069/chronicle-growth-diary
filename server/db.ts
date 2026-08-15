@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { randomBytes } from "node:crypto";
 import {
@@ -6,14 +6,17 @@ import {
   growthEventMedia,
   growthEvents,
   growthEventTags,
+  growthPhaseReflections,
+  growthShareAccessLogs,
   growthTags,
   InsertUser,
   users,
 } from "../drizzle/schema";
 import { normalizeTagNames, safeMediaName } from "./diaryHelpers";
 import { deriveLifePhases } from "./lifePhases";
-import { hasShareAccess, hashShareToken } from "./shareAccess";
+import { hasShareAccess, hashSharePassword, hashShareToken, isShareExpired, verifySharePassword } from "./shareAccess";
 import { ENV } from "./_core/env";
+import { invokeLLM } from "./_core/llm";
 import { storagePut } from "./storage";
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -35,8 +38,17 @@ export type DiarySharingInput = {
   birthYear?: number | null;
   educationStartYear?: number | null;
   careerStartYear?: number | null;
+  childhoodStartYear?: number | null;
+  childhoodEndYear?: number | null;
+  educationEndYear?: number | null;
+  careerEndYear?: number | null;
+  sharePassword?: string | null;
+  clearSharePassword?: boolean;
+  shareExpiresAt?: number | null;
   regenerateLink?: boolean;
 };
+
+export type DiaryPhaseBoundariesInput = Pick<DiarySharingInput, "childhoodStartYear" | "childhoodEndYear" | "educationStartYear" | "educationEndYear" | "careerStartYear" | "careerEndYear">;
 
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
@@ -134,7 +146,7 @@ async function getEnrichedDiaryEvents(diaryId: number, isPublicOnly = false) {
   const where = isPublicOnly
     ? and(eq(growthEvents.diaryId, diaryId), eq(growthEvents.isPublic, true))
     : eq(growthEvents.diaryId, diaryId);
-  const events = await db.select().from(growthEvents).where(where).orderBy(asc(growthEvents.occurredAt), asc(growthEvents.id));
+  const events = await db.select().from(growthEvents).where(where).orderBy(asc(growthEvents.timelinePosition), asc(growthEvents.occurredAt), asc(growthEvents.id));
   const eventIds = events.map((event) => event.id);
   const taggedRows = eventIds.length
     ? await db.select({ eventId: growthEventTags.eventId, id: growthTags.id, name: growthTags.name, color: growthTags.color })
@@ -155,6 +167,10 @@ function makeLifePhaseSnapshot(diary: typeof growthDiaries.$inferSelect, events:
     birthYear: diary.birthYear,
     educationStartYear: diary.educationStartYear,
     careerStartYear: diary.careerStartYear,
+    childhoodStartYear: diary.childhoodStartYear,
+    childhoodEndYear: diary.childhoodEndYear,
+    educationEndYear: diary.educationEndYear,
+    careerEndYear: diary.careerEndYear,
   });
 }
 
@@ -163,6 +179,8 @@ export async function getDiarySnapshot(userId: number) {
   const diary = await getOrCreateDiary(userId);
   const tags = await db.select().from(growthTags).where(eq(growthTags.userId, userId)).orderBy(asc(growthTags.name));
   const events = await getEnrichedDiaryEvents(diary.id);
+  const reflections = await db.select().from(growthPhaseReflections).where(eq(growthPhaseReflections.diaryId, diary.id));
+  const accessLogs = await db.select().from(growthShareAccessLogs).where(eq(growthShareAccessLogs.diaryId, diary.id)).orderBy(desc(growthShareAccessLogs.accessedAt)).limit(6);
   return {
     diary,
     tags,
@@ -172,14 +190,21 @@ export async function getDiarySnapshot(userId: number) {
       mode: diary.shareMode,
       slug: diary.shareSlug,
       hasPrivateLink: Boolean(diary.shareTokenHash),
+      hasPassword: Boolean(diary.sharePasswordHash),
+      expiresAt: diary.shareExpiresAt,
+      accessCount: diary.shareAccessCount,
+      lastSharedAt: diary.lastSharedAt,
+      recentAccesses: accessLogs,
     },
+    reflections,
   };
 }
 
 export async function createDiaryEvent(userId: number, input: DiaryEventInput) {
   const db = await requireDb();
   const diary = await getOrCreateDiary(userId);
-  await db.insert(growthEvents).values({ diaryId: diary.id, occurredAt: input.occurredAt, datePrecision: input.datePrecision, eventType: input.eventType, title: input.title.trim(), body: input.body.trim(), ageLabel: input.ageLabel?.trim() || null, place: input.place?.trim() || null, color: input.color });
+  const existingEvents = await db.select({ id: growthEvents.id }).from(growthEvents).where(eq(growthEvents.diaryId, diary.id));
+  await db.insert(growthEvents).values({ diaryId: diary.id, occurredAt: input.occurredAt, datePrecision: input.datePrecision, eventType: input.eventType, title: input.title.trim(), body: input.body.trim(), ageLabel: input.ageLabel?.trim() || null, place: input.place?.trim() || null, color: input.color, timelinePosition: existingEvents.length });
   const created = await db.select().from(growthEvents).where(eq(growthEvents.diaryId, diary.id)).orderBy(desc(growthEvents.id)).limit(1);
   if (!created[0]) throw new Error("無法儲存這筆成長事件。");
   await saveEventTags(created[0].id, userId, input.tagNames);
@@ -210,6 +235,65 @@ export async function setDiaryEventVisibility(userId: number, eventId: number, i
   return { id: eventId, isPublic };
 }
 
+export async function reorderDiaryEvents(userId: number, eventIds: number[]) {
+  const db = await requireDb();
+  const diary = await getOrCreateDiary(userId);
+  const ownedEvents = await db.select({ id: growthEvents.id }).from(growthEvents).where(eq(growthEvents.diaryId, diary.id));
+  if (ownedEvents.length !== eventIds.length || new Set(eventIds).size !== eventIds.length || ownedEvents.some((event) => !eventIds.includes(event.id))) {
+    throw new Error("事件排序內容不完整，請重新整理後再試。");
+  }
+  for (let timelinePosition = 0; timelinePosition < eventIds.length; timelinePosition += 1) {
+    await db.update(growthEvents).set({ timelinePosition }).where(eq(growthEvents.id, eventIds[timelinePosition]!));
+  }
+  return { eventIds };
+}
+
+export async function updateDiaryPhaseBoundaries(userId: number, input: DiaryPhaseBoundariesInput) {
+  const db = await requireDb();
+  const diary = await getOrCreateDiary(userId);
+  await db.update(growthDiaries).set(input).where(eq(growthDiaries.id, diary.id));
+  return input;
+}
+
+export async function generatePhaseReflection(userId: number, phaseKey: "childhood" | "education" | "career") {
+  const db = await requireDb();
+  const diary = await getOrCreateDiary(userId);
+  const events = await getEnrichedDiaryEvents(diary.id);
+  const phase = makeLifePhaseSnapshot(diary, events).find((item) => item.key === phaseKey);
+  if (!phase?.events.length) throw new Error("這個人生階段還沒有足夠事件可供回顧。");
+  const source = phase.events.slice(0, 30).map((event, index) => [
+    `${index + 1}. ${new Date(event.occurredAt).getFullYear()}｜${event.title}`,
+    event.body.slice(0, 550),
+    event.tags.length ? `標籤：${event.tags.map((tag) => tag.name).join("、")}` : "",
+  ].filter(Boolean).join("\n")).join("\n\n");
+  const result = await invokeLLM({
+    model: "claude-haiku-4-5",
+    maxTokens: 1200,
+    messages: [
+      { role: "system", content: "你是溫和、精準的個人成長檔案編輯。只能依據提供的事件寫作，不要診斷、推測敏感背景或下結論。以繁體中文輸出具體、尊重使用者主體性的文字。" },
+      { role: "user", content: `請根據「${phase.label}」階段的事件，產生兩部分：一段 120–220 字的成長回顧，以及一段 80–160 字、以開放問題與覺察為主的反思。請嚴格依照以下格式輸出，除了兩個標記與內容外不要加入任何文字：\n===RECAP===\n回顧文字\n===REFLECTION===\n反思文字\n\n事件資料：\n${source}` },
+    ],
+  });
+  const content = result.choices[0]?.message.content;
+  const match = typeof content === "string" ? content.match(/===RECAP===\s*([\s\S]*?)\s*===REFLECTION===\s*([\s\S]*)/i) : null;
+  const labeledMatch = typeof content === "string" ? content.match(/(?:成長回顧|回顧)\s*[:：]\s*([\s\S]*?)(?:反思|自我反思)\s*[:：]\s*([\s\S]*)/i) : null;
+  const fallbackRecap = typeof content === "string" ? content.trim() : "";
+  const recap = match?.[1]?.trim() || labeledMatch?.[1]?.trim() || fallbackRecap;
+  const reflection = match?.[2]?.trim() || labeledMatch?.[2]?.trim() || (fallbackRecap ? "回看這段經驗時，哪些努力、選擇或感受最值得你繼續記下來？" : "");
+  if (!recap || !reflection) throw new Error("AI 回顧格式不完整，請稍後再試。");
+  await db.insert(growthPhaseReflections).values({ diaryId: diary.id, phaseKey, recap, reflection, model: result.model || "claude-haiku-4-5" }).onDuplicateKeyUpdate({ set: { recap, reflection, model: result.model || "claude-haiku-4-5" } });
+  return { phaseKey, recap, reflection, model: result.model || "claude-haiku-4-5" };
+}
+
+export async function updatePhaseReflection(userId: number, input: { phaseKey: "childhood" | "education" | "career"; recap: string; reflection: string }) {
+  const db = await requireDb();
+  const diary = await getOrCreateDiary(userId);
+  const existing = await db.select({ id: growthPhaseReflections.id }).from(growthPhaseReflections).where(and(eq(growthPhaseReflections.diaryId, diary.id), eq(growthPhaseReflections.phaseKey, input.phaseKey))).limit(1);
+  if (!existing[0]) throw new Error("請先生成一段 AI 回顧後再進行手動調整。");
+  await db.update(growthPhaseReflections).set({ recap: input.recap.trim(), reflection: input.reflection.trim(), model: "manual-edit" }).where(eq(growthPhaseReflections.id, existing[0].id));
+  return { phaseKey: input.phaseKey, recap: input.recap.trim(), reflection: input.reflection.trim(), model: "manual-edit" };
+}
+
 export async function updateDiarySharing(userId: number, input: DiarySharingInput) {
   const db = await requireDb();
   const diary = await getOrCreateDiary(userId);
@@ -222,25 +306,40 @@ export async function updateDiarySharing(userId: number, input: DiarySharingInpu
     shareTokenHash = hashShareToken(shareToken);
   }
   if (input.shareMode !== "link") shareTokenHash = null;
+  const sharePasswordHash = input.clearSharePassword ? null : input.sharePassword ? hashSharePassword(input.sharePassword) : diary.sharePasswordHash;
+  const shareExpiresAt = input.shareExpiresAt === undefined ? diary.shareExpiresAt : input.shareExpiresAt;
 
   await db.update(growthDiaries).set({
     shareMode: input.shareMode,
     shareSlug,
     shareTokenHash,
+    sharePasswordHash: input.shareMode === "private" ? null : sharePasswordHash,
+    shareExpiresAt: input.shareMode === "private" ? null : shareExpiresAt,
     birthYear: input.birthYear ?? null,
     educationStartYear: input.educationStartYear ?? null,
     careerStartYear: input.careerStartYear ?? null,
+    childhoodStartYear: input.childhoodStartYear ?? null,
+    childhoodEndYear: input.childhoodEndYear ?? null,
+    educationEndYear: input.educationEndYear ?? null,
+    careerEndYear: input.careerEndYear ?? null,
   }).where(eq(growthDiaries.id, diary.id));
-  return { mode: input.shareMode, slug: shareSlug, shareToken };
+  return { mode: input.shareMode, slug: shareSlug, shareToken, hasPassword: Boolean(input.shareMode !== "private" && sharePasswordHash), expiresAt: input.shareMode === "private" ? null : shareExpiresAt };
 }
 
-export async function getSharedDiary(slug: string, token?: string | null) {
+export async function getSharedDiary(slug: string, token?: string | null, password?: string | null) {
   const db = await requireDb();
   const matching = await db.select().from(growthDiaries).where(eq(growthDiaries.shareSlug, slug)).limit(1);
   const diary = matching[0];
-  if (!diary || !hasShareAccess({ mode: diary.shareMode, storedTokenHash: diary.shareTokenHash, providedToken: token })) return null;
+  if (!diary) return { status: "not_found" as const };
+  if (isShareExpired(diary.shareExpiresAt)) return { status: "expired" as const };
+  if (!hasShareAccess({ mode: diary.shareMode, storedTokenHash: diary.shareTokenHash, providedToken: token })) return { status: "locked" as const };
+  if (diary.sharePasswordHash && !password) return { status: "password_required" as const };
+  if (diary.sharePasswordHash && !verifySharePassword(password ?? "", diary.sharePasswordHash)) return { status: "password_invalid" as const };
   const events = await getEnrichedDiaryEvents(diary.id, true);
+  await db.update(growthDiaries).set({ shareAccessCount: sql`${growthDiaries.shareAccessCount} + 1`, lastSharedAt: new Date() }).where(eq(growthDiaries.id, diary.id));
+  await db.insert(growthShareAccessLogs).values({ diaryId: diary.id, channel: diary.shareMode === "link" ? "link" : "public" });
   return {
+    status: "ok" as const,
     diary: { title: diary.title, subtitle: diary.subtitle, shareMode: diary.shareMode },
     events,
     lifePhases: makeLifePhaseSnapshot(diary, events),

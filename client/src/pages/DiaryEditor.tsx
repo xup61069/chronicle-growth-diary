@@ -8,13 +8,16 @@ import { trpc } from "@/lib/trpc";
 import {
   Archive,
   ArrowDownUp,
+  BrainCircuit,
   BookOpenCheck,
   CalendarDays,
   Check,
   ChevronRight,
   Copy,
+  FilePenLine,
   FileDown,
   Globe2,
+  GripVertical,
   ImagePlus,
   ImageDown,
   Link2,
@@ -24,11 +27,13 @@ import {
   PencilLine,
   Plus,
   RefreshCw,
+  Save,
   Share2,
   ShieldCheck,
   Sparkles,
   Tag,
   Trash2,
+  WandSparkles,
   X,
 } from "lucide-react";
 import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
@@ -58,6 +63,8 @@ type EventForm = {
 };
 type PendingImage = { name: string; type: string; base64: string; preview: string };
 type ShareMode = "private" | "public" | "link";
+type PhaseKey = "childhood" | "education" | "career";
+type PhaseBoundaries = Record<PhaseKey, { start: string; end: string }>;
 
 const today = new Date().toISOString().slice(0, 10);
 
@@ -106,7 +113,7 @@ async function readImage(file: File): Promise<PendingImage> {
 
 function DiaryEditorContent() {
   const utils = trpc.useUtils();
-  const { data, isLoading, error } = trpc.diary.get.useQuery();
+  const { data, isLoading, error } = trpc.diary.get.useQuery(undefined, { retry: 1, staleTime: 0, refetchOnMount: "always" });
   const [form, setForm] = useState<EventForm>(makeEmptyForm);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [tagDraft, setTagDraft] = useState("");
@@ -114,12 +121,19 @@ function DiaryEditorContent() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [filterType, setFilterType] = useState<"all" | EventType>("all");
   const [filterTag, setFilterTag] = useState("all");
-  const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("oldest");
+  const [sortOrder, setSortOrder] = useState<"custom" | "newest" | "oldest">("custom");
   const [shareMode, setShareMode] = useState<ShareMode>("private");
   const [birthYear, setBirthYear] = useState("");
   const [educationStartYear, setEducationStartYear] = useState("");
   const [careerStartYear, setCareerStartYear] = useState("");
   const [privateToken, setPrivateToken] = useState<string | null>(null);
+  const [sharePassword, setSharePassword] = useState("");
+  const [clearSharePassword, setClearSharePassword] = useState(false);
+  const [shareExpiryDate, setShareExpiryDate] = useState("");
+  const [phaseBoundaries, setPhaseBoundaries] = useState<PhaseBoundaries>({ childhood: { start: "", end: "" }, education: { start: "", end: "" }, career: { start: "", end: "" } });
+  const [draggedEventId, setDraggedEventId] = useState<number | null>(null);
+  const [editingReflectionKey, setEditingReflectionKey] = useState<PhaseKey | null>(null);
+  const [reflectionDraft, setReflectionDraft] = useState({ recap: "", reflection: "" });
   const exportRef = useRef<HTMLElement>(null);
 
   const saveMutation = trpc.diary.createEvent.useMutation();
@@ -129,13 +143,20 @@ function DiaryEditorContent() {
   const deleteImageMutation = trpc.diary.deleteImage.useMutation();
   const visibilityMutation = trpc.diary.setEventVisibility.useMutation();
   const sharingMutation = trpc.diary.updateSharing.useMutation();
+  const reorderMutation = trpc.diary.reorderEvents.useMutation();
+  const phaseBoundariesMutation = trpc.diary.updatePhaseBoundaries.useMutation();
+  const reflectionMutation = trpc.diary.generatePhaseReflection.useMutation();
+  const reflectionSaveMutation = trpc.diary.updatePhaseReflection.useMutation();
 
   const events = data?.events ?? [];
   const visibleEvents = useMemo(
-    () => events
-      .filter((event) => filterType === "all" || event.eventType === filterType)
-      .filter((event) => filterTag === "all" || event.tags.some((tag) => tag.name === filterTag))
-      .sort((left, right) => sortOrder === "oldest" ? left.occurredAt - right.occurredAt : right.occurredAt - left.occurredAt),
+    () => {
+      const filtered = events
+        .filter((event) => filterType === "all" || event.eventType === filterType)
+        .filter((event) => filterTag === "all" || event.tags.some((tag) => tag.name === filterTag));
+      if (sortOrder === "custom") return filtered;
+      return [...filtered].sort((left, right) => sortOrder === "oldest" ? left.occurredAt - right.occurredAt : right.occurredAt - left.occurredAt);
+    },
     [events, filterTag, filterType, sortOrder],
   );
   const selectedEvent = events.find((event) => event.id === (selectedId ?? editingId)) ?? visibleEvents[0] ?? events[0];
@@ -146,6 +167,11 @@ function DiaryEditorContent() {
   const hasShareConfiguration = Boolean(data?.sharing.slug);
   const publicShareUrl = data?.sharing.slug ? `${window.location.origin}/story/${data.sharing.slug}` : "";
   const privateShareUrl = privateToken && data?.sharing.slug ? `${publicShareUrl}?token=${privateToken}` : "";
+  const timelineYearRange = useMemo(() => {
+    const years = events.map((event) => new Date(event.occurredAt).getFullYear());
+    return { min: Math.min(...years, 1900) - 2, max: Math.max(...years, new Date().getFullYear()) + 2 };
+  }, [events]);
+  const reflectionsByPhase = useMemo(() => new Map((data?.reflections ?? []).map((reflection) => [reflection.phaseKey, reflection])), [data?.reflections]);
 
   useEffect(() => {
     if (!data) return;
@@ -153,6 +179,13 @@ function DiaryEditorContent() {
     setBirthYear(data.diary.birthYear?.toString() ?? "");
     setEducationStartYear(data.diary.educationStartYear?.toString() ?? "");
     setCareerStartYear(data.diary.careerStartYear?.toString() ?? "");
+    setShareExpiryDate(data.sharing.expiresAt ? new Date(data.sharing.expiresAt).toISOString().slice(0, 10) : "");
+    setClearSharePassword(false);
+    setPhaseBoundaries({
+      childhood: { start: data.diary.childhoodStartYear?.toString() ?? data.diary.birthYear?.toString() ?? "", end: data.diary.childhoodEndYear?.toString() ?? "" },
+      education: { start: data.diary.educationStartYear?.toString() ?? "", end: data.diary.educationEndYear?.toString() ?? "" },
+      career: { start: data.diary.careerStartYear?.toString() ?? "", end: data.diary.careerEndYear?.toString() ?? "" },
+    });
   }, [data]);
 
   const addTag = (rawTag = tagDraft) => {
@@ -269,9 +302,18 @@ function DiaryEditorContent() {
         birthYear: birthYear ? Number(birthYear) : null,
         educationStartYear: educationStartYear ? Number(educationStartYear) : null,
         careerStartYear: careerStartYear ? Number(careerStartYear) : null,
+        childhoodStartYear: phaseBoundaries.childhood.start ? Number(phaseBoundaries.childhood.start) : null,
+        childhoodEndYear: phaseBoundaries.childhood.end ? Number(phaseBoundaries.childhood.end) : null,
+        educationEndYear: phaseBoundaries.education.end ? Number(phaseBoundaries.education.end) : null,
+        careerEndYear: phaseBoundaries.career.end ? Number(phaseBoundaries.career.end) : null,
+        sharePassword: sharePassword || null,
+        clearSharePassword,
+        shareExpiresAt: shareExpiryDate ? new Date(`${shareExpiryDate}T23:59:59`).getTime() : null,
         regenerateLink: regenerateLink || (shareMode === "link" && !data?.sharing.hasPrivateLink),
       });
       if (result.shareToken) setPrivateToken(result.shareToken);
+      setSharePassword("");
+      setClearSharePassword(false);
       await utils.diary.get.invalidate();
       toast.success(shareMode === "private" ? "分享已關閉，日記維持私人狀態。" : "分享設定已儲存。");
     } catch (sharingError) {
@@ -298,6 +340,72 @@ function DiaryEditorContent() {
       toast.success(selectedEvent.isPublic ? "這段記憶已改為私人。" : "這段記憶已允許出現在分享頁面。" );
     } catch (visibilityError) {
       toast.error(visibilityError instanceof Error ? visibilityError.message : "無法更新事件可見度。");
+    }
+  };
+
+  const savePhaseBoundaries = async () => {
+    try {
+      await phaseBoundariesMutation.mutateAsync({
+        childhoodStartYear: phaseBoundaries.childhood.start ? Number(phaseBoundaries.childhood.start) : null,
+        childhoodEndYear: phaseBoundaries.childhood.end ? Number(phaseBoundaries.childhood.end) : null,
+        educationStartYear: phaseBoundaries.education.start ? Number(phaseBoundaries.education.start) : null,
+        educationEndYear: phaseBoundaries.education.end ? Number(phaseBoundaries.education.end) : null,
+        careerStartYear: phaseBoundaries.career.start ? Number(phaseBoundaries.career.start) : null,
+        careerEndYear: phaseBoundaries.career.end ? Number(phaseBoundaries.career.end) : null,
+      });
+      await utils.diary.get.invalidate();
+      toast.success("人生階段的時間邊界已更新。");
+    } catch (boundaryError) {
+      toast.error(boundaryError instanceof Error ? boundaryError.message : "無法更新階段時間。");
+    }
+  };
+
+  const generateReflection = async (phaseKey: PhaseKey) => {
+    try {
+      await reflectionMutation.mutateAsync({ phaseKey });
+      await utils.diary.get.invalidate();
+      toast.success("AI 已根據這個階段的事件生成成長回顧。");
+    } catch (reflectionError) {
+      toast.error(reflectionError instanceof Error ? reflectionError.message : "AI 回顧暫時無法產生，請稍後再試。");
+    }
+  };
+
+  const beginReflectionEdit = (phaseKey: PhaseKey) => {
+    const existing = reflectionsByPhase.get(phaseKey);
+    if (!existing) return;
+    setEditingReflectionKey(phaseKey);
+    setReflectionDraft({ recap: existing.recap, reflection: existing.reflection });
+  };
+
+  const saveReflectionEdit = async (phaseKey: PhaseKey) => {
+    if (!reflectionDraft.recap.trim() || !reflectionDraft.reflection.trim()) return toast.error("請保留成長回顧與反思的內容。");
+    try {
+      await reflectionSaveMutation.mutateAsync({ phaseKey, recap: reflectionDraft.recap, reflection: reflectionDraft.reflection });
+      await utils.diary.get.invalidate();
+      setEditingReflectionKey(null);
+      toast.success("你的手動調整已保留在這個人生階段。" );
+    } catch (saveError) {
+      toast.error(saveError instanceof Error ? saveError.message : "無法保存手動調整。" );
+    }
+  };
+
+  const dropEventAt = async (targetId: number) => {
+    if (draggedEventId === null || draggedEventId === targetId) return;
+    if (filterType !== "all" || filterTag !== "all" || sortOrder !== "custom") return toast.info("請先切換為「手動順序」並清除篩選，再拖曳重新排序。");
+    const orderedIds = events.map((event) => event.id);
+    const fromIndex = orderedIds.indexOf(draggedEventId);
+    const targetIndex = orderedIds.indexOf(targetId);
+    if (fromIndex < 0 || targetIndex < 0) return;
+    orderedIds.splice(fromIndex, 1);
+    orderedIds.splice(targetIndex, 0, draggedEventId);
+    try {
+      await reorderMutation.mutateAsync({ eventIds: orderedIds });
+      await utils.diary.get.invalidate();
+      toast.success("事件順序已更新。");
+    } catch (orderError) {
+      toast.error(orderError instanceof Error ? orderError.message : "無法儲存事件順序。");
+    } finally {
+      setDraggedEventId(null);
     }
   };
 
@@ -338,12 +446,32 @@ function DiaryEditorContent() {
 
       <section className="life-phase-overview" ref={exportRef} aria-labelledby="life-phase-title">
         <div className="phase-heading">
-          <div><p className="editor-kicker"><span /> LIFE CHAPTERS / AUTO</p><h2 id="life-phase-title">人生階段總覽</h2><p>系統會依照事件時間、年齡標記與你設定的學習／職涯起點，自動把記憶編排成階段。</p></div>
+          <div><p className="editor-kicker"><span /> LIFE CHAPTERS / EDITABLE</p><h2 id="life-phase-title">人生階段總覽</h2><p>系統會先依事件時間與錨點編排階段；你也可以拖曳每個階段的起訖時間，讓分段更貼近自己的敘事。</p></div>
           <div className="export-actions"><span>完整成長史備份</span><button onClick={() => exportArchive("pdf")}><FileDown size={15} /> 匯出 PDF</button><button onClick={() => exportArchive("image")}><ImageDown size={15} /> 匯出長圖片</button></div>
         </div>
         <div className="phase-grid">
-          {data?.lifePhases.length ? data.lifePhases.map((phase) => <article key={phase.key} className={`phase-card phase-${phase.key}`}><span>{phase.yearRange ?? "時間待補"}</span><h3>{phase.label}</h3><p>{phase.note}</p><b>{phase.count.toString().padStart(2, "0")} <small>篇記憶</small></b></article>) : <div className="phase-empty"><BookOpenCheck size={21} /><p>當你寫下更多記憶，童年、求學與職涯會在這裡逐步浮現。</p></div>}
+          {data?.lifePhases.length ? data.lifePhases.map((phase) => {
+            const phaseKey = phase.key as PhaseKey;
+            const boundaries = phaseBoundaries[phaseKey];
+            const reflection = reflectionsByPhase.get(phase.key);
+            return <article key={phase.key} className={`phase-card phase-${phase.key}`}>
+              <span>{phase.yearRange ?? "時間待補"}</span><h3>{phase.label}</h3><p>{phase.note}</p><b>{phase.count.toString().padStart(2, "0")} <small>篇記憶</small></b>
+              <div className="phase-boundary-editor">
+                <p><GripVertical size={13} /> 拖曳調整時間邊界</p>
+                <label>起於 <strong>{boundaries.start || phase.startYear || "未設定"}</strong><input aria-label={`${phase.label}開始年份`} type="range" min={timelineYearRange.min} max={timelineYearRange.max} value={boundaries.start || phase.startYear || timelineYearRange.min} onChange={(event) => setPhaseBoundaries((current) => ({ ...current, [phaseKey]: { ...current[phaseKey], start: event.target.value } }))} /></label>
+                <label>止於 <strong>{boundaries.end || phase.endYear || "未設定"}</strong><input aria-label={`${phase.label}結束年份`} type="range" min={timelineYearRange.min} max={timelineYearRange.max} value={boundaries.end || phase.endYear || timelineYearRange.max} onChange={(event) => setPhaseBoundaries((current) => ({ ...current, [phaseKey]: { ...current[phaseKey], end: event.target.value } }))} /></label>
+              </div>
+              <div className="phase-reflection">
+                {reflection ? <>
+                  <p><BrainCircuit size={14} /> {reflection.model === "manual-edit" ? "已保留的手動回顧" : "AI 成長回顧"}</p>
+                  {editingReflectionKey === phaseKey ? <div className="reflection-editor"><label>成長回顧<textarea value={reflectionDraft.recap} onChange={(event) => setReflectionDraft((draft) => ({ ...draft, recap: event.target.value }))} rows={4} maxLength={3000} /></label><label>我的反思<textarea value={reflectionDraft.reflection} onChange={(event) => setReflectionDraft((draft) => ({ ...draft, reflection: event.target.value }))} rows={3} maxLength={3000} /></label><div><button type="button" onClick={() => saveReflectionEdit(phaseKey)} disabled={reflectionSaveMutation.isPending}>{reflectionSaveMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} 保存我的調整</button><button type="button" className="reflection-cancel" onClick={() => setEditingReflectionKey(null)}>取消</button></div></div> : <><strong>{reflection.recap}</strong><em>{reflection.reflection}</em></>}
+                </> : <p><BrainCircuit size={14} /> 尚未生成這個階段的成長回顧。</p>}
+                <div className="reflection-actions"><button type="button" onClick={() => generateReflection(phaseKey)} disabled={reflectionMutation.isPending}>{reflectionMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <WandSparkles size={14} />}{reflection ? "重新生成回顧" : "生成成長回顧"}</button>{reflection && editingReflectionKey !== phaseKey ? <button type="button" className="reflection-edit" onClick={() => beginReflectionEdit(phaseKey)}><FilePenLine size={14} /> 手動調整</button> : null}</div>
+              </div>
+            </article>;
+          }) : <div className="phase-empty"><BookOpenCheck size={21} /><p>當你寫下更多記憶，童年、求學與職涯會在這裡逐步浮現。</p></div>}
         </div>
+        {data?.lifePhases.length ? <div className="phase-boundary-actions"><span>拖曳完成後，儲存就會重新分配事件所屬的階段。</span><button type="button" onClick={savePhaseBoundaries} disabled={phaseBoundariesMutation.isPending}>{phaseBoundariesMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <GripVertical size={14} />} 儲存階段邊界</button></div> : null}
         <div className="export-event-records">
           {events.map((event) => <article key={event.id}><span style={{ backgroundColor: event.color }} /><div className="export-record-content">{event.media[0] ? <img src={event.media[0].url} alt={event.media[0].caption ?? event.title} /> : null}<div className="export-record-copy"><b>{formatDate(event.occurredAt, event.datePrecision)} · {event.ageLabel ?? "成長記事"}</b><h3>{event.title}</h3><p>{event.body}</p>{event.place ? <small><MapPin size={12} /> {event.place}</small> : null}<div>{event.tags.map((tag) => <em key={tag.id}>{tag.name}</em>)}</div></div></div></article>)}
         </div>
@@ -360,6 +488,14 @@ function DiaryEditorContent() {
             ] as const).map(([mode, Icon, label, copy]) => <button type="button" className={shareMode === mode ? "active" : ""} key={mode} onClick={() => { setShareMode(mode); if (mode !== "link") setPrivateToken(null); }}><Icon size={17} /><span><b>{label}</b><small>{copy}</small></span></button>)}
           </div>
           <div className="phase-anchor-fields"><p>人生階段的時間錨點（選填）</p><label>出生年<input type="number" min="1900" max="2200" value={birthYear} onChange={(event) => setBirthYear(event.target.value)} placeholder="例如：1994" /></label><label>開始求學<input type="number" min="1900" max="2200" value={educationStartYear} onChange={(event) => setEducationStartYear(event.target.value)} placeholder="例如：2000" /></label><label>開始職涯<input type="number" min="1900" max="2200" value={careerStartYear} onChange={(event) => setCareerStartYear(event.target.value)} placeholder="例如：2016" /></label></div>
+          {shareMode !== "private" ? <div className="sharing-security-fields">
+            <p><LockKeyhole size={14} /> 進階分享保護</p>
+            <label>設定或更新密碼<input type="password" minLength={8} maxLength={128} value={sharePassword} onChange={(event) => { setSharePassword(event.target.value); setClearSharePassword(false); }} placeholder={data?.sharing.hasPassword ? "已設定密碼；輸入可更新" : "至少 8 個字元（選填）"} /></label>
+            {data?.sharing.hasPassword ? <label className="share-checkbox"><input type="checkbox" checked={clearSharePassword} onChange={(event) => { setClearSharePassword(event.target.checked); if (event.target.checked) setSharePassword(""); }} /> 移除目前的密碼保護</label> : null}
+            <label>連結到期日<input type="date" value={shareExpiryDate} onChange={(event) => setShareExpiryDate(event.target.value)} /></label>
+            <div className="share-access-summary"><span><b>{data?.sharing.accessCount.toString().padStart(2, "0")}</b><small>累積可讀瀏覽</small></span><span><b>{data?.sharing.lastSharedAt ? new Date(data.sharing.lastSharedAt).toLocaleDateString("zh-TW") : "—"}</b><small>最後存取日期</small></span></div>
+            {data?.sharing.recentAccesses.length ? <p className="share-log-note">最近存取：{data.sharing.recentAccesses.map((access) => new Date(access.accessedAt).toLocaleString("zh-TW")).join(" · ")}</p> : <p className="share-log-note">尚無成功的分享閱讀紀錄；系統不儲存閱覽者身分或 IP 位址。</p>}
+          </div> : null}
           <div className="sharing-actions"><button className="save-sharing" onClick={() => updateSharing()} disabled={sharingMutation.isPending}>{sharingMutation.isPending ? <Loader2 size={15} className="animate-spin" /> : <Share2 size={15} />} 儲存分享設定</button>{shareMode !== "private" ? <button className="copy-sharing" onClick={copyShareLink}><Copy size={15} /> 複製分享連結</button> : null}{shareMode === "link" ? <button className="regenerate-link" onClick={() => updateSharing(true)}><RefreshCw size={14} /> 重新產生私密連結</button> : null}</div>
           {shareMode === "link" && data?.sharing.hasPrivateLink && !privateToken ? <p className="private-link-note">為安全起見，既有私密連結不會再次顯示；需要時可重新產生。</p> : null}
           {hasShareConfiguration && shareMode === "public" ? <p className="sharing-url"><Globe2 size={14} /> {publicShareUrl}</p> : null}
@@ -380,7 +516,7 @@ function DiaryEditorContent() {
               <option value="all">全部標籤</option>
               {data?.tags.map((tag) => <option key={tag.id} value={tag.name}>{tag.name}</option>)}
             </select>
-            <button type="button" className="index-sort" onClick={() => setSortOrder((order) => order === "oldest" ? "newest" : "oldest")}><ArrowDownUp size={13} /> {sortOrder === "oldest" ? "由早至晚" : "由晚至早"}</button>
+            <button type="button" className="index-sort" onClick={() => setSortOrder((order) => order === "custom" ? "oldest" : order === "oldest" ? "newest" : "custom")}><ArrowDownUp size={13} /> {sortOrder === "custom" ? "手動順序" : sortOrder === "oldest" ? "由早至晚" : "由晚至早"}</button>
           </div>
           <div className="event-list">
             {events.length === 0 ? (
@@ -390,9 +526,16 @@ function DiaryEditorContent() {
             ) : visibleEvents.map((event) => (
               <button
                 key={event.id}
+                type="button"
+                draggable={filterType === "all" && filterTag === "all" && sortOrder === "custom"}
                 className={`event-index-card ${selectedEvent?.id === event.id ? "is-selected" : ""}`}
                 onClick={() => editEvent(event)}
+                onDragStart={(dragEvent) => { dragEvent.dataTransfer.effectAllowed = "move"; setDraggedEventId(event.id); }}
+                onDragOver={(dragEvent) => dragEvent.preventDefault()}
+                onDrop={() => dropEventAt(event.id)}
+                onDragEnd={() => setDraggedEventId(null)}
               >
+                <GripVertical size={14} className="event-drag-handle" />
                 <span className="index-line" style={{ backgroundColor: event.color }} />
                 <span className="index-date">{new Date(event.occurredAt).getFullYear()}</span>
                 <span className="index-title">{event.title}</span>

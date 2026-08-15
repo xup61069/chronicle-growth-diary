@@ -4,10 +4,14 @@ import {
   createDiaryEvent,
   deleteDiaryEvent,
   deleteDiaryEventMedia,
+  generatePhaseReflection,
   getDiarySnapshot,
   getSharedDiary,
+  reorderDiaryEvents,
   setDiaryEventVisibility,
+  updateDiaryPhaseBoundaries,
   updateDiaryEvent,
+  updatePhaseReflection,
   updateDiarySharing,
   uploadDiaryEventImage,
 } from "./db";
@@ -49,11 +53,29 @@ export const appRouter = router({
     }),
     deleteEvent: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ ctx, input }) => deleteDiaryEvent(ctx.user.id, input.id)),
     setEventVisibility: protectedProcedure.input(z.object({ id: z.number().int().positive(), isPublic: z.boolean() })).mutation(({ ctx, input }) => setDiaryEventVisibility(ctx.user.id, input.id, input.isPublic)),
+    reorderEvents: protectedProcedure.input(z.object({ eventIds: z.array(z.number().int().positive()).max(500) })).mutation(({ ctx, input }) => reorderDiaryEvents(ctx.user.id, input.eventIds)),
+    updatePhaseBoundaries: protectedProcedure.input(z.object({
+      childhoodStartYear: year,
+      childhoodEndYear: year,
+      educationStartYear: year,
+      educationEndYear: year,
+      careerStartYear: year,
+      careerEndYear: year,
+    })).mutation(({ ctx, input }) => updateDiaryPhaseBoundaries(ctx.user.id, input)),
+    generatePhaseReflection: protectedProcedure.input(z.object({ phaseKey: z.enum(["childhood", "education", "career"]) })).mutation(({ ctx, input }) => generatePhaseReflection(ctx.user.id, input.phaseKey)),
+    updatePhaseReflection: protectedProcedure.input(z.object({ phaseKey: z.enum(["childhood", "education", "career"]), recap: z.string().trim().min(1).max(3000), reflection: z.string().trim().min(1).max(3000) })).mutation(({ ctx, input }) => updatePhaseReflection(ctx.user.id, input)),
     updateSharing: protectedProcedure.input(z.object({
       shareMode: z.enum(["private", "public", "link"]),
       birthYear: year,
       educationStartYear: year,
       careerStartYear: year,
+      childhoodStartYear: year,
+      childhoodEndYear: year,
+      educationEndYear: year,
+      careerEndYear: year,
+      sharePassword: z.string().min(8, "分享密碼至少需要 8 個字元。").max(128).nullable().optional(),
+      clearSharePassword: z.boolean().optional(),
+      shareExpiresAt: z.number().int().min(0).max(4102444800000).nullable().optional(),
       regenerateLink: z.boolean().optional(),
     })).mutation(({ ctx, input }) => updateDiarySharing(ctx.user.id, input)),
     uploadImage: protectedProcedure.input(z.object({
@@ -66,7 +88,7 @@ export const appRouter = router({
     deleteImage: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ ctx, input }) => deleteDiaryEventMedia(ctx.user.id, input.id)),
   }),
   share: router({
-    get: publicProcedure.input(z.object({ slug: z.string().trim().regex(/^story-[a-z0-9-]+$/), token: z.string().trim().min(16).max(128).optional() })).query(({ input }) => getSharedDiary(input.slug, input.token)),
+    get: publicProcedure.input(z.object({ slug: z.string().trim().regex(/^story-[a-z0-9-]+$/), token: z.string().trim().min(16).max(128).optional(), password: z.string().min(1).max(128).optional() })).query(({ input }) => getSharedDiary(input.slug, input.token, input.password)),
   }),
 });
 

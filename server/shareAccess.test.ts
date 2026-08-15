@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hasShareAccess, hashShareToken, onlyPublicEvents } from "./shareAccess";
+import { hasShareAccess, hashSharePassword, hashShareToken, isShareExpired, onlyPublicEvents, verifySharePassword } from "./shareAccess";
 
 describe("growth diary share access", () => {
   const token = "correct-private-share-token";
@@ -24,5 +24,19 @@ describe("growth diary share access", () => {
 
   it("only exposes explicitly shareable events", () => {
     expect(onlyPublicEvents([{ id: 1, isPublic: true }, { id: 2, isPublic: false }])).toEqual([{ id: 1, isPublic: true }]);
+  });
+
+  it("stores a share password as a salted hash and validates only the exact password", () => {
+    const passwordHash = hashSharePassword("archive-passphrase");
+    expect(passwordHash).not.toContain("archive-passphrase");
+    expect(verifySharePassword("archive-passphrase", passwordHash)).toBe(true);
+    expect(verifySharePassword("wrong-passphrase", passwordHash)).toBe(false);
+  });
+
+  it("blocks expired links while keeping future-dated links readable", () => {
+    const now = Date.UTC(2026, 0, 1);
+    expect(isShareExpired(now - 1, now)).toBe(true);
+    expect(isShareExpired(now + 1, now)).toBe(false);
+    expect(isShareExpired(null, now)).toBe(false);
   });
 });
