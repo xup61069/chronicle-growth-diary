@@ -3,24 +3,35 @@
  * with a live chronological canvas, tactile index cards, and deliberate cinnabar markers.
  */
 import DashboardLayout from "@/components/DashboardLayout";
+import { exportDiaryAsLongImage, exportDiaryAsPdf } from "@/lib/diaryExport";
 import { trpc } from "@/lib/trpc";
 import {
   Archive,
   ArrowDownUp,
+  BookOpenCheck,
   CalendarDays,
   Check,
   ChevronRight,
+  Copy,
+  FileDown,
+  Globe2,
   ImagePlus,
+  ImageDown,
+  Link2,
   Loader2,
+  LockKeyhole,
   MapPin,
   PencilLine,
   Plus,
+  RefreshCw,
+  Share2,
+  ShieldCheck,
   Sparkles,
   Tag,
   Trash2,
   X,
 } from "lucide-react";
-import { ChangeEvent, FormEvent, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 const eventTypes = [
@@ -46,6 +57,7 @@ type EventForm = {
   tagNames: string[];
 };
 type PendingImage = { name: string; type: string; base64: string; preview: string };
+type ShareMode = "private" | "public" | "link";
 
 const today = new Date().toISOString().slice(0, 10);
 
@@ -103,12 +115,20 @@ function DiaryEditorContent() {
   const [filterType, setFilterType] = useState<"all" | EventType>("all");
   const [filterTag, setFilterTag] = useState("all");
   const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("oldest");
+  const [shareMode, setShareMode] = useState<ShareMode>("private");
+  const [birthYear, setBirthYear] = useState("");
+  const [educationStartYear, setEducationStartYear] = useState("");
+  const [careerStartYear, setCareerStartYear] = useState("");
+  const [privateToken, setPrivateToken] = useState<string | null>(null);
+  const exportRef = useRef<HTMLElement>(null);
 
   const saveMutation = trpc.diary.createEvent.useMutation();
   const updateMutation = trpc.diary.updateEvent.useMutation();
   const uploadMutation = trpc.diary.uploadImage.useMutation();
   const deleteMutation = trpc.diary.deleteEvent.useMutation();
   const deleteImageMutation = trpc.diary.deleteImage.useMutation();
+  const visibilityMutation = trpc.diary.setEventVisibility.useMutation();
+  const sharingMutation = trpc.diary.updateSharing.useMutation();
 
   const events = data?.events ?? [];
   const visibleEvents = useMemo(
@@ -122,6 +142,18 @@ function DiaryEditorContent() {
   const isSaving = saveMutation.isPending || updateMutation.isPending || uploadMutation.isPending;
   const eventCountLabel = `${events.length.toString().padStart(2, "0")} 篇記憶`;
   const hasMedia = useMemo(() => events.reduce((total, event) => total + event.media.length, 0), [events]);
+  const publicEventCount = useMemo(() => events.filter((event) => event.isPublic).length, [events]);
+  const hasShareConfiguration = Boolean(data?.sharing.slug);
+  const publicShareUrl = data?.sharing.slug ? `${window.location.origin}/story/${data.sharing.slug}` : "";
+  const privateShareUrl = privateToken && data?.sharing.slug ? `${publicShareUrl}?token=${privateToken}` : "";
+
+  useEffect(() => {
+    if (!data) return;
+    setShareMode(data.sharing.mode);
+    setBirthYear(data.diary.birthYear?.toString() ?? "");
+    setEducationStartYear(data.diary.educationStartYear?.toString() ?? "");
+    setCareerStartYear(data.diary.careerStartYear?.toString() ?? "");
+  }, [data]);
 
   const addTag = (rawTag = tagDraft) => {
     const tag = rawTag.trim().replace(/\s+/g, " ");
@@ -230,6 +262,58 @@ function DiaryEditorContent() {
     }
   };
 
+  const updateSharing = async (regenerateLink = false) => {
+    try {
+      const result = await sharingMutation.mutateAsync({
+        shareMode,
+        birthYear: birthYear ? Number(birthYear) : null,
+        educationStartYear: educationStartYear ? Number(educationStartYear) : null,
+        careerStartYear: careerStartYear ? Number(careerStartYear) : null,
+        regenerateLink: regenerateLink || (shareMode === "link" && !data?.sharing.hasPrivateLink),
+      });
+      if (result.shareToken) setPrivateToken(result.shareToken);
+      await utils.diary.get.invalidate();
+      toast.success(shareMode === "private" ? "分享已關閉，日記維持私人狀態。" : "分享設定已儲存。");
+    } catch (sharingError) {
+      toast.error(sharingError instanceof Error ? sharingError.message : "無法更新分享設定。");
+    }
+  };
+
+  const copyShareLink = async () => {
+    const url = shareMode === "link" ? privateShareUrl : publicShareUrl;
+    if (!url) return toast.info("先儲存分享設定，系統才會建立連結。");
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("分享連結已複製。私密連結請只交給你信任的人。" );
+    } catch {
+      window.prompt("請複製以下分享連結：", url);
+    }
+  };
+
+  const toggleSelectedEventVisibility = async () => {
+    if (!selectedEvent) return;
+    try {
+      await visibilityMutation.mutateAsync({ id: selectedEvent.id, isPublic: !selectedEvent.isPublic });
+      await utils.diary.get.invalidate();
+      toast.success(selectedEvent.isPublic ? "這段記憶已改為私人。" : "這段記憶已允許出現在分享頁面。" );
+    } catch (visibilityError) {
+      toast.error(visibilityError instanceof Error ? visibilityError.message : "無法更新事件可見度。");
+    }
+  };
+
+  const exportArchive = async (format: "pdf" | "image") => {
+    if (!exportRef.current) return;
+    if (events.length === 0) return toast.info("先寫下一段記憶，才能匯出成長史。" );
+    const baseName = (data?.diary.title ?? "我的成長史").replace(/[^\u4e00-\u9fffa-zA-Z0-9_-]/g, "-") || "chronicle-growth-diary";
+    try {
+      if (format === "pdf") await exportDiaryAsPdf(exportRef.current, baseName);
+      else await exportDiaryAsLongImage(exportRef.current, baseName);
+      toast.success(format === "pdf" ? "PDF 已開始下載。" : "長圖片已開始下載。" );
+    } catch (exportError) {
+      toast.error(exportError instanceof Error ? exportError.message : "匯出失敗，請稍後再試。");
+    }
+  };
+
   if (isLoading) {
     return <div className="editor-loading"><Loader2 size={24} className="animate-spin" /> 正在開啟你的成長檔案…</div>;
   }
@@ -251,6 +335,37 @@ function DiaryEditorContent() {
           <span><b>{hasMedia.toString().padStart(2, "0")} 張</b><small>珍藏的影像</small></span>
         </div>
       </header>
+
+      <section className="life-phase-overview" ref={exportRef} aria-labelledby="life-phase-title">
+        <div className="phase-heading">
+          <div><p className="editor-kicker"><span /> LIFE CHAPTERS / AUTO</p><h2 id="life-phase-title">人生階段總覽</h2><p>系統會依照事件時間、年齡標記與你設定的學習／職涯起點，自動把記憶編排成階段。</p></div>
+          <div className="export-actions"><span>完整成長史備份</span><button onClick={() => exportArchive("pdf")}><FileDown size={15} /> 匯出 PDF</button><button onClick={() => exportArchive("image")}><ImageDown size={15} /> 匯出長圖片</button></div>
+        </div>
+        <div className="phase-grid">
+          {data?.lifePhases.length ? data.lifePhases.map((phase) => <article key={phase.key} className={`phase-card phase-${phase.key}`}><span>{phase.yearRange ?? "時間待補"}</span><h3>{phase.label}</h3><p>{phase.note}</p><b>{phase.count.toString().padStart(2, "0")} <small>篇記憶</small></b></article>) : <div className="phase-empty"><BookOpenCheck size={21} /><p>當你寫下更多記憶，童年、求學與職涯會在這裡逐步浮現。</p></div>}
+        </div>
+        <div className="export-event-records">
+          {events.map((event) => <article key={event.id}><span style={{ backgroundColor: event.color }} /><div className="export-record-content">{event.media[0] ? <img src={event.media[0].url} alt={event.media[0].caption ?? event.title} /> : null}<div className="export-record-copy"><b>{formatDate(event.occurredAt, event.datePrecision)} · {event.ageLabel ?? "成長記事"}</b><h3>{event.title}</h3><p>{event.body}</p>{event.place ? <small><MapPin size={12} /> {event.place}</small> : null}<div>{event.tags.map((tag) => <em key={tag.id}>{tag.name}</em>)}</div></div></div></article>)}
+        </div>
+      </section>
+
+      <section className="sharing-studio" aria-labelledby="sharing-title">
+        <div className="sharing-intro"><p className="editor-kicker"><span /> SHARING CONTROLS</p><h2 id="sharing-title">由你決定，哪些故事可以被看見。</h2><p>每個事件都從私人狀態開始。你可以只公開某些片段，或建立一條只交給特定對象的私密連結。</p><div className="sharing-stat"><ShieldCheck size={16} /><span>目前有 <b>{publicEventCount}</b> 篇事件允許分享</span></div></div>
+        <div className="sharing-settings">
+          <div className="share-mode-options">
+            {([
+              ["private", LockKeyhole, "私人", "不建立任何可閱覽連結。"],
+              ["public", Globe2, "公開", "任何持有分享網址的人可閱讀公開事件。"],
+              ["link", Link2, "私密連結", "必須持有完整秘密網址，才能閱讀公開事件。"],
+            ] as const).map(([mode, Icon, label, copy]) => <button type="button" className={shareMode === mode ? "active" : ""} key={mode} onClick={() => { setShareMode(mode); if (mode !== "link") setPrivateToken(null); }}><Icon size={17} /><span><b>{label}</b><small>{copy}</small></span></button>)}
+          </div>
+          <div className="phase-anchor-fields"><p>人生階段的時間錨點（選填）</p><label>出生年<input type="number" min="1900" max="2200" value={birthYear} onChange={(event) => setBirthYear(event.target.value)} placeholder="例如：1994" /></label><label>開始求學<input type="number" min="1900" max="2200" value={educationStartYear} onChange={(event) => setEducationStartYear(event.target.value)} placeholder="例如：2000" /></label><label>開始職涯<input type="number" min="1900" max="2200" value={careerStartYear} onChange={(event) => setCareerStartYear(event.target.value)} placeholder="例如：2016" /></label></div>
+          <div className="sharing-actions"><button className="save-sharing" onClick={() => updateSharing()} disabled={sharingMutation.isPending}>{sharingMutation.isPending ? <Loader2 size={15} className="animate-spin" /> : <Share2 size={15} />} 儲存分享設定</button>{shareMode !== "private" ? <button className="copy-sharing" onClick={copyShareLink}><Copy size={15} /> 複製分享連結</button> : null}{shareMode === "link" ? <button className="regenerate-link" onClick={() => updateSharing(true)}><RefreshCw size={14} /> 重新產生私密連結</button> : null}</div>
+          {shareMode === "link" && data?.sharing.hasPrivateLink && !privateToken ? <p className="private-link-note">為安全起見，既有私密連結不會再次顯示；需要時可重新產生。</p> : null}
+          {hasShareConfiguration && shareMode === "public" ? <p className="sharing-url"><Globe2 size={14} /> {publicShareUrl}</p> : null}
+          {privateShareUrl ? <p className="sharing-url private"><Link2 size={14} /> 私密連結已建立，請立即複製並妥善保管。</p> : null}
+        </div>
+      </section>
 
       <div className="editor-workspace">
         <aside className="event-index" aria-label="已整理的成長事件">
@@ -381,6 +496,7 @@ function DiaryEditorContent() {
                 <p className="preview-body">{selectedEvent.body || "這段記憶還在等待你寫下細節。"}</p>
                 {selectedEvent.place ? <p className="preview-place"><MapPin size={13} /> {selectedEvent.place}</p> : null}
                 <div className="preview-tags">{selectedEvent.tags.map((tag) => <span key={tag.id}>{tag.name}</span>)}</div>
+                <div className="event-visibility-control"><span>{selectedEvent.isPublic ? <Globe2 size={13} /> : <LockKeyhole size={13} />}{selectedEvent.isPublic ? "允許分享" : "私人事件"}</span><button onClick={toggleSelectedEventVisibility} disabled={visibilityMutation.isPending}>{selectedEvent.isPublic ? "改為私人" : "允許分享"}</button></div>
                 <div className="preview-actions"><button onClick={() => editEvent(selectedEvent)}><PencilLine size={14} /> 編輯</button><button className="delete" onClick={() => removeEvent(selectedEvent.id)}><Trash2 size={14} /> 刪除</button></div>
               </article>
               <div className="preview-ruler" aria-hidden="true"><i /><b>{new Date(selectedEvent.occurredAt).getFullYear()}</b><i /><span>NOW</span></div>

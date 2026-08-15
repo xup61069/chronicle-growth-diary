@@ -5,7 +5,10 @@ import {
   deleteDiaryEvent,
   deleteDiaryEventMedia,
   getDiarySnapshot,
+  getSharedDiary,
+  setDiaryEventVisibility,
   updateDiaryEvent,
+  updateDiarySharing,
   uploadDiaryEventImage,
 } from "./db";
 import { EVENT_COLORS, EVENT_TYPES, isSupportedImageMimeType } from "./diaryHelpers";
@@ -25,6 +28,8 @@ const diaryEventInput = z.object({
   tagNames: z.array(z.string().trim().max(24)).max(8),
 });
 
+const year = z.number().int().min(1900).max(2200).nullable().optional();
+
 export const appRouter = router({
   system: systemRouter,
   auth: router({
@@ -37,32 +42,31 @@ export const appRouter = router({
   }),
   diary: router({
     get: protectedProcedure.query(({ ctx }) => getDiarySnapshot(ctx.user.id)),
-    createEvent: protectedProcedure.input(diaryEventInput).mutation(({ ctx, input }) =>
-      createDiaryEvent(ctx.user.id, input),
-    ),
-    updateEvent: protectedProcedure
-      .input(diaryEventInput.extend({ id: z.number().int().positive() }))
-      .mutation(({ ctx, input }) => {
-        const { id, ...event } = input;
-        return updateDiaryEvent(ctx.user.id, id, event);
-      }),
-    deleteEvent: protectedProcedure
-      .input(z.object({ id: z.number().int().positive() }))
-      .mutation(({ ctx, input }) => deleteDiaryEvent(ctx.user.id, input.id)),
-    uploadImage: protectedProcedure
-      .input(
-        z.object({
-          eventId: z.number().int().positive(),
-          fileName: z.string().trim().min(1).max(180),
-          mimeType: z.string().trim().refine(isSupportedImageMimeType, "只支援 JPG、PNG、WebP 或 GIF 圖片。"),
-          base64: z.string().min(1).max(6_000_000),
-          caption: z.string().trim().max(240).optional(),
-        }),
-      )
-      .mutation(({ ctx, input }) => uploadDiaryEventImage({ userId: ctx.user.id, ...input })),
-    deleteImage: protectedProcedure
-      .input(z.object({ id: z.number().int().positive() }))
-      .mutation(({ ctx, input }) => deleteDiaryEventMedia(ctx.user.id, input.id)),
+    createEvent: protectedProcedure.input(diaryEventInput).mutation(({ ctx, input }) => createDiaryEvent(ctx.user.id, input)),
+    updateEvent: protectedProcedure.input(diaryEventInput.extend({ id: z.number().int().positive() })).mutation(({ ctx, input }) => {
+      const { id, ...event } = input;
+      return updateDiaryEvent(ctx.user.id, id, event);
+    }),
+    deleteEvent: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ ctx, input }) => deleteDiaryEvent(ctx.user.id, input.id)),
+    setEventVisibility: protectedProcedure.input(z.object({ id: z.number().int().positive(), isPublic: z.boolean() })).mutation(({ ctx, input }) => setDiaryEventVisibility(ctx.user.id, input.id, input.isPublic)),
+    updateSharing: protectedProcedure.input(z.object({
+      shareMode: z.enum(["private", "public", "link"]),
+      birthYear: year,
+      educationStartYear: year,
+      careerStartYear: year,
+      regenerateLink: z.boolean().optional(),
+    })).mutation(({ ctx, input }) => updateDiarySharing(ctx.user.id, input)),
+    uploadImage: protectedProcedure.input(z.object({
+      eventId: z.number().int().positive(),
+      fileName: z.string().trim().min(1).max(180),
+      mimeType: z.string().trim().refine(isSupportedImageMimeType, "只支援 JPG、PNG、WebP 或 GIF 圖片。"),
+      base64: z.string().min(1).max(6_000_000),
+      caption: z.string().trim().max(240).optional(),
+    })).mutation(({ ctx, input }) => uploadDiaryEventImage({ userId: ctx.user.id, ...input })),
+    deleteImage: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ ctx, input }) => deleteDiaryEventMedia(ctx.user.id, input.id)),
+  }),
+  share: router({
+    get: publicProcedure.input(z.object({ slug: z.string().trim().regex(/^story-[a-z0-9-]+$/), token: z.string().trim().min(16).max(128).optional() })).query(({ input }) => getSharedDiary(input.slug, input.token)),
   }),
 });
 

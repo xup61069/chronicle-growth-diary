@@ -54,25 +54,21 @@ export default function DashboardLayout({
   }, [sidebarWidth]);
 
   if (loading) {
-    return <DashboardLayoutSkeleton />
+    return <div className="archive-loading-state"><div className="archive-state-dots"><i /><i /><i /></div><p>ARCHIVE / OPENING</p><h1>正在翻開你的成長檔案</h1><span>時間索引與私人記憶正在對齊。</span></div>
   }
 
   if (!user) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="flex flex-col items-center gap-8 p-8 max-w-md w-full">
-          <div className="flex flex-col items-center gap-6">
-            <h1 className="text-2xl font-semibold tracking-tight text-center">
-              開啟你的成長檔案
-            </h1>
-            <p className="text-sm text-muted-foreground text-center max-w-sm">
-              你的記憶與影像只屬於你。登入後，即可開始建立私人時間帶。
-            </p>
-          </div>
+      <div className="archive-signin-state">
+        <div className="archive-signin-card">
+          <div className="archive-state-dots"><i /><i /><i /></div>
+          <p>PERSONAL ARCHIVE / PRIVATE</p>
+          <h1>開啟你的成長檔案</h1>
+          <span>你的記憶與影像只屬於你。登入後，即可開始建立私人時間帶。</span>
           <Button
             onClick={() => startLogin()}
             size="lg"
-            className="w-full shadow-lg hover:shadow-xl transition-all"
+            className="archive-signin-button"
           >
             登入並開始編輯
           </Button>
@@ -168,16 +164,16 @@ function DashboardLayoutContent({
                 <PanelLeft className="h-4 w-4 text-muted-foreground" />
               </button>
               {!isCollapsed ? (
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="font-semibold tracking-tight truncate">
-                    CHRONICLE
-                  </span>
+                <div className="chronicle-sidebar-wordmark min-w-0">
+                  <span className="chronicle-mark" aria-hidden="true"><i /><i /><i /></span>
+                  <span>CHRONICLE</span>
                 </div>
               ) : null}
             </div>
           </SidebarHeader>
 
           <SidebarContent className="gap-0">
+            <p className="chronicle-sidebar-index group-data-[collapsible=icon]:hidden">ARCHIVE / 01–24</p>
             <SidebarMenu className="px-2 py-1">
               {menuItems.map(item => {
                 const isActive = location === item.path;
@@ -187,7 +183,7 @@ function DashboardLayoutContent({
                       isActive={isActive}
                       onClick={() => setLocation(item.path)}
                       tooltip={item.label}
-                      className={`h-10 transition-all font-normal`}
+                      className={`h-10 transition-all font-normal ${isActive ? "chronicle-active-nav" : ""}`}
                     >
                       <item.icon
                         className={`h-4 w-4 ${isActive ? "text-primary" : ""}`}
