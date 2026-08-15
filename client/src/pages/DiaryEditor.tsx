@@ -52,6 +52,7 @@ type ShareMode = "private" | "public" | "link";
 type PublicStoryLayout = "editorial" | "gallery" | "minimal";
 type PhaseKey = "childhood" | "education" | "career";
 type PhaseBoundaries = Record<PhaseKey, { start: string; end: string }>;
+type MobileWorkspacePanel = "index" | "compose" | "preview";
 
 function DiaryEditorContent() {
   const utils = trpc.useUtils();
@@ -88,6 +89,7 @@ function DiaryEditorContent() {
   const [mediaCaptionDrafts, setMediaCaptionDrafts] = useState<Record<number, string>>({});
   const [editingReflectionKey, setEditingReflectionKey] = useState<PhaseKey | null>(null);
   const [reflectionDraft, setReflectionDraft] = useState({ recap: "", reflection: "" });
+  const [mobileWorkspacePanel, setMobileWorkspacePanel] = useState<MobileWorkspacePanel>("compose");
   const exportRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -170,6 +172,7 @@ function DiaryEditorContent() {
   };
 
   const startNewEvent = () => {
+    setMobileWorkspacePanel("compose");
     setEditingId(null);
     setSelectedId(null);
     setPendingImages([]);
@@ -178,6 +181,7 @@ function DiaryEditorContent() {
   };
 
   const editEvent = (event: (typeof events)[number]) => {
+    setMobileWorkspacePanel("compose");
     setEditingId(event.id);
     setSelectedId(event.id);
     setTagDraft("");
@@ -525,8 +529,28 @@ function DiaryEditorContent() {
         </div>
       </section>
 
+      <nav className="editor-mobile-tabs" aria-label="日記工作區分頁" role="tablist">
+        {([
+          ["index", Archive, "索引"],
+          ["compose", PencilLine, "撰寫"],
+          ["preview", BookOpenCheck, "預覽"],
+        ] as const).map(([panel, Icon, label]) => (
+          <button
+            key={panel}
+            type="button"
+            role="tab"
+            aria-selected={mobileWorkspacePanel === panel}
+            aria-controls={`mobile-workspace-${panel}`}
+            className={mobileWorkspacePanel === panel ? "active" : ""}
+            onClick={() => setMobileWorkspacePanel(panel)}
+          >
+            <Icon size={15} /> {label}
+          </button>
+        ))}
+      </nav>
+
       <div className="editor-workspace">
-        <aside className="event-index" aria-label="已整理的成長事件">
+        <aside id="mobile-workspace-index" role="tabpanel" className={`event-index mobile-workspace-panel ${mobileWorkspacePanel === "index" ? "is-active" : ""}`} aria-label="已整理的成長事件">
           <div className="panel-title"><span>事件索引</span><b>{eventCountLabel}</b></div>
           <button className="new-event-button" onClick={startNewEvent}><Plus size={16} /> 新增一段記憶</button>
           <div className="index-filters">
@@ -569,7 +593,7 @@ function DiaryEditorContent() {
           </div>
         </aside>
 
-        <section className="editor-form-panel" aria-labelledby="composer-title">
+        <section id="mobile-workspace-compose" role="tabpanel" className={`editor-form-panel mobile-workspace-panel ${mobileWorkspacePanel === "compose" ? "is-active" : ""}`} aria-labelledby="composer-title">
           <div className="form-heading">
             <div><p className="editor-kicker"><span /> {editingId ? "編輯中" : "新的篇章"}</p><h2 id="composer-title">{editingId ? "調整這段記憶" : "記下一個發生過的瞬間"}</h2></div>
             {editingId ? <button className="quiet-action" onClick={startNewEvent}>放棄編輯</button> : null}
@@ -651,7 +675,7 @@ function DiaryEditorContent() {
           </form>
         </section>
 
-        <aside className="timeline-preview" aria-label="選取事件的時間帶預覽">
+        <aside id="mobile-workspace-preview" role="tabpanel" className={`timeline-preview mobile-workspace-panel ${mobileWorkspacePanel === "preview" ? "is-active" : ""}`} aria-label="選取事件的時間帶預覽">
           <div className="panel-title"><span>時間帶預覽</span><b>LIVE</b></div>
           {selectedEvent ? (
             <>
