@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { createHash, randomBytes } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import {
   growthDiaries,
   growthEventMedia,
@@ -12,6 +12,7 @@ import {
 } from "../drizzle/schema";
 import { normalizeTagNames, safeMediaName } from "./diaryHelpers";
 import { deriveLifePhases } from "./lifePhases";
+import { hasShareAccess, hashShareToken } from "./shareAccess";
 import { ENV } from "./_core/env";
 import { storagePut } from "./storage";
 
@@ -61,10 +62,6 @@ function makeShareSlug(diaryId: number) {
 
 function makeShareToken() {
   return randomBytes(24).toString("base64url");
-}
-
-function hashShareToken(token: string) {
-  return createHash("sha256").update(token).digest("hex");
 }
 
 export async function upsertUser(user: InsertUser): Promise<void> {
@@ -241,8 +238,7 @@ export async function getSharedDiary(slug: string, token?: string | null) {
   const db = await requireDb();
   const matching = await db.select().from(growthDiaries).where(eq(growthDiaries.shareSlug, slug)).limit(1);
   const diary = matching[0];
-  if (!diary || diary.shareMode === "private") return null;
-  if (diary.shareMode === "link" && (!token || !diary.shareTokenHash || hashShareToken(token) !== diary.shareTokenHash)) return null;
+  if (!diary || !hasShareAccess({ mode: diary.shareMode, storedTokenHash: diary.shareTokenHash, providedToken: token })) return null;
   const events = await getEnrichedDiaryEvents(diary.id, true);
   return {
     diary: { title: diary.title, subtitle: diary.subtitle, shareMode: diary.shareMode },
