@@ -117,7 +117,8 @@ async function readImage(file: File): Promise<PendingImage> {
 
 function DiaryEditorContent() {
   const utils = trpc.useUtils();
-  const { data, isLoading, error } = trpc.diary.get.useQuery(undefined, { retry: 1, staleTime: 0, refetchOnMount: "always" });
+  const { data, isLoading, error, refetch } = trpc.diary.get.useQuery(undefined, { retry: 1, staleTime: 0, refetchOnMount: "always" });
+  const [loadTimedOut, setLoadTimedOut] = useState(false);
   const [form, setForm] = useState<EventForm>(makeEmptyForm);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [tagDraft, setTagDraft] = useState("");
@@ -150,6 +151,15 @@ function DiaryEditorContent() {
   const [editingReflectionKey, setEditingReflectionKey] = useState<PhaseKey | null>(null);
   const [reflectionDraft, setReflectionDraft] = useState({ recap: "", reflection: "" });
   const exportRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    if (!isLoading) {
+      setLoadTimedOut(false);
+      return;
+    }
+    const timeout = window.setTimeout(() => setLoadTimedOut(true), 10_000);
+    return () => window.clearTimeout(timeout);
+  }, [isLoading]);
 
   const saveMutation = trpc.diary.createEvent.useMutation();
   const updateMutation = trpc.diary.updateEvent.useMutation();
@@ -510,12 +520,12 @@ function DiaryEditorContent() {
     }
   };
 
-  if (isLoading) {
+  if (isLoading && !loadTimedOut) {
     return <div className="editor-loading"><Loader2 size={24} className="animate-spin" /> 正在開啟你的成長檔案…</div>;
   }
 
-  if (error) {
-    return <div className="editor-error"><Archive size={24} /><p>暫時無法讀取你的成長檔案。請重新整理頁面後再試。</p></div>;
+  if (error || loadTimedOut) {
+    return <div className="editor-error"><Archive size={24} /><p>{loadTimedOut ? "讀取時間超過預期，可能是登入工作階段或網路連線已失效。" : "暫時無法讀取你的成長檔案。"}</p><div><button type="button" onClick={() => { setLoadTimedOut(false); void refetch(); }}><RefreshCw size={14} /> 重新嘗試</button><button type="button" className="editor-error-reload" onClick={() => window.location.reload()}>重新載入頁面</button></div></div>;
   }
 
   return (

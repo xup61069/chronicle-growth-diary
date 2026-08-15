@@ -1,12 +1,14 @@
 import { startLogin } from "@/const";
 import { trpc } from "@/lib/trpc";
 import { TRPCClientError } from "@trpc/client";
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 type UseAuthOptions = {
   redirectOnUnauthenticated?: boolean;
   redirectPath?: string;
 };
+
+const AUTH_STATUS_TIMEOUT_MS = 8_000;
 
 export function useAuth(options?: UseAuthOptions) {
   // Login is started via startLogin() in the effect below, only when we actually
@@ -15,6 +17,7 @@ export function useAuth(options?: UseAuthOptions) {
   // desync it from an in-flight login's `state`.
   const { redirectOnUnauthenticated = false, redirectPath } = options ?? {};
   const utils = trpc.useUtils();
+  const [statusTimedOut, setStatusTimedOut] = useState(false);
 
   const meQuery = trpc.auth.me.useQuery(undefined, {
     retry: false,
@@ -26,6 +29,19 @@ export function useAuth(options?: UseAuthOptions) {
       utils.auth.me.setData(undefined, null);
     },
   });
+
+  useEffect(() => {
+    if (!meQuery.isLoading) {
+      setStatusTimedOut(false);
+      return;
+    }
+
+    const timeout = window.setTimeout(
+      () => setStatusTimedOut(true),
+      AUTH_STATUS_TIMEOUT_MS
+    );
+    return () => window.clearTimeout(timeout);
+  }, [meQuery.isLoading]);
 
   const logout = useCallback(async () => {
     try {
@@ -57,8 +73,11 @@ export function useAuth(options?: UseAuthOptions) {
     );
     return {
       user: meQuery.data ?? null,
-      loading: meQuery.isLoading || logoutMutation.isPending,
-      error: meQuery.error ?? logoutMutation.error ?? null,
+      loading: (meQuery.isLoading && !statusTimedOut) || logoutMutation.isPending,
+      error:
+        meQuery.error ??
+        logoutMutation.error ??
+        (statusTimedOut ? new Error("登入狀態檢查逾時") : null),
       isAuthenticated: Boolean(meQuery.data),
     };
   }, [
@@ -67,11 +86,12 @@ export function useAuth(options?: UseAuthOptions) {
     meQuery.isLoading,
     logoutMutation.error,
     logoutMutation.isPending,
+    statusTimedOut,
   ]);
 
   useEffect(() => {
     if (!redirectOnUnauthenticated) return;
-    if (meQuery.isLoading || logoutMutation.isPending) return;
+    if ((meQuery.isLoading && !statusTimedOut) || logoutMutation.isPending) return;
     if (state.user) return;
     if (typeof window === "undefined") return;
     if (redirectPath && window.location.pathname === redirectPath) return;
@@ -88,11 +108,15 @@ export function useAuth(options?: UseAuthOptions) {
     logoutMutation.isPending,
     meQuery.isLoading,
     state.user,
+    statusTimedOut,
   ]);
 
   return {
     ...state,
-    refresh: () => meQuery.refetch(),
+    refresh: async () => {
+      setStatusTimedOut(false);
+      return meQuery.refetch();
+    },
     logout,
   };
 }

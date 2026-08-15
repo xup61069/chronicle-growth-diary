@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/sidebar";
 import { startLogin } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { Archive, Home, LogOut, PanelLeft } from "lucide-react";
+import { Archive, Home, LogOut, PanelLeft, RefreshCw } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -47,7 +47,7 @@ export default function DashboardLayout({
     const saved = localStorage.getItem(SIDEBAR_WIDTH_KEY);
     return saved ? parseInt(saved, 10) : DEFAULT_WIDTH;
   });
-  const { loading, user } = useAuth();
+  const { loading, user, error, refresh } = useAuth();
 
   useEffect(() => {
     localStorage.setItem(SIDEBAR_WIDTH_KEY, sidebarWidth.toString());
@@ -64,14 +64,31 @@ export default function DashboardLayout({
           <div className="archive-state-dots"><i /><i /><i /></div>
           <p>PERSONAL ARCHIVE / PRIVATE</p>
           <h1>開啟你的成長檔案</h1>
-          <span>你的記憶與影像只屬於你。登入後，即可開始建立私人時間帶。</span>
-          <Button
-            onClick={() => startLogin()}
-            size="lg"
-            className="archive-signin-button"
-          >
-            登入並開始編輯
-          </Button>
+          <span>
+            {error
+              ? "暫時無法確認登入狀態。你可以重新檢查，或直接重新登入。"
+              : "你的記憶與影像只屬於你。登入後，即可開始建立私人時間帶。"}
+          </span>
+          <div className="flex flex-wrap justify-center gap-3">
+            <Button
+              onClick={() => startLogin()}
+              size="lg"
+              className="archive-signin-button"
+            >
+              登入並開始編輯
+            </Button>
+            {error ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="lg"
+                onClick={() => void refresh()}
+              >
+                <RefreshCw className="mr-2 size-4" />
+                重新檢查
+              </Button>
+            ) : null}
+          </div>
         </div>
       </div>
     );
