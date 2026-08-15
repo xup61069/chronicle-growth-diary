@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /editor
+Disallow: /quick-note
+Disallow: /api/
