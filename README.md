@@ -23,18 +23,26 @@ Chronicle 是一個以時間軸呈現的私人數位日記。它幫助使用者�
 
 ## 本機開發
 
+請使用 Node.js 22 與 Corepack。先將 `.env.example` 複製為 `.env`，再依使用的開發環境填入資料庫和整合設定。`.env` 僅供本機使用，絕不可提交。
+
 ```bash
-pnpm install
-pnpm dev
+corepack pnpm install --frozen-lockfile
+corepack pnpm dev
 ```
+
+Windows PowerShell 若未找到 `pnpm`，可直接改用 `corepack.cmd pnpm`。目前的登入、檔案儲存與 AI 呼叫仍使用既有整合服務；完整的本機認證、S3/MinIO 儲存和可替換 LLM 提供者會在後續自架化里程碑完成。請參閱 [`docs/LOCAL_DEVELOPMENT.md`](./docs/LOCAL_DEVELOPMENT.md) 了解目前可用的本機流程、環境變數與遷移路線。
 
 常用驗證指令如下。
 
 ```bash
-pnpm test
-pnpm check
-pnpm build
+corepack pnpm test
+corepack pnpm check
+corepack pnpm build
 ```
+
+## 貢獻與持續整合
+
+[`AGENTS.md`](./AGENTS.md) 定義架構、資料安全、資料庫 migration 與「編集室時間帶」視覺規範；貢獻流程請見 [`CONTRIBUTING.md`](./CONTRIBUTING.md)。每次推送與 Pull Request 都會執行型別檢查、Vitest 與正式建置。
 
 ## 資料模型
 
