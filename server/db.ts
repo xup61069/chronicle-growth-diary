@@ -46,6 +46,9 @@ export type DiarySharingInput = {
   clearSharePassword?: boolean;
   shareExpiresAt?: number | null;
   regenerateLink?: boolean;
+  publicCoverTitle?: string | null;
+  publicStoryLayout?: "editorial" | "gallery" | "minimal";
+  clearPublicCover?: boolean;
 };
 
 export type DiaryPhaseBoundariesInput = Pick<DiarySharingInput, "childhoodStartYear" | "childhoodEndYear" | "educationStartYear" | "educationEndYear" | "careerStartYear" | "careerEndYear">;
@@ -315,6 +318,7 @@ export async function updateDiarySharing(userId: number, input: DiarySharingInpu
   if (input.shareMode !== "link") shareTokenHash = null;
   const sharePasswordHash = input.clearSharePassword ? null : input.sharePassword ? hashSharePassword(input.sharePassword) : diary.sharePasswordHash;
   const shareExpiresAt = input.shareExpiresAt === undefined ? diary.shareExpiresAt : input.shareExpiresAt;
+  const publicCoverTitle = input.publicCoverTitle === undefined ? diary.publicCoverTitle : input.publicCoverTitle?.trim() || null;
 
   await db.update(growthDiaries).set({
     shareMode: input.shareMode,
@@ -329,6 +333,10 @@ export async function updateDiarySharing(userId: number, input: DiarySharingInpu
     childhoodEndYear: input.childhoodEndYear ?? null,
     educationEndYear: input.educationEndYear ?? null,
     careerEndYear: input.careerEndYear ?? null,
+    publicCoverStorageKey: input.clearPublicCover ? null : diary.publicCoverStorageKey,
+    publicCoverUrl: input.clearPublicCover ? null : diary.publicCoverUrl,
+    publicCoverTitle,
+    publicStoryLayout: input.publicStoryLayout ?? diary.publicStoryLayout,
   }).where(eq(growthDiaries.id, diary.id));
   return { mode: input.shareMode, slug: shareSlug, shareToken, hasPassword: Boolean(input.shareMode !== "private" && sharePasswordHash), expiresAt: input.shareMode === "private" ? null : shareExpiresAt };
 }
@@ -347,7 +355,7 @@ export async function getSharedDiary(slug: string, token?: string | null, passwo
   await db.insert(growthShareAccessLogs).values({ diaryId: diary.id, channel: diary.shareMode === "link" ? "link" : "public" });
   return {
     status: "ok" as const,
-    diary: { title: diary.title, subtitle: diary.subtitle, shareMode: diary.shareMode },
+    diary: { title: diary.title, subtitle: diary.subtitle, shareMode: diary.shareMode, publicCoverUrl: diary.publicCoverUrl, publicCoverTitle: diary.publicCoverTitle, publicStoryLayout: diary.publicStoryLayout },
     events,
     lifePhases: makeLifePhaseSnapshot(diary, events),
   };
@@ -371,4 +379,40 @@ export async function deleteDiaryEventMedia(userId: number, mediaId: number) {
   if (!media[0]) throw new Error("找不到這張圖片，或你沒有刪除權限。");
   await db.delete(growthEventMedia).where(eq(growthEventMedia.id, mediaId));
   return { id: mediaId };
+}
+
+export async function updateDiaryEventMedia(userId: number, mediaId: number, caption: string | null) {
+  const db = await requireDb();
+  const media = await db.select({ id: growthEventMedia.id }).from(growthEventMedia)
+    .innerJoin(growthEvents, eq(growthEventMedia.eventId, growthEvents.id))
+    .innerJoin(growthDiaries, eq(growthEvents.diaryId, growthDiaries.id))
+    .where(and(eq(growthEventMedia.id, mediaId), eq(growthDiaries.userId, userId))).limit(1);
+  if (!media[0]) throw new Error("找不到這張圖片，或你沒有編輯權限。");
+  const nextCaption = caption?.trim() || null;
+  await db.update(growthEventMedia).set({ caption: nextCaption }).where(eq(growthEventMedia.id, mediaId));
+  return { id: mediaId, caption: nextCaption };
+}
+
+export async function reorderDiaryEventMedia(userId: number, eventId: number, mediaIds: number[]) {
+  const db = await requireDb();
+  await assertEventOwnership(eventId, userId);
+  const media = await db.select({ id: growthEventMedia.id }).from(growthEventMedia).where(eq(growthEventMedia.eventId, eventId));
+  if (media.length !== mediaIds.length || new Set(mediaIds).size !== mediaIds.length || media.some((item) => !mediaIds.includes(item.id))) {
+    throw new Error("圖片排序內容不完整，請重新整理後再試。");
+  }
+  for (let sortOrder = 0; sortOrder < mediaIds.length; sortOrder += 1) {
+    await db.update(growthEventMedia).set({ sortOrder }).where(eq(growthEventMedia.id, mediaIds[sortOrder]!));
+  }
+  return { eventId, mediaIds };
+}
+
+export async function uploadDiaryCoverImage(input: { userId: number; fileName: string; mimeType: string; base64: string }) {
+  const db = await requireDb();
+  const diary = await getOrCreateDiary(input.userId);
+  const bytes = Buffer.from(input.base64, "base64");
+  if (bytes.byteLength > 4 * 1024 * 1024) throw new Error("封面圖片不可超過 4MB。");
+  const fileName = safeMediaName(input.fileName);
+  const stored = await storagePut(`growth-diary/${input.userId}/cover/${Date.now()}-${fileName}`, bytes, input.mimeType);
+  await db.update(growthDiaries).set({ publicCoverStorageKey: stored.key, publicCoverUrl: stored.url }).where(eq(growthDiaries.id, diary.id));
+  return stored;
 }

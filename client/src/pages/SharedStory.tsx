@@ -39,12 +39,16 @@ export default function SharedStory() {
   }
 
   return (
-    <main className="shared-story">
+    <main className={`shared-story shared-layout-${data.diary.publicStoryLayout}`}>
       <header className="shared-hero">
-        <a className="shared-brand" href="/">CHRONICLE</a>
-        <p><span /> 分享的成長故事</p>
-        <h1>{data.diary.title}</h1>
-        <div className="shared-hero-meta"><span><Share2 size={14} /> {data.events.length} 個公開事件</span><span>{data.diary.shareMode === "link" ? "私密連結閱覽" : "公開閱覽"}</span></div>
+        {data.diary.publicCoverUrl ? <img className="shared-hero-cover" src={data.diary.publicCoverUrl} alt={`${data.diary.publicCoverTitle ?? data.diary.title} 的故事封面`} /> : null}
+        <div className="shared-hero-copy">
+          <a className="shared-brand" href="/">CHRONICLE</a>
+          <p><span /> 分享的成長故事</p>
+          <h1>{data.diary.publicCoverTitle || data.diary.title}</h1>
+          {data.diary.subtitle ? <p className="shared-subtitle">{data.diary.subtitle}</p> : null}
+          <div className="shared-hero-meta"><span><Share2 size={14} /> {data.events.length} 個公開事件</span><span>{data.diary.shareMode === "link" ? "私密連結閱覽" : "公開閱覽"}</span></div>
+        </div>
       </header>
 
       <section className="shared-phase-list" aria-label="人生階段">
@@ -56,7 +60,7 @@ export default function SharedStory() {
           <article className="shared-event" key={event.id}>
             <div className="shared-event-date"><i style={{ backgroundColor: event.color }} /><span>{formatDate(event.occurredAt, event.datePrecision)}</span></div>
             <div className="shared-event-card">
-              {event.media[0] ? <img src={event.media[0].url} alt={event.media[0].caption ?? event.title} /> : null}
+              {event.media.length ? <div className={`shared-event-media media-count-${Math.min(event.media.length, 4)}`}>{event.media.map((media) => <figure key={media.id}><img src={media.url} alt={media.caption ?? event.title} />{media.caption ? <figcaption>{media.caption}</figcaption> : null}</figure>)}</div> : null}
               <p className="shared-event-type">{event.eventType} {event.ageLabel ? `/ ${event.ageLabel}` : ""}</p>
               <h2>{event.title}</h2>
               <p className="shared-event-body">{event.body}</p>

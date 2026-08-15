@@ -8,11 +8,14 @@ import {
   getDiarySnapshot,
   getSharedDiary,
   reorderDiaryEvents,
+  reorderDiaryEventMedia,
   setDiaryEventVisibility,
   updateDiaryPhaseBoundaries,
   updateDiaryEvent,
+  updateDiaryEventMedia,
   updatePhaseReflection,
   updateDiarySharing,
+  uploadDiaryCoverImage,
   uploadDiaryEventImage,
 } from "./db";
 import { EVENT_COLORS, EVENT_TYPES, isSupportedImageMimeType } from "./diaryHelpers";
@@ -77,6 +80,9 @@ export const appRouter = router({
       clearSharePassword: z.boolean().optional(),
       shareExpiresAt: z.number().int().min(0).max(4102444800000).nullable().optional(),
       regenerateLink: z.boolean().optional(),
+      publicCoverTitle: z.string().trim().max(160).nullable().optional(),
+      publicStoryLayout: z.enum(["editorial", "gallery", "minimal"]).optional(),
+      clearPublicCover: z.boolean().optional(),
     })).mutation(({ ctx, input }) => updateDiarySharing(ctx.user.id, input)),
     uploadImage: protectedProcedure.input(z.object({
       eventId: z.number().int().positive(),
@@ -85,6 +91,13 @@ export const appRouter = router({
       base64: z.string().min(1).max(6_000_000),
       caption: z.string().trim().max(240).optional(),
     })).mutation(({ ctx, input }) => uploadDiaryEventImage({ userId: ctx.user.id, ...input })),
+    updateImage: protectedProcedure.input(z.object({ id: z.number().int().positive(), caption: z.string().trim().max(240).nullable() })).mutation(({ ctx, input }) => updateDiaryEventMedia(ctx.user.id, input.id, input.caption)),
+    reorderImages: protectedProcedure.input(z.object({ eventId: z.number().int().positive(), mediaIds: z.array(z.number().int().positive()).max(100) })).mutation(({ ctx, input }) => reorderDiaryEventMedia(ctx.user.id, input.eventId, input.mediaIds)),
+    uploadCoverImage: protectedProcedure.input(z.object({
+      fileName: z.string().trim().min(1).max(180),
+      mimeType: z.string().trim().refine(isSupportedImageMimeType, "只支援 JPG、PNG、WebP 或 GIF 圖片。"),
+      base64: z.string().min(1).max(6_000_000),
+    })).mutation(({ ctx, input }) => uploadDiaryCoverImage({ userId: ctx.user.id, ...input })),
     deleteImage: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ ctx, input }) => deleteDiaryEventMedia(ctx.user.id, input.id)),
   }),
   share: router({

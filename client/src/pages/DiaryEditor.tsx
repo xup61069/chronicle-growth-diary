@@ -3,6 +3,7 @@
  * with a live chronological canvas, tactile index cards, and deliberate cinnabar markers.
  */
 import DashboardLayout from "@/components/DashboardLayout";
+import { annualReviewTemplates, buildAnnualReview, type AnnualReviewTemplate } from "@/lib/annualReview";
 import { exportDiaryAsLongImage, exportDiaryAsPdf } from "@/lib/diaryExport";
 import { trpc } from "@/lib/trpc";
 import {
@@ -11,6 +12,7 @@ import {
   BrainCircuit,
   BookOpenCheck,
   CalendarDays,
+  CalendarRange,
   Check,
   ChevronRight,
   Copy,
@@ -28,6 +30,7 @@ import {
   Plus,
   RefreshCw,
   Save,
+  Search,
   Share2,
   ShieldCheck,
   Sparkles,
@@ -61,8 +64,9 @@ type EventForm = {
   color: (typeof diaryColors)[number];
   tagNames: string[];
 };
-type PendingImage = { name: string; type: string; base64: string; preview: string };
+type PendingImage = { id: string; name: string; type: string; base64: string; preview: string; caption: string };
 type ShareMode = "private" | "public" | "link";
+type PublicStoryLayout = "editorial" | "gallery" | "minimal";
 type PhaseKey = "childhood" | "education" | "career";
 type PhaseBoundaries = Record<PhaseKey, { start: string; end: string }>;
 
@@ -105,7 +109,7 @@ async function readImage(file: File): Promise<PendingImage> {
     reader.onerror = () => reject(new Error("無法讀取這張圖片。"));
     reader.onload = () => {
       const dataUrl = String(reader.result);
-      resolve({ name: file.name, type: file.type, base64: dataUrl.split(",")[1] ?? "", preview: dataUrl });
+      resolve({ id: crypto.randomUUID(), name: file.name, type: file.type, base64: dataUrl.split(",")[1] ?? "", preview: dataUrl, caption: "" });
     };
     reader.readAsDataURL(file);
   });
@@ -117,10 +121,13 @@ function DiaryEditorContent() {
   const [form, setForm] = useState<EventForm>(makeEmptyForm);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [tagDraft, setTagDraft] = useState("");
-  const [pendingImage, setPendingImage] = useState<PendingImage | null>(null);
+  const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [filterType, setFilterType] = useState<"all" | EventType>("all");
   const [filterTag, setFilterTag] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [sortOrder, setSortOrder] = useState<"custom" | "newest" | "oldest">("custom");
   const [shareMode, setShareMode] = useState<ShareMode>("private");
   const [birthYear, setBirthYear] = useState("");
@@ -130,8 +137,16 @@ function DiaryEditorContent() {
   const [sharePassword, setSharePassword] = useState("");
   const [clearSharePassword, setClearSharePassword] = useState(false);
   const [shareExpiryDate, setShareExpiryDate] = useState("");
+  const [publicCoverTitle, setPublicCoverTitle] = useState("");
+  const [publicStoryLayout, setPublicStoryLayout] = useState<PublicStoryLayout>("editorial");
+  const [pendingCover, setPendingCover] = useState<PendingImage | null>(null);
+  const [clearPublicCover, setClearPublicCover] = useState(false);
+  const [annualYear, setAnnualYear] = useState("");
+  const [annualTemplate, setAnnualTemplate] = useState<AnnualReviewTemplate>("narrative");
   const [phaseBoundaries, setPhaseBoundaries] = useState<PhaseBoundaries>({ childhood: { start: "", end: "" }, education: { start: "", end: "" }, career: { start: "", end: "" } });
   const [draggedEventId, setDraggedEventId] = useState<number | null>(null);
+  const [draggedMediaId, setDraggedMediaId] = useState<number | null>(null);
+  const [mediaCaptionDrafts, setMediaCaptionDrafts] = useState<Record<number, string>>({});
   const [editingReflectionKey, setEditingReflectionKey] = useState<PhaseKey | null>(null);
   const [reflectionDraft, setReflectionDraft] = useState({ recap: "", reflection: "" });
   const exportRef = useRef<HTMLElement>(null);
@@ -141,6 +156,9 @@ function DiaryEditorContent() {
   const uploadMutation = trpc.diary.uploadImage.useMutation();
   const deleteMutation = trpc.diary.deleteEvent.useMutation();
   const deleteImageMutation = trpc.diary.deleteImage.useMutation();
+  const updateImageMutation = trpc.diary.updateImage.useMutation();
+  const reorderImagesMutation = trpc.diary.reorderImages.useMutation();
+  const uploadCoverMutation = trpc.diary.uploadCoverImage.useMutation();
   const visibilityMutation = trpc.diary.setEventVisibility.useMutation();
   const sharingMutation = trpc.diary.updateSharing.useMutation();
   const reorderMutation = trpc.diary.reorderEvents.useMutation();
@@ -153,11 +171,18 @@ function DiaryEditorContent() {
     () => {
       const filtered = events
         .filter((event) => filterType === "all" || event.eventType === filterType)
-        .filter((event) => filterTag === "all" || event.tags.some((tag) => tag.name === filterTag));
+        .filter((event) => filterTag === "all" || event.tags.some((tag) => tag.name === filterTag))
+        .filter((event) => {
+          const needle = searchQuery.trim().toLocaleLowerCase();
+          if (!needle) return true;
+          return [event.title, event.body, event.place ?? "", ...event.tags.map((tag) => tag.name)].join(" ").toLocaleLowerCase().includes(needle);
+        })
+        .filter((event) => !dateFrom || event.occurredAt >= new Date(`${dateFrom}T00:00:00`).getTime())
+        .filter((event) => !dateTo || event.occurredAt <= new Date(`${dateTo}T23:59:59.999`).getTime());
       if (sortOrder === "custom") return filtered;
       return [...filtered].sort((left, right) => sortOrder === "oldest" ? left.occurredAt - right.occurredAt : right.occurredAt - left.occurredAt);
     },
-    [events, filterTag, filterType, sortOrder],
+    [dateFrom, dateTo, events, filterTag, filterType, searchQuery, sortOrder],
   );
   const selectedEvent = events.find((event) => event.id === (selectedId ?? editingId)) ?? visibleEvents[0] ?? events[0];
   const isSaving = saveMutation.isPending || updateMutation.isPending || uploadMutation.isPending;
@@ -172,6 +197,8 @@ function DiaryEditorContent() {
     return { min: Math.min(...years, 1900) - 2, max: Math.max(...years, new Date().getFullYear()) + 2 };
   }, [events]);
   const reflectionsByPhase = useMemo(() => new Map((data?.reflections ?? []).map((reflection) => [reflection.phaseKey, reflection])), [data?.reflections]);
+  const availableYears = useMemo(() => Array.from(new Set(events.map((event) => new Date(event.occurredAt).getFullYear()))).sort((left, right) => right - left), [events]);
+  const annualReview = useMemo(() => buildAnnualReview(events, Number(annualYear || availableYears[0] || new Date().getFullYear()), annualTemplate), [annualTemplate, annualYear, availableYears, events]);
 
   useEffect(() => {
     if (!data) return;
@@ -181,12 +208,17 @@ function DiaryEditorContent() {
     setCareerStartYear(data.diary.careerStartYear?.toString() ?? "");
     setShareExpiryDate(data.sharing.expiresAt ? new Date(data.sharing.expiresAt).toISOString().slice(0, 10) : "");
     setClearSharePassword(false);
+    setPublicCoverTitle(data.diary.publicCoverTitle ?? "");
+    setPublicStoryLayout(data.diary.publicStoryLayout);
+    setClearPublicCover(false);
+    setPendingCover(null);
+    setAnnualYear((current) => current || String(availableYears[0] ?? new Date().getFullYear()));
     setPhaseBoundaries({
       childhood: { start: data.diary.childhoodStartYear?.toString() ?? data.diary.birthYear?.toString() ?? "", end: data.diary.childhoodEndYear?.toString() ?? "" },
       education: { start: data.diary.educationStartYear?.toString() ?? "", end: data.diary.educationEndYear?.toString() ?? "" },
       career: { start: data.diary.careerStartYear?.toString() ?? "", end: data.diary.careerEndYear?.toString() ?? "" },
     });
-  }, [data]);
+  }, [availableYears, data]);
 
   const addTag = (rawTag = tagDraft) => {
     const tag = rawTag.trim().replace(/\s+/g, " ");
@@ -204,7 +236,7 @@ function DiaryEditorContent() {
   const startNewEvent = () => {
     setEditingId(null);
     setSelectedId(null);
-    setPendingImage(null);
+    setPendingImages([]);
     setTagDraft("");
     setForm(makeEmptyForm());
   };
@@ -213,7 +245,8 @@ function DiaryEditorContent() {
     setEditingId(event.id);
     setSelectedId(event.id);
     setTagDraft("");
-    setPendingImage(null);
+    setPendingImages([]);
+    setMediaCaptionDrafts(Object.fromEntries(event.media.map((media) => [media.id, media.caption ?? ""])));
     setForm({
       title: event.title,
       occurredAt: formatInputDate(event.occurredAt),
@@ -228,15 +261,31 @@ function DiaryEditorContent() {
   };
 
   const handleImageChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? []);
+    event.target.value = "";
+    if (!files.length) return;
+    const validFiles = files.filter((file) => file.type.startsWith("image/") && file.size <= 4 * 1024 * 1024);
+    if (validFiles.length !== files.length) toast.error("僅可加入 JPG、PNG、WebP 或 GIF，且每張圖片不可超過 4MB。");
+    if (!validFiles.length) return;
+    try {
+      const images = await Promise.all(validFiles.map(readImage));
+      setPendingImages((current) => [...current, ...images].slice(0, 8));
+      if (pendingImages.length + images.length > 8) toast.info("每段記憶最多一次加入 8 張圖片。");
+    } catch (uploadError) {
+      toast.error(uploadError instanceof Error ? uploadError.message : "圖片暫存失敗。");
+    }
+  };
+
+  const handleCoverImageChange = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
-    if (!file.type.startsWith("image/")) return toast.error("請選擇 JPG、PNG、WebP 或 GIF 圖片。");
-    if (file.size > 4 * 1024 * 1024) return toast.error("圖片檔案不可超過 4MB。");
+    if (!file.type.startsWith("image/") || file.size > 4 * 1024 * 1024) return toast.error("封面需為 4MB 以內的 JPG、PNG、WebP 或 GIF 圖片。");
     try {
-      setPendingImage(await readImage(file));
-    } catch (uploadError) {
-      toast.error(uploadError instanceof Error ? uploadError.message : "圖片暫存失敗。");
+      setPendingCover(await readImage(file));
+      setClearPublicCover(false);
+    } catch (coverError) {
+      toast.error(coverError instanceof Error ? coverError.message : "無法讀取封面圖片。");
     }
   };
 
@@ -255,14 +304,8 @@ function DiaryEditorContent() {
         ? await updateMutation.mutateAsync({ id: editingId, ...payload })
         : await saveMutation.mutateAsync(payload);
 
-      if (pendingImage) {
-        await uploadMutation.mutateAsync({
-          eventId: saved.id,
-          fileName: pendingImage.name,
-          mimeType: pendingImage.type,
-          base64: pendingImage.base64,
-          caption: form.title.trim(),
-        });
+      for (const image of pendingImages) {
+        await uploadMutation.mutateAsync({ eventId: saved.id, fileName: image.name, mimeType: image.type, base64: image.base64, caption: image.caption.trim() || undefined });
       }
 
       await utils.diary.get.invalidate();
@@ -295,6 +338,35 @@ function DiaryEditorContent() {
     }
   };
 
+  const saveImageCaption = async (id: number) => {
+    try {
+      await updateImageMutation.mutateAsync({ id, caption: mediaCaptionDrafts[id]?.trim() || null });
+      await utils.diary.get.invalidate();
+      toast.success("圖片說明已更新。");
+    } catch (mediaError) {
+      toast.error(mediaError instanceof Error ? mediaError.message : "無法更新圖片說明。");
+    }
+  };
+
+  const dropImageAt = async (targetId: number) => {
+    if (!selectedEvent || draggedMediaId === null || draggedMediaId === targetId) return;
+    const mediaIds = selectedEvent.media.map((media) => media.id);
+    const fromIndex = mediaIds.indexOf(draggedMediaId);
+    const targetIndex = mediaIds.indexOf(targetId);
+    if (fromIndex < 0 || targetIndex < 0) return;
+    mediaIds.splice(fromIndex, 1);
+    mediaIds.splice(targetIndex, 0, draggedMediaId);
+    try {
+      await reorderImagesMutation.mutateAsync({ eventId: selectedEvent.id, mediaIds });
+      await utils.diary.get.invalidate();
+      toast.success("圖片順序已更新。");
+    } catch (mediaError) {
+      toast.error(mediaError instanceof Error ? mediaError.message : "無法儲存圖片順序。");
+    } finally {
+      setDraggedMediaId(null);
+    }
+  };
+
   const updateSharing = async (regenerateLink = false) => {
     try {
       const result = await sharingMutation.mutateAsync({
@@ -310,10 +382,18 @@ function DiaryEditorContent() {
         clearSharePassword,
         shareExpiresAt: shareExpiryDate ? new Date(`${shareExpiryDate}T23:59:59`).getTime() : null,
         regenerateLink: regenerateLink || (shareMode === "link" && !data?.sharing.hasPrivateLink),
+        publicCoverTitle: publicCoverTitle || null,
+        publicStoryLayout,
+        clearPublicCover,
       });
+      if (pendingCover) {
+        await uploadCoverMutation.mutateAsync({ fileName: pendingCover.name, mimeType: pendingCover.type, base64: pendingCover.base64 });
+        setPendingCover(null);
+      }
       if (result.shareToken) setPrivateToken(result.shareToken);
       setSharePassword("");
       setClearSharePassword(false);
+      setClearPublicCover(false);
       await utils.diary.get.invalidate();
       toast.success(shareMode === "private" ? "分享已關閉，日記維持私人狀態。" : "分享設定已儲存。");
     } catch (sharingError) {
@@ -399,7 +479,7 @@ function DiaryEditorContent() {
 
   const dropEventAt = async (targetId: number) => {
     if (draggedEventId === null || draggedEventId === targetId) return;
-    if (filterType !== "all" || filterTag !== "all" || sortOrder !== "custom") return toast.info("請先切換為「手動順序」並清除篩選，再拖曳重新排序。");
+    if (filterType !== "all" || filterTag !== "all" || searchQuery || dateFrom || dateTo || sortOrder !== "custom") return toast.info("請先切換為「手動順序」並清除搜尋與篩選，再拖曳重新排序。");
     const orderedIds = events.map((event) => event.id);
     const fromIndex = orderedIds.indexOf(draggedEventId);
     const targetIndex = orderedIds.indexOf(targetId);
@@ -487,6 +567,12 @@ function DiaryEditorContent() {
         </div>
       </section>
 
+      <section className="annual-review-studio" aria-labelledby="annual-review-title">
+        <div className="annual-review-heading"><p className="editor-kicker"><span /> YEAR IN REVIEW</p><h2 id="annual-review-title">把一年，整理成下一段故事的起點。</h2><p>從已經寫下的事件建立年度回顧。模板只重組你的日記內容，不會虛構新的經歷。</p></div>
+        <div className="annual-review-controls"><label>回顧年份<select value={annualYear || String(availableYears[0] ?? new Date().getFullYear())} onChange={(event) => setAnnualYear(event.target.value)}>{(availableYears.length ? availableYears : [new Date().getFullYear()]).map((year) => <option value={year} key={year}>{year} 年</option>)}</select></label><div>{annualReviewTemplates.map((template) => <button type="button" key={template.key} className={annualTemplate === template.key ? "active" : ""} onClick={() => setAnnualTemplate(template.key)}><b>{template.label}</b><small>{template.description}</small></button>)}</div></div>
+        <article className={`annual-review-card annual-${annualTemplate}`}><div><p>{annualReview.title}</p><b>{annualReview.count.toString().padStart(2, "0")} <small>段日記</small></b></div><h3>{annualReview.lead}</h3><div className="annual-review-highlights">{annualReview.highlights.map((highlight) => <article key={highlight.id}><span>{highlight.label}</span><h4>{highlight.title}</h4><p>{highlight.body}</p></article>)}</div>{annualReview.tags.length ? <div className="annual-review-tags">{annualReview.tags.map((tag) => <span key={tag}>#{tag}</span>)}</div> : null}<blockquote>{annualReview.prompt}</blockquote></article>
+      </section>
+
       <section className="sharing-studio" aria-labelledby="sharing-title">
         <div className="sharing-intro"><p className="editor-kicker"><span /> SHARING CONTROLS</p><h2 id="sharing-title">由你決定，哪些故事可以被看見。</h2><p>每個事件都從私人狀態開始。你可以只公開某些片段，或建立一條只交給特定對象的私密連結。</p><div className="sharing-stat"><ShieldCheck size={16} /><span>目前有 <b>{publicEventCount}</b> 篇事件允許分享</span></div></div>
         <div className="sharing-settings">
@@ -506,6 +592,7 @@ function DiaryEditorContent() {
             <div className="share-access-summary"><span><b>{data?.sharing.accessCount.toString().padStart(2, "0")}</b><small>累積可讀瀏覽</small></span><span><b>{data?.sharing.lastSharedAt ? new Date(data.sharing.lastSharedAt).toLocaleDateString("zh-TW") : "—"}</b><small>最後存取日期</small></span></div>
             {data?.sharing.recentAccesses.length ? <p className="share-log-note">最近存取：{data.sharing.recentAccesses.map((access) => new Date(access.accessedAt).toLocaleString("zh-TW")).join(" · ")}</p> : <p className="share-log-note">尚無成功的分享閱讀紀錄；系統不儲存閱覽者身分或 IP 位址。</p>}
           </div> : null}
+          <div className="public-story-settings"><p><ImagePlus size={14} /> 公開故事封面與排版</p><label>封面標題<input value={publicCoverTitle} onChange={(event) => setPublicCoverTitle(event.target.value)} placeholder="預設使用日記標題" maxLength={160} /></label><label>閱讀版型<select value={publicStoryLayout} onChange={(event) => setPublicStoryLayout(event.target.value as PublicStoryLayout)}><option value="editorial">編輯式長文</option><option value="gallery">影像畫廊</option><option value="minimal">極簡時間帶</option></select></label><label className="cover-dropzone"><input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={handleCoverImageChange} />{pendingCover ? <img src={pendingCover.preview} alt="待上傳的公開故事封面" /> : data?.diary.publicCoverUrl ? <img src={data.diary.publicCoverUrl} alt="目前的公開故事封面" /> : <><ImagePlus size={20} /><b>選擇公開故事封面</b><small>JPG、PNG、WebP 或 GIF，最大 4MB</small></>}</label>{(pendingCover || data?.diary.publicCoverUrl) ? <label className="share-checkbox"><input type="checkbox" checked={clearPublicCover} onChange={(event) => { setClearPublicCover(event.target.checked); if (event.target.checked) setPendingCover(null); }} /> 移除目前封面，改用純文字開場</label> : null}</div>
           <div className="sharing-actions"><button className="save-sharing" onClick={() => updateSharing()} disabled={sharingMutation.isPending}>{sharingMutation.isPending ? <Loader2 size={15} className="animate-spin" /> : <Share2 size={15} />} 儲存分享設定</button>{shareMode !== "private" ? <button className="copy-sharing" onClick={copyShareLink}><Copy size={15} /> 複製分享連結</button> : null}{shareMode === "link" ? <button className="regenerate-link" onClick={() => updateSharing(true)}><RefreshCw size={14} /> 重新產生私密連結</button> : null}</div>
           {shareMode === "link" && data?.sharing.hasPrivateLink && !privateToken ? <p className="private-link-note">為安全起見，既有私密連結不會再次顯示；需要時可重新產生。</p> : null}
           {hasShareConfiguration && shareMode === "public" ? <p className="sharing-url"><Globe2 size={14} /> {publicShareUrl}</p> : null}
@@ -518,6 +605,8 @@ function DiaryEditorContent() {
           <div className="panel-title"><span>事件索引</span><b>{eventCountLabel}</b></div>
           <button className="new-event-button" onClick={startNewEvent}><Plus size={16} /> 新增一段記憶</button>
           <div className="index-filters">
+            <label className="index-search"><Search size={13} /><input aria-label="搜尋日記全文" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="搜尋標題、內容、地點或標籤" /></label>
+            <label className="index-date-filter"><CalendarRange size={13} /><input aria-label="篩選開始日期" type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} /><span>至</span><input aria-label="篩選結束日期" type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} /></label>
             <select aria-label="依事件類型篩選" value={filterType} onChange={(event) => setFilterType(event.target.value as "all" | EventType)}>
               <option value="all">全部類型</option>
               {eventTypes.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}
@@ -537,7 +626,7 @@ function DiaryEditorContent() {
               <button
                 key={event.id}
                 type="button"
-                draggable={filterType === "all" && filterTag === "all" && sortOrder === "custom"}
+                draggable={filterType === "all" && filterTag === "all" && !searchQuery && !dateFrom && !dateTo && sortOrder === "custom"}
                 className={`event-index-card ${selectedEvent?.id === event.id ? "is-selected" : ""}`}
                 onClick={() => editEvent(event)}
                 onDragStart={(dragEvent) => { dragEvent.dataTransfer.effectAllowed = "move"; setDraggedEventId(event.id); }}
@@ -625,12 +714,12 @@ function DiaryEditorContent() {
             </div>
 
             <div className="form-field media-field">
-              <span><ImagePlus size={14} /> 珍藏一張影像</span>
+              <span><ImagePlus size={14} /> 珍藏影像（可多選）</span>
               <label className="image-dropzone">
-                <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={handleImageChange} />
-                {pendingImage ? <img src={pendingImage.preview} alt="待上傳的事件影像預覽" /> : <><ImagePlus size={20} /><b>選擇圖片</b><small>JPG、PNG、WebP 或 GIF，最大 4MB</small></>}
+                <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple onChange={handleImageChange} />
+                <><ImagePlus size={20} /><b>選擇圖片</b><small>可一次選取多張 JPG、PNG、WebP 或 GIF；每張最大 4MB</small></>
               </label>
-              {pendingImage ? <button type="button" className="remove-pending" onClick={() => setPendingImage(null)}><X size={14} /> 移除待上傳圖片</button> : null}
+              {pendingImages.length ? <div className="pending-media-grid">{pendingImages.map((image) => <article key={image.id}><img src={image.preview} alt={`${image.name} 預覽`} /><input value={image.caption} onChange={(event) => setPendingImages((current) => current.map((item) => item.id === image.id ? { ...item, caption: event.target.value } : item))} placeholder="圖片說明（選填）" maxLength={240} /><button type="button" onClick={() => setPendingImages((current) => current.filter((item) => item.id !== image.id))} aria-label={`移除 ${image.name}`}><X size={13} /></button></article>)}</div> : null}
             </div>
 
             <div className="form-actions"><span>{editingId ? "修改將立即更新你的私人時間帶。" : "儲存後，這段記憶會出現在左側索引與時間預覽。"}</span><button type="submit" disabled={isSaving}>{isSaving ? <Loader2 size={16} className="animate-spin" /> : <PencilLine size={16} />}{editingId ? "儲存變更" : "存入時間帶"}</button></div>
@@ -643,13 +732,14 @@ function DiaryEditorContent() {
             <>
               <div className="preview-date"><span>{formatDate(selectedEvent.occurredAt, selectedEvent.datePrecision)}</span><i style={{ backgroundColor: selectedEvent.color }} /></div>
               <article className="preview-card">
-                {selectedEvent.media[0] ? <div className="preview-image"><img src={selectedEvent.media[0].url} alt={selectedEvent.media[0].caption ?? selectedEvent.title} /><button onClick={() => removeImage(selectedEvent.media[0].id)} aria-label="移除這張圖片"><Trash2 size={14} /></button></div> : null}
+                {selectedEvent.media[0] ? <div className="preview-image"><img src={selectedEvent.media[0].url} alt={selectedEvent.media[0].caption ?? selectedEvent.title} /></div> : null}
                 <p className="preview-type">{eventTypes.find((type) => type.value === selectedEvent.eventType)?.label} {selectedEvent.ageLabel ? `/ ${selectedEvent.ageLabel}` : ""}</p>
                 <h3>{selectedEvent.title}</h3>
                 <p className="preview-body">{selectedEvent.body || "這段記憶還在等待你寫下細節。"}</p>
                 {selectedEvent.place ? <p className="preview-place"><MapPin size={13} /> {selectedEvent.place}</p> : null}
                 <div className="preview-tags">{selectedEvent.tags.map((tag) => <span key={tag.id}>{tag.name}</span>)}</div>
                 <div className="event-visibility-control"><span>{selectedEvent.isPublic ? <Globe2 size={13} /> : <LockKeyhole size={13} />}{selectedEvent.isPublic ? "允許分享" : "私人事件"}</span><button onClick={toggleSelectedEventVisibility} disabled={visibilityMutation.isPending}>{selectedEvent.isPublic ? "改為私人" : "允許分享"}</button></div>
+                {selectedEvent.media.length ? <section className="media-editor" aria-label="事件圖片編輯"><header><span><GripVertical size={13} /> 圖片排序與說明</span><b>{selectedEvent.media.length.toString().padStart(2, "0")} 張</b></header>{selectedEvent.media.map((media) => <article key={media.id} draggable={selectedEvent.media.length > 1} onDragStart={() => setDraggedMediaId(media.id)} onDragOver={(event) => event.preventDefault()} onDrop={() => dropImageAt(media.id)} onDragEnd={() => setDraggedMediaId(null)}><img src={media.url} alt={media.caption ?? selectedEvent.title} /><div><input value={mediaCaptionDrafts[media.id] ?? media.caption ?? ""} onChange={(event) => setMediaCaptionDrafts((current) => ({ ...current, [media.id]: event.target.value }))} placeholder="為這張圖片寫下說明" maxLength={240} /><div><button type="button" onClick={() => saveImageCaption(media.id)} disabled={updateImageMutation.isPending}><Save size={12} /> 儲存說明</button><button type="button" onClick={() => removeImage(media.id)}><Trash2 size={12} /> 移除</button></div></div></article>)}</section> : null}
                 <div className="preview-actions"><button onClick={() => editEvent(selectedEvent)}><PencilLine size={14} /> 編輯</button><button className="delete" onClick={() => removeEvent(selectedEvent.id)}><Trash2 size={14} /> 刪除</button></div>
               </article>
               <div className="preview-ruler" aria-hidden="true"><i /><b>{new Date(selectedEvent.occurredAt).getFullYear()}</b><i /><span>NOW</span></div>
