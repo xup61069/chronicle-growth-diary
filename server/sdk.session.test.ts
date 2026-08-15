@@ -1,6 +1,11 @@
 import { COOKIE_NAME } from "../shared/const";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.hoisted(() => {
+  process.env.JWT_SECRET = "chronicle-session-test-secret";
+  process.env.VITE_APP_ID = "chronicle-session-test-app";
+});
+
 const mocks = vi.hoisted(() => ({
   getUserByOpenId: vi.fn(),
   upsertUser: vi.fn(),
