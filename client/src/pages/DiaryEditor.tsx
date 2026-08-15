@@ -6,7 +6,7 @@ import DashboardLayout from "@/components/DashboardLayout";
 import { DiaryEditorHeader } from "@/components/DiaryEditorHeader";
 import { DiaryLoadState } from "@/components/DiaryLoadState";
 import { annualReviewTemplates, buildAnnualReview, type AnnualReviewTemplate } from "@/lib/annualReview";
-import { diaryColors, eventTypes, formatDate, formatInputDate, makeEmptyForm, readImage, toTimestamp, type DatePrecision, type EventForm, type EventType, type PendingImage } from "@/lib/diaryEditor";
+import { consumeTagInputEnter, diaryColors, eventTypes, formatDate, formatInputDate, makeEmptyForm, readImage, toTimestamp, type DatePrecision, type EventForm, type EventType, type PendingImage } from "@/lib/diaryEditor";
 import { filterDiaryEvents, type DiarySortOrder } from "@/lib/diaryFilters";
 import { exportDiaryAsLongImage, exportDiaryAsPdf } from "@/lib/diaryExport";
 import { createPortableDiaryExport, downloadPortableDiary } from "@/lib/diaryPortable";
@@ -46,7 +46,7 @@ import {
   WandSparkles,
   X,
 } from "lucide-react";
-import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { ChangeEvent, FormEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 type ShareMode = "private" | "public" | "link";
@@ -94,6 +94,7 @@ function DiaryEditorContent() {
   const [importPreview, setImportPreview] = useState<ChronicleImportPreview | null>(null);
   const exportRef = useRef<HTMLElement>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
+  const tagEnterSubmitGuard = useRef(false);
 
   useEffect(() => {
     if (!isLoading) {
@@ -177,6 +178,14 @@ function DiaryEditorContent() {
     setTagDraft("");
   };
 
+  const handleTagInputKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    const consumed = consumeTagInputEnter(event, () => {
+      tagEnterSubmitGuard.current = true;
+      addTag();
+    });
+    if (consumed) window.setTimeout(() => { tagEnterSubmitGuard.current = false; }, 0);
+  };
+
   const startNewEvent = () => {
     setMobileWorkspacePanel("compose");
     setEditingId(null);
@@ -237,6 +246,10 @@ function DiaryEditorContent() {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (tagEnterSubmitGuard.current) {
+      tagEnterSubmitGuard.current = false;
+      return;
+    }
     if (!form.title.trim()) return toast.error("先為這段記憶寫下標題。");
     const payload = {
       ...form,
@@ -712,7 +725,7 @@ function DiaryEditorContent() {
             <div className="form-field tags-field">
               <span><Tag size={14} /> 標籤</span>
               <div className="tag-input-row">
-                <input value={tagDraft} onChange={(event) => setTagDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addTag(); } }} placeholder="輸入後按 Enter，例如：家庭" maxLength={24} />
+                <input value={tagDraft} onChange={(event) => setTagDraft(event.target.value)} onKeyDown={handleTagInputKeyDown} placeholder="輸入後按 Enter，例如：家庭" maxLength={24} />
                 <button type="button" onClick={() => addTag()}>加入</button>
               </div>
               <div className="tag-chips">

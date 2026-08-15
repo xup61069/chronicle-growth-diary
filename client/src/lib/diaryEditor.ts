@@ -21,6 +21,7 @@ export type EventForm = {
   tagNames: string[];
 };
 export type PendingImage = { id: string; name: string; type: string; base64: string; preview: string; caption: string };
+export type TagInputKeyEvent = { key: string; preventDefault: () => void; stopPropagation: () => void };
 
 const today = new Date().toISOString().slice(0, 10);
 
@@ -53,6 +54,18 @@ export function formatDate(timestamp: number, precision: DatePrecision) {
 export function toTimestamp(value: string, precision: DatePrecision) {
   const [year, month = "01", day = "01"] = value.split("-");
   return new Date(Number(year), precision === "year" ? 0 : Number(month) - 1, precision === "day" ? Number(day) : 1).getTime();
+}
+
+/**
+ * Consume Enter inside the tag input so it only turns a draft into a tag. Without
+ * stopping propagation, browsers may also submit the enclosing event form.
+ */
+export function consumeTagInputEnter(event: TagInputKeyEvent, onAddTag: () => void) {
+  if (event.key !== "Enter") return false;
+  event.preventDefault();
+  event.stopPropagation();
+  onAddTag();
+  return true;
 }
 
 export async function readImage(file: File): Promise<PendingImage> {
