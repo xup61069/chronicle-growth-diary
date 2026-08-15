@@ -20,6 +20,8 @@ describe("service providers", () => {
     ENV.authDriver = "manus";
     ENV.storageDriver = "forge";
     ENV.llmDriver = "forge";
+    ENV.forgeApiUrl = "https://forge.test";
+    ENV.forgeApiKey = "forge-test-key";
 
     expect(getAuthProvider().name).toBe("manus");
     expect(getStorageProvider().name).toBe("forge");
