@@ -344,6 +344,14 @@ function DiaryEditorContent() {
   };
 
   const savePhaseBoundaries = async () => {
+    const invalidBoundary = (["childhood", "education", "career"] as const).find((phaseKey) => {
+      const phase = phaseBoundaries[phaseKey];
+      return phase.start && phase.end && Number(phase.start) > Number(phase.end);
+    });
+    if (invalidBoundary) {
+      const label = data?.lifePhases.find((phase) => phase.key === invalidBoundary)?.label ?? "此";
+      return toast.error(`${label}階段的結束年份不能早於開始年份。`);
+    }
     try {
       await phaseBoundariesMutation.mutateAsync({
         childhoodStartYear: phaseBoundaries.childhood.start ? Number(phaseBoundaries.childhood.start) : null,
@@ -454,12 +462,14 @@ function DiaryEditorContent() {
             const phaseKey = phase.key as PhaseKey;
             const boundaries = phaseBoundaries[phaseKey];
             const reflection = reflectionsByPhase.get(phase.key);
+            const startYear = Number(boundaries.start || phase.startYear || timelineYearRange.min);
+            const endYear = Number(boundaries.end || phase.endYear || timelineYearRange.max);
             return <article key={phase.key} className={`phase-card phase-${phase.key}`}>
               <span>{phase.yearRange ?? "時間待補"}</span><h3>{phase.label}</h3><p>{phase.note}</p><b>{phase.count.toString().padStart(2, "0")} <small>篇記憶</small></b>
               <div className="phase-boundary-editor">
                 <p><GripVertical size={13} /> 拖曳調整時間邊界</p>
-                <label>起於 <strong>{boundaries.start || phase.startYear || "未設定"}</strong><input aria-label={`${phase.label}開始年份`} type="range" min={timelineYearRange.min} max={timelineYearRange.max} value={boundaries.start || phase.startYear || timelineYearRange.min} onChange={(event) => setPhaseBoundaries((current) => ({ ...current, [phaseKey]: { ...current[phaseKey], start: event.target.value } }))} /></label>
-                <label>止於 <strong>{boundaries.end || phase.endYear || "未設定"}</strong><input aria-label={`${phase.label}結束年份`} type="range" min={timelineYearRange.min} max={timelineYearRange.max} value={boundaries.end || phase.endYear || timelineYearRange.max} onChange={(event) => setPhaseBoundaries((current) => ({ ...current, [phaseKey]: { ...current[phaseKey], end: event.target.value } }))} /></label>
+                <label>起於 <strong>{boundaries.start || phase.startYear || "未設定"}</strong><input aria-label={`${phase.label}開始年份`} type="range" min={timelineYearRange.min} max={Math.max(timelineYearRange.min, endYear)} value={boundaries.start || phase.startYear || timelineYearRange.min} onChange={(event) => setPhaseBoundaries((current) => ({ ...current, [phaseKey]: { ...current[phaseKey], start: event.target.value } }))} /></label>
+                <label>止於 <strong>{boundaries.end || phase.endYear || "未設定"}</strong><input aria-label={`${phase.label}結束年份`} type="range" min={Math.min(timelineYearRange.max, startYear)} max={timelineYearRange.max} value={boundaries.end || phase.endYear || timelineYearRange.max} onChange={(event) => setPhaseBoundaries((current) => ({ ...current, [phaseKey]: { ...current[phaseKey], end: event.target.value } }))} /></label>
               </div>
               <div className="phase-reflection">
                 {reflection ? <>

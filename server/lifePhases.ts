@@ -22,6 +22,15 @@ export const LIFE_PHASES = [
 
 export type LifePhaseKey = (typeof LIFE_PHASES)[number]["key"];
 
+export function getInvalidLifePhaseBoundary(anchors: LifePhaseAnchors) {
+  const boundaries: Array<{ key: LifePhaseKey; label: string; start?: number | null; end?: number | null }> = [
+    { key: "childhood", label: "童年", start: anchors.childhoodStartYear ?? anchors.birthYear, end: anchors.childhoodEndYear },
+    { key: "education", label: "求學", start: anchors.educationStartYear, end: anchors.educationEndYear },
+    { key: "career", label: "職涯", start: anchors.careerStartYear, end: anchors.careerEndYear },
+  ];
+  return boundaries.find((boundary) => boundary.start != null && boundary.end != null && boundary.start > boundary.end);
+}
+
 function extractAge(ageLabel?: string | null) {
   if (!ageLabel) return undefined;
   const match = ageLabel.match(/\d{1,2}/);

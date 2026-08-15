@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deriveLifePhases, inferLifePhaseKey } from "./lifePhases";
+import { deriveLifePhases, getInvalidLifePhaseBoundary, inferLifePhaseKey } from "./lifePhases";
 
 describe("personal growth life phases", () => {
   const anchors = { birthYear: 1990, educationStartYear: 1996, careerStartYear: 2012 };
@@ -26,5 +26,10 @@ describe("personal growth life phases", () => {
       { occurredAt: new Date(2018, 0, 1).getTime(), eventType: "achievement" as const },
     ], anchors);
     expect(phases.map((phase) => phase.key)).toEqual(["childhood", "career"]);
+  });
+
+  it("rejects a manually adjusted phase whose end year precedes its start year", () => {
+    expect(getInvalidLifePhaseBoundary({ educationStartYear: 2008, educationEndYear: 2007 })?.key).toBe("education");
+    expect(getInvalidLifePhaseBoundary({ educationStartYear: 2008, educationEndYear: 2010 })).toBeUndefined();
   });
 });

@@ -13,7 +13,7 @@ import {
   users,
 } from "../drizzle/schema";
 import { normalizeTagNames, safeMediaName } from "./diaryHelpers";
-import { deriveLifePhases } from "./lifePhases";
+import { deriveLifePhases, getInvalidLifePhaseBoundary } from "./lifePhases";
 import { hasShareAccess, hashSharePassword, hashShareToken, isShareExpired, verifySharePassword } from "./shareAccess";
 import { ENV } from "./_core/env";
 import { invokeLLM } from "./_core/llm";
@@ -251,6 +251,8 @@ export async function reorderDiaryEvents(userId: number, eventIds: number[]) {
 export async function updateDiaryPhaseBoundaries(userId: number, input: DiaryPhaseBoundariesInput) {
   const db = await requireDb();
   const diary = await getOrCreateDiary(userId);
+  const invalidBoundary = getInvalidLifePhaseBoundary({ ...diary, ...input });
+  if (invalidBoundary) throw new Error(`${invalidBoundary.label}階段的結束年份不能早於開始年份。`);
   await db.update(growthDiaries).set(input).where(eq(growthDiaries.id, diary.id));
   return input;
 }
@@ -297,6 +299,11 @@ export async function updatePhaseReflection(userId: number, input: { phaseKey: "
 export async function updateDiarySharing(userId: number, input: DiarySharingInput) {
   const db = await requireDb();
   const diary = await getOrCreateDiary(userId);
+  const invalidBoundary = getInvalidLifePhaseBoundary({
+    ...diary,
+    ...Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined)),
+  });
+  if (invalidBoundary) throw new Error(`${invalidBoundary.label}階段的結束年份不能早於開始年份。`);
   const shareSlug = diary.shareSlug ?? makeShareSlug(diary.id);
   let shareToken: string | undefined;
   let shareTokenHash = diary.shareTokenHash;
