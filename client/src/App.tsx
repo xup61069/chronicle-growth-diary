@@ -2,6 +2,7 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import DiaryEditor from "@/pages/DiaryEditor";
+import QuickNote from "@/pages/QuickNote";
 import SharedStory from "@/pages/SharedStory";
 import NotFound from "@/pages/NotFound";
 import { Route, Switch } from "wouter";
@@ -15,6 +16,7 @@ function Router() {
     <Switch>
       <Route path={"/"} component={Home} />
       <Route path={"/editor"} component={DiaryEditor} />
+      <Route path={"/quick-note"} component={QuickNote} />
       <Route path={"/story/:slug"} component={SharedStory} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}

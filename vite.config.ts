@@ -5,6 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { defineConfig, type Plugin, type ViteDevServer } from "vite";
 import { vitePluginManusRuntime } from "vite-plugin-manus-runtime";
+import { VitePWA } from "vite-plugin-pwa";
 
 // =============================================================================
 // Manus Debug Collector - Vite Plugin
@@ -150,7 +151,39 @@ function vitePluginManusDebugCollector(): Plugin {
   };
 }
 
-const plugins = [react(), tailwindcss(), jsxLocPlugin(), vitePluginManusRuntime(), vitePluginManusDebugCollector()];
+const plugins = [
+  react(),
+  tailwindcss(),
+  jsxLocPlugin(),
+  vitePluginManusRuntime(),
+  vitePluginManusDebugCollector(),
+  VitePWA({
+    registerType: "autoUpdate",
+    manifest: {
+      name: "Chronicle 成長日記",
+      short_name: "Chronicle",
+      description: "將事件、影像與反思編排成屬於自己的成長時間帶。",
+      lang: "zh-Hant",
+      start_url: "/quick-note",
+      display: "standalone",
+      background_color: "#F6F1E8",
+      theme_color: "#14263A",
+      icons: [
+        {
+          src: "/manus-storage/chronicle-mark_5e825172.png",
+          sizes: "512x512",
+          type: "image/png",
+          purpose: "any maskable",
+        },
+      ],
+    },
+    workbox: {
+      navigateFallback: "/index.html",
+      globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
+      runtimeCaching: [],
+    },
+  }),
+];
 
 export default defineConfig({
   plugins,
