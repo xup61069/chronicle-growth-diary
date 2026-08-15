@@ -1,5 +1,46 @@
-import { appRouter } from "../routers";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const diaryDb = vi.hoisted(() => {
+  const state = { publicCoverUrl: null as string | null };
+  const getDiarySnapshot = vi.fn(async () => ({
+    diary: { publicCoverUrl: state.publicCoverUrl },
+    events: [],
+    tags: [],
+    lifePhases: [],
+    sharing: { mode: "public", slug: "story-test-cover", hasPrivateLink: false, hasPassword: false, expiresAt: null, accessCount: 0, lastSharedAt: null, recentAccesses: [] },
+    reflections: [],
+  }));
+  const uploadDiaryCoverImage = vi.fn(async () => {
+    state.publicCoverUrl = "/manus-storage/growth-diary/1/cover/test-cover.webp";
+    return { key: "growth-diary/1/cover/test-cover.webp", url: state.publicCoverUrl };
+  });
+  return {
+    state,
+    getDiarySnapshot,
+    uploadDiaryCoverImage,
+    createDiaryEvent: vi.fn(),
+    deleteDiaryEvent: vi.fn(),
+    deleteDiaryEventMedia: vi.fn(),
+    deletePhaseReflection: vi.fn(),
+    generatePhaseReflection: vi.fn(),
+    importDiaryEvents: vi.fn(),
+    getSharedDiary: vi.fn(),
+    reorderDiaryEventMedia: vi.fn(),
+    reorderDiaryEvents: vi.fn(),
+    setDiaryEventVisibility: vi.fn(),
+    updateDiaryAiPreference: vi.fn(),
+    updateDiaryEvent: vi.fn(),
+    updateDiaryEventMedia: vi.fn(),
+    updateDiaryPhaseBoundaries: vi.fn(),
+    updateDiarySharing: vi.fn(async () => ({ mode: "public", slug: "story-test-cover", shareToken: null, hasPassword: false, expiresAt: null })),
+    updatePhaseReflection: vi.fn(),
+    uploadDiaryEventImage: vi.fn(),
+  };
+});
+
+vi.mock("../db", () => diaryDb);
+
+import { diaryRouter, shareRouter } from "./diary";
 
 const authenticatedContext = {
   user: {
@@ -19,11 +60,16 @@ const authenticatedContext = {
   res: { cookie: () => undefined, clearCookie: () => undefined },
 } as any;
 
+beforeEach(() => {
+  diaryDb.state.publicCoverUrl = null;
+  vi.clearAllMocks();
+});
+
 describe("diary router validation", () => {
   it("rejects an event with a missing title before calling persistence", async () => {
-    const caller = appRouter.createCaller(authenticatedContext);
+    const caller = diaryRouter.createCaller(authenticatedContext);
     await expect(
-      caller.diary.createEvent({
+      caller.createEvent({
         occurredAt: Date.now(),
         datePrecision: "day",
         eventType: "memory",
@@ -36,13 +82,25 @@ describe("diary router validation", () => {
   });
 
   it("rejects invalid public share slugs without querying diary data", async () => {
-    const caller = appRouter.createCaller({ ...authenticatedContext, user: null });
-    await expect(caller.share.get({ slug: "not-a-chronicle-story" })).rejects.toThrow();
+    const caller = shareRouter.createCaller({ ...authenticatedContext, user: null });
+    await expect(caller.get({ slug: "not-a-chronicle-story" })).rejects.toThrow();
   });
 
   it("rejects an over-sized batch import before calling persistence", async () => {
-    const caller = appRouter.createCaller(authenticatedContext);
+    const caller = diaryRouter.createCaller(authenticatedContext);
     const event = { occurredAt: Date.now(), datePrecision: "day" as const, eventType: "memory" as const, title: "匯入事件", body: "內容", color: "#EE623B", tagNames: [] };
-    await expect(caller.diary.importEvents({ events: Array.from({ length: 251 }, () => event) })).rejects.toThrow();
+    await expect(caller.importEvents({ events: Array.from({ length: 251 }, () => event) })).rejects.toThrow();
+  });
+
+  it("keeps a public cover after sharing configuration, upload, and a subsequent diary read", async () => {
+    const caller = diaryRouter.createCaller(authenticatedContext);
+    await caller.updateSharing({ shareMode: "public", publicCoverTitle: "海岸檔案", publicStoryLayout: "minimal", clearPublicCover: false });
+    const uploaded = await caller.uploadCoverImage({ fileName: "cover.webp", mimeType: "image/webp", base64: "dGVzdA==" });
+    const refreshedDiary = await caller.get();
+
+    expect(diaryDb.updateDiarySharing).toHaveBeenCalledWith(1, expect.objectContaining({ shareMode: "public", publicCoverTitle: "海岸檔案", publicStoryLayout: "minimal" }));
+    expect(diaryDb.uploadDiaryCoverImage).toHaveBeenCalledWith({ userId: 1, fileName: "cover.webp", mimeType: "image/webp", base64: "dGVzdA==" });
+    expect(uploaded.url).toBe("/manus-storage/growth-diary/1/cover/test-cover.webp");
+    expect(refreshedDiary.diary.publicCoverUrl).toBe(uploaded.url);
   });
 });
