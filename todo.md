@@ -47,10 +47,11 @@
 - [x] 移除已確認未使用的 AIChatBox、Map、ComponentShowcase、圖表／輪播元件及相關依賴。
 - [x] 全面盤點 `client/src/components/ui`、模板頁與 `package.json` 依賴的實際引用，移除其餘未使用的模板元件與套件，並記錄清理清單。
 - [x] 在完成全面清理後重新執行 `pnpm check`、`pnpm test`、`pnpm build`，確認正式版本與本機副本皆通過。
-- [ ] 抽象儲存、認證與 LLM 提供者，維持現有 Manus 路徑相容並提供本機替代實作。
+- [x] 抽象儲存、認證與 LLM 提供者，維持現有 Manus 路徑相容並提供本機替代實作。
 - [x] 建立可選擇的儲存提供者介面，保留 Forge 預設並支援 S3／MinIO 相容端點。
 - [x] 建立可選擇的 LLM 提供者設定，保留 Forge 預設並支援 OpenAI-compatible API。
 - [x] 建立認證提供者介面，將 tRPC context 與 OAuth callback 從具體 SDK 解耦並維持既有 session 合約。
+- [x] 實作本機 email／密碼註冊與登入，使用安全雜湊、唯一 email 約束與既有簽章 session cookie。
 - [ ] 建立 MySQL、物件儲存與應用程式的可自架組態，並提供備份與還原文件。
 - [ ] 拆分日記編輯器、樣式與後端資料存取層，補足路由、整合與端對端測試安全網。
 - [ ] 實作 PWA、快速記事、離線草稿與行動版分頁式編輯體驗。

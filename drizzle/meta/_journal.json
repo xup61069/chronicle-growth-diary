@@ -29,6 +29,13 @@
       "when": 1786757242980,
       "tag": "0003_natural_darkstar",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1786777638633,
+      "tag": "0004_swift_eternals",
+      "breakpoints": true
     }
   ]
 }

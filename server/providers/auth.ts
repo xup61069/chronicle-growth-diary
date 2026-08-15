@@ -3,7 +3,7 @@ import type { Request } from "express";
 import { ENV } from "../_core/env";
 import { sdk } from "../_core/sdk";
 
-export type AuthProviderName = "manus" | "session";
+export type AuthProviderName = "manus" | "session" | "local";
 
 export interface AuthProvider {
   readonly name: AuthProviderName;
@@ -37,9 +37,13 @@ export function getAuthProvider(): AuthProvider {
   // `session` is intentionally limited to session verification/signing. It is
   // the safe base for a future local credential provider without changing the
   // cookie contract used by existing OAuth users.
-  provider = new SessionAuthProvider(
-    ENV.authDriver === "session" ? "session" : "manus"
-  );
+  const name: AuthProviderName =
+    ENV.authDriver === "local"
+      ? "local"
+      : ENV.authDriver === "session"
+        ? "session"
+        : "manus";
+  provider = new SessionAuthProvider(name);
   return provider;
 }
 

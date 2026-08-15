@@ -19,8 +19,12 @@ Chronicle 可在本機完成前端、型別、測試與正式建置工作。預�
 
 | 領域 | 預設 | 可選設定 | 說明 |
 |---|---|---|---|
-| 認證 | `AUTH_DRIVER=manus` | `AUTH_DRIVER=session` | 兩者皆使用既有的簽章 session cookie；`session` 是未來本機帳密提供者的相容基礎，**不會**自行建立帳密帳號或繞過 OAuth。 |
+| 認證 | `AUTH_DRIVER=manus` | `AUTH_DRIVER=local`、`VITE_AUTH_DRIVER=local` | `local` 會顯示本機 email／密碼註冊與登入介面；前後端兩個變數必須同時設為 `local`。所有模式皆使用相同的簽章 session cookie，因此切換前請先規劃帳號遷移。 |
 | 媒體儲存 | `STORAGE_DRIVER=forge` | `STORAGE_DRIVER=s3` | S3 模式需要 `STORAGE_S3_BUCKET`、`STORAGE_S3_REGION`、`STORAGE_S3_ACCESS_KEY_ID`、`STORAGE_S3_SECRET_ACCESS_KEY`；MinIO 另加 `STORAGE_S3_ENDPOINT`。所有媒體仍經 `/manus-storage/:key` 短效簽章代理，避免將 bucket 設為公開。 |
 | AI | `LLM_DRIVER=forge` | `LLM_DRIVER=openai-compatible` | OpenAI-compatible 模式需要 `LLM_BASE_URL`（應包含版本路徑，例如 `http://localhost:11434/v1`）及 `LLM_API_KEY`。模型名稱沿用呼叫端指定值。 |
 
 > 所有秘密都只能留在本機 `.env` 或部署環境的秘密設定中，不能提交至 Git。設定切換會在伺服器啟動時讀取；變更後請重新啟動開發服務。
+
+### 本機帳密模式
+
+本機帳密模式須先套用資料庫 migration，接著在 `.env` 設定 `AUTH_DRIVER=local` 與 `VITE_AUTH_DRIVER=local`，並確保 `JWT_SECRET` 是至少 32 位元組的隨機值。Email 會正規化並以唯一索引保護；密碼最少 12 字元，伺服器只會保存 scrypt 雜湊，不會保存或回傳原始密碼。此模式目前不寄送驗證信或密碼重設信，因此只適合受信任的自架環境；公開服務應先完成 email 驗證與重設流程。

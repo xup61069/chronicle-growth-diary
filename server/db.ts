@@ -10,6 +10,7 @@ import {
   growthShareAccessLogs,
   growthTags,
   InsertUser,
+  User,
   users,
 } from "../drizzle/schema";
 import { normalizeTagNames, safeMediaName } from "./diaryHelpers";
@@ -104,6 +105,33 @@ export async function getUserByOpenId(openId: string) {
   if (!db) return undefined;
   const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
   return result[0];
+}
+
+export async function getUserByEmail(email: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(users).where(eq(users.email, email)).limit(1);
+  return result[0];
+}
+
+export async function createLocalUser(input: {
+  openId: string;
+  email: string;
+  name: string;
+  passwordHash: string;
+}): Promise<User> {
+  const db = await requireDb();
+  await db.insert(users).values({
+    openId: input.openId,
+    email: input.email,
+    name: input.name,
+    loginMethod: "local",
+    passwordHash: input.passwordHash,
+    emailVerified: false,
+  });
+  const user = await getUserByOpenId(input.openId);
+  if (!user) throw new Error("無法建立本機帳號。");
+  return user;
 }
 
 async function getOrCreateDiary(userId: number) {

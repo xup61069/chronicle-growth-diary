@@ -27,6 +27,7 @@ import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { Button } from "./ui/button";
+import { LocalAuthPanel } from "./LocalAuthPanel";
 
 const menuItems = [
   { icon: Archive, label: "我的成長史", path: "/editor" },
@@ -37,6 +38,7 @@ const SIDEBAR_WIDTH_KEY = "sidebar-width";
 const DEFAULT_WIDTH = 280;
 const MIN_WIDTH = 200;
 const MAX_WIDTH = 480;
+const isLocalAuthEnabled = import.meta.env.VITE_AUTH_DRIVER === "local";
 
 export default function DashboardLayout({
   children,
@@ -69,26 +71,30 @@ export default function DashboardLayout({
               ? "暫時無法確認登入狀態。你可以重新檢查，或直接重新登入。"
               : "你的記憶與影像只屬於你。登入後，即可開始建立私人時間帶。"}
           </span>
-          <div className="flex flex-wrap justify-center gap-3">
-            <Button
-              onClick={() => startLogin()}
-              size="lg"
-              className="archive-signin-button"
-            >
-              登入並開始編輯
-            </Button>
-            {error ? (
+          {isLocalAuthEnabled ? (
+            <LocalAuthPanel />
+          ) : (
+            <div className="flex flex-wrap justify-center gap-3">
               <Button
-                type="button"
-                variant="outline"
+                onClick={() => startLogin()}
                 size="lg"
-                onClick={() => void refresh()}
+                className="archive-signin-button"
               >
-                <RefreshCw className="mr-2 size-4" />
-                重新檢查
+                登入並開始編輯
               </Button>
-            ) : null}
-          </div>
+              {error ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="lg"
+                  onClick={() => void refresh()}
+                >
+                  <RefreshCw className="mr-2 size-4" />
+                  重新檢查
+                </Button>
+              ) : null}
+            </div>
+          )}
         </div>
       </div>
     );
