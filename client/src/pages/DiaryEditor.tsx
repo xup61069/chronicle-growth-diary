@@ -3,7 +3,11 @@
  * with a live chronological canvas, tactile index cards, and deliberate cinnabar markers.
  */
 import DashboardLayout from "@/components/DashboardLayout";
+import { DiaryEditorHeader } from "@/components/DiaryEditorHeader";
+import { DiaryLoadState } from "@/components/DiaryLoadState";
 import { annualReviewTemplates, buildAnnualReview, type AnnualReviewTemplate } from "@/lib/annualReview";
+import { diaryColors, eventTypes, formatDate, formatInputDate, makeEmptyForm, readImage, toTimestamp, type DatePrecision, type EventForm, type EventType, type PendingImage } from "@/lib/diaryEditor";
+import { filterDiaryEvents, type DiarySortOrder } from "@/lib/diaryFilters";
 import { exportDiaryAsLongImage, exportDiaryAsPdf } from "@/lib/diaryExport";
 import { trpc } from "@/lib/trpc";
 import {
@@ -42,78 +46,10 @@ import {
 import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
-const eventTypes = [
-  { value: "memory", label: "回憶" },
-  { value: "learning", label: "學習" },
-  { value: "achievement", label: "成就" },
-  { value: "chapter", label: "人生章節" },
-] as const;
-
-const diaryColors = ["#EE623B", "#587A8B", "#78976D", "#A06A82", "#D19B43"] as const;
-
-type EventType = (typeof eventTypes)[number]["value"];
-type DatePrecision = "day" | "month" | "year";
-type EventForm = {
-  title: string;
-  occurredAt: string;
-  datePrecision: DatePrecision;
-  eventType: EventType;
-  body: string;
-  ageLabel: string;
-  place: string;
-  color: (typeof diaryColors)[number];
-  tagNames: string[];
-};
-type PendingImage = { id: string; name: string; type: string; base64: string; preview: string; caption: string };
 type ShareMode = "private" | "public" | "link";
 type PublicStoryLayout = "editorial" | "gallery" | "minimal";
 type PhaseKey = "childhood" | "education" | "career";
 type PhaseBoundaries = Record<PhaseKey, { start: string; end: string }>;
-
-const today = new Date().toISOString().slice(0, 10);
-
-const makeEmptyForm = (): EventForm => ({
-  title: "",
-  occurredAt: today,
-  datePrecision: "day",
-  eventType: "memory",
-  body: "",
-  ageLabel: "",
-  place: "",
-  color: "#EE623B",
-  tagNames: [],
-});
-
-function formatInputDate(timestamp: number) {
-  const date = new Date(timestamp);
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${date.getFullYear()}-${month}-${day}`;
-}
-
-function formatDate(timestamp: number, precision: DatePrecision) {
-  const date = new Date(timestamp);
-  if (precision === "year") return `${date.getFullYear()} 年`;
-  if (precision === "month") return `${date.getFullYear()} 年 ${date.getMonth() + 1} 月`;
-  return new Intl.DateTimeFormat("zh-TW", { year: "numeric", month: "long", day: "numeric" }).format(date);
-}
-
-function toTimestamp(value: string, precision: DatePrecision) {
-  const [year, month = "01", day = "01"] = value.split("-");
-  return new Date(Number(year), precision === "year" ? 0 : Number(month) - 1, precision === "day" ? Number(day) : 1).getTime();
-}
-
-async function readImage(file: File): Promise<PendingImage> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error("無法讀取這張圖片。"));
-    reader.onload = () => {
-      const dataUrl = String(reader.result);
-      resolve({ id: crypto.randomUUID(), name: file.name, type: file.type, base64: dataUrl.split(",")[1] ?? "", preview: dataUrl, caption: "" });
-    };
-    reader.readAsDataURL(file);
-  });
-}
 
 function DiaryEditorContent() {
   const utils = trpc.useUtils();
@@ -129,7 +65,7 @@ function DiaryEditorContent() {
   const [searchQuery, setSearchQuery] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-  const [sortOrder, setSortOrder] = useState<"custom" | "newest" | "oldest">("custom");
+  const [sortOrder, setSortOrder] = useState<DiarySortOrder>("custom");
   const [shareMode, setShareMode] = useState<ShareMode>("private");
   const [birthYear, setBirthYear] = useState("");
   const [educationStartYear, setEducationStartYear] = useState("");
@@ -176,22 +112,10 @@ function DiaryEditorContent() {
   const reflectionMutation = trpc.diary.generatePhaseReflection.useMutation();
   const reflectionSaveMutation = trpc.diary.updatePhaseReflection.useMutation();
 
-  const events = data?.events ?? [];
+  type DiaryEvent = NonNullable<typeof data>["events"][number];
+  const events: DiaryEvent[] = data?.events ?? [];
   const visibleEvents = useMemo(
-    () => {
-      const filtered = events
-        .filter((event) => filterType === "all" || event.eventType === filterType)
-        .filter((event) => filterTag === "all" || event.tags.some((tag) => tag.name === filterTag))
-        .filter((event) => {
-          const needle = searchQuery.trim().toLocaleLowerCase();
-          if (!needle) return true;
-          return [event.title, event.body, event.place ?? "", ...event.tags.map((tag) => tag.name)].join(" ").toLocaleLowerCase().includes(needle);
-        })
-        .filter((event) => !dateFrom || event.occurredAt >= new Date(`${dateFrom}T00:00:00`).getTime())
-        .filter((event) => !dateTo || event.occurredAt <= new Date(`${dateTo}T23:59:59.999`).getTime());
-      if (sortOrder === "custom") return filtered;
-      return [...filtered].sort((left, right) => sortOrder === "oldest" ? left.occurredAt - right.occurredAt : right.occurredAt - left.occurredAt);
-    },
+    () => filterDiaryEvents(events, { type: filterType, tag: filterTag, search: searchQuery, dateFrom, dateTo, sortOrder }),
     [dateFrom, dateTo, events, filterTag, filterType, searchQuery, sortOrder],
   );
   const selectedEvent = events.find((event) => event.id === (selectedId ?? editingId)) ?? visibleEvents[0] ?? events[0];
@@ -520,27 +444,15 @@ function DiaryEditorContent() {
     }
   };
 
-  if (isLoading && !loadTimedOut) {
-    return <div className="editor-loading"><Loader2 size={24} className="animate-spin" /> 正在開啟你的成長檔案…</div>;
-  }
+  if (isLoading && !loadTimedOut) return <DiaryLoadState status="loading" />;
 
   if (error || loadTimedOut) {
-    return <div className="editor-error"><Archive size={24} /><p>{loadTimedOut ? "讀取時間超過預期，可能是登入工作階段或網路連線已失效。" : "暫時無法讀取你的成長檔案。"}</p><div><button type="button" onClick={() => { setLoadTimedOut(false); void refetch(); }}><RefreshCw size={14} /> 重新嘗試</button><button type="button" className="editor-error-reload" onClick={() => window.location.reload()}>重新載入頁面</button></div></div>;
+    return <DiaryLoadState status="error" timedOut={loadTimedOut} onRetry={() => { setLoadTimedOut(false); void refetch(); }} />;
   }
 
   return (
     <div className="diary-editor">
-      <header className="editor-header">
-        <div>
-          <p className="editor-kicker"><span /> PERSONAL ARCHIVE / 01</p>
-          <h1>{data?.diary.title ?? "我的成長史"}</h1>
-          <p>將童年、學習、轉折與每一個值得記住的成就，編輯成一條只屬於你的時間帶。</p>
-        </div>
-        <div className="editor-stats" aria-label="成長日記統計">
-          <span><b>{eventCountLabel}</b><small>已整理的故事</small></span>
-          <span><b>{hasMedia.toString().padStart(2, "0")} 張</b><small>珍藏的影像</small></span>
-        </div>
-      </header>
+      <DiaryEditorHeader title={data?.diary.title ?? "我的成長史"} eventCountLabel={eventCountLabel} mediaCount={hasMedia} />
 
       <section className="life-phase-overview" ref={exportRef} aria-labelledby="life-phase-title">
         <div className="phase-heading">
