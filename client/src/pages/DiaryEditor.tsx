@@ -9,6 +9,7 @@ import { annualReviewTemplates, buildAnnualReview, type AnnualReviewTemplate } f
 import { diaryColors, eventTypes, formatDate, formatInputDate, makeEmptyForm, readImage, toTimestamp, type DatePrecision, type EventForm, type EventType, type PendingImage } from "@/lib/diaryEditor";
 import { filterDiaryEvents, type DiarySortOrder } from "@/lib/diaryFilters";
 import { exportDiaryAsLongImage, exportDiaryAsPdf } from "@/lib/diaryExport";
+import { createPortableDiaryExport, downloadPortableDiary } from "@/lib/diaryPortable";
 import { trpc } from "@/lib/trpc";
 import {
   Archive,
@@ -21,6 +22,7 @@ import {
   ChevronRight,
   Copy,
   FilePenLine,
+  FileJson,
   FileDown,
   Globe2,
   GripVertical,
@@ -431,14 +433,15 @@ function DiaryEditorContent() {
     }
   };
 
-  const exportArchive = async (format: "pdf" | "image") => {
+  const exportArchive = async (format: "pdf" | "image" | "json" | "markdown") => {
     if (!exportRef.current) return;
     if (events.length === 0) return toast.info("先寫下一段記憶，才能匯出成長史。" );
     const baseName = (data?.diary.title ?? "我的成長史").replace(/[^\u4e00-\u9fffa-zA-Z0-9_-]/g, "-") || "chronicle-growth-diary";
     try {
       if (format === "pdf") await exportDiaryAsPdf(exportRef.current, baseName);
-      else await exportDiaryAsLongImage(exportRef.current, baseName);
-      toast.success(format === "pdf" ? "PDF 已開始下載。" : "長圖片已開始下載。" );
+      else if (format === "image") await exportDiaryAsLongImage(exportRef.current, baseName);
+      else if (data) downloadPortableDiary(createPortableDiaryExport(data), format, baseName);
+      toast.success(format === "pdf" ? "PDF 已開始下載。" : format === "image" ? "長圖片已開始下載。" : format === "json" ? "JSON 備份已開始下載。" : "Markdown 備份已開始下載。" );
     } catch (exportError) {
       toast.error(exportError instanceof Error ? exportError.message : "匯出失敗，請稍後再試。");
     }
@@ -457,7 +460,7 @@ function DiaryEditorContent() {
       <section className="life-phase-overview" ref={exportRef} aria-labelledby="life-phase-title">
         <div className="phase-heading">
           <div><p className="editor-kicker"><span /> LIFE CHAPTERS / EDITABLE</p><h2 id="life-phase-title">人生階段總覽</h2><p>系統會先依事件時間與錨點編排階段；你也可以拖曳每個階段的起訖時間，讓分段更貼近自己的敘事。</p></div>
-          <div className="export-actions"><span>完整成長史備份</span><button onClick={() => exportArchive("pdf")}><FileDown size={15} /> 匯出 PDF</button><button onClick={() => exportArchive("image")}><ImageDown size={15} /> 匯出長圖片</button></div>
+          <div className="export-actions"><span>完整成長史備份</span><button onClick={() => exportArchive("pdf")}><FileDown size={15} /> 匯出 PDF</button><button onClick={() => exportArchive("image")}><ImageDown size={15} /> 匯出長圖片</button><button onClick={() => exportArchive("json")}><FileJson size={15} /> 匯出 JSON</button><button onClick={() => exportArchive("markdown")}><FilePenLine size={15} /> 匯出 Markdown</button></div>
         </div>
         <div className="phase-grid">
           {data?.lifePhases.length ? data.lifePhases.map((phase) => {
