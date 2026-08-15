@@ -52,7 +52,7 @@
 - [x] 建立可選擇的 LLM 提供者設定，保留 Forge 預設並支援 OpenAI-compatible API。
 - [x] 建立認證提供者介面，將 tRPC context 與 OAuth callback 從具體 SDK 解耦並維持既有 session 合約。
 - [x] 實作本機 email／密碼註冊與登入，使用安全雜湊、唯一 email 約束與既有簽章 session cookie。
-- [ ] 建立 MySQL、物件儲存與應用程式的可自架組態，並提供備份與還原文件。
+- [x] 建立 MySQL、物件儲存與應用程式的可自架組態，並提供備份與還原文件。
 - [ ] 拆分日記編輯器、樣式與後端資料存取層，補足路由、整合與端對端測試安全網。
 - [ ] 實作 PWA、快速記事、離線草稿與行動版分頁式編輯體驗。
 - [ ] 實作 JSON／Markdown／媒體匯出入、事件版本歷程與帳號級刪除。
