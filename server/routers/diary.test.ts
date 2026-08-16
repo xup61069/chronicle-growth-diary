@@ -94,6 +94,37 @@ describe("diary router validation", () => {
     await expect(caller.importEvents({ events: Array.from({ length: 251 }, () => event) })).rejects.toThrow();
   });
 
+  it("rejects event and image ordering payloads over their safe limits before persistence", async () => {
+    const caller = diaryRouter.createCaller(authenticatedContext);
+
+    await expect(caller.reorderEvents({ eventIds: Array.from({ length: 501 }, (_, index) => index + 1) })).rejects.toThrow();
+    await expect(caller.reorderImages({ eventId: 1, mediaIds: Array.from({ length: 101 }, (_, index) => index + 1) })).rejects.toThrow();
+
+    expect(diaryDb.reorderDiaryEvents).not.toHaveBeenCalled();
+    expect(diaryDb.reorderDiaryEventMedia).not.toHaveBeenCalled();
+  });
+
+  it("rejects unsupported image media before storage is called", async () => {
+    const caller = diaryRouter.createCaller(authenticatedContext);
+
+    await expect(caller.uploadImage({
+      eventId: 8,
+      fileName: "memory.svg",
+      mimeType: "image/svg+xml",
+      base64: "dGVzdA==",
+    })).rejects.toThrow("只支援 JPG、PNG、WebP 或 GIF 圖片");
+
+    expect(diaryDb.uploadDiaryEventImage).not.toHaveBeenCalled();
+  });
+
+  it("preserves diary snapshot read errors so the client recovery state can respond", async () => {
+    diaryDb.getDiarySnapshot.mockRejectedValueOnce(new Error("timeline unavailable"));
+    const caller = diaryRouter.createCaller(authenticatedContext);
+
+    await expect(caller.get()).rejects.toThrow("timeline unavailable");
+    expect(diaryDb.getDiarySnapshot).toHaveBeenCalledWith(1);
+  });
+
   it("keeps a public cover after sharing configuration, upload, and a subsequent diary read", async () => {
     const caller = diaryRouter.createCaller(authenticatedContext);
     await caller.updateSharing({ shareMode: "public", publicCoverTitle: "海岸檔案", publicStoryLayout: "minimal", clearPublicCover: false });
