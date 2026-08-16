@@ -12,6 +12,7 @@ import { exportDiaryAsLongImage, exportDiaryAsPdf } from "@/lib/diaryExport";
 import { createPortableDiaryExport, downloadPortableDiary } from "@/lib/diaryPortable";
 import { parseChronicleImport, type ChronicleImportPreview } from "@/lib/diaryImport";
 import { appendWritingGuide, getLocalWritingGuides } from "@/lib/writingGuide";
+import { parseSocialDraftCsv, parseSocialDraftJson, type SocialDraftCandidate } from "@/lib/socialDraftImport";
 import { trpc } from "@/lib/trpc";
 import {
   Archive,
@@ -95,10 +96,12 @@ function DiaryEditorContent() {
   const [reflectionDraft, setReflectionDraft] = useState({ recap: "", reflection: "" });
   const [mobileWorkspacePanel, setMobileWorkspacePanel] = useState<MobileWorkspacePanel>("compose");
   const [importPreview, setImportPreview] = useState<ChronicleImportPreview | null>(null);
+  const [socialPreview, setSocialPreview] = useState<SocialDraftCandidate[] | null>(null);
   const [showRevisions, setShowRevisions] = useState(false);
   const [accountDeleteConfirmation, setAccountDeleteConfirmation] = useState("");
   const exportRef = useRef<HTMLElement>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
+  const socialImportInputRef = useRef<HTMLInputElement>(null);
   const tagEnterSubmitGuard = useRef(false);
 
   useEffect(() => {
@@ -534,6 +537,7 @@ function DiaryEditorContent() {
   };
 
   const selectImportFile = () => importInputRef.current?.click();
+  const selectSocialImportFile = () => socialImportInputRef.current?.click();
 
   const handleImportFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -560,6 +564,30 @@ function DiaryEditorContent() {
     }
   };
 
+  const handleSocialImportFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    try {
+      const raw = await file.text();
+      setSocialPreview(file.name.toLowerCase().endsWith(".csv") ? parseSocialDraftCsv(raw) : parseSocialDraftJson(raw));
+    } catch (importError) {
+      toast.error(importError instanceof Error ? importError.message : "無法讀取社群匯出檔。 ");
+    }
+  };
+
+  const confirmSocialImport = async () => {
+    if (!socialPreview?.length) return;
+    try {
+      const result = await importMutation.mutateAsync({ events: socialPreview.map((candidate) => ({ occurredAt: candidate.occurredAt, datePrecision: "day" as const, eventType: "memory" as const, title: candidate.title, body: candidate.body, ageLabel: null, place: null, color: "#EE623B" as const, tagNames: ["社群匯入"] })) });
+      await utils.diary.get.invalidate();
+      setSocialPreview(null);
+      toast.success(`已建立 ${result.importedCount} 段私人社群記事。`);
+    } catch (importError) {
+      toast.error(importError instanceof Error ? importError.message : "社群匯入未完成，沒有保留這批內容。 ");
+    }
+  };
+
   if (isLoading && !loadTimedOut) return <DiaryLoadState status="loading" />;
 
   if (error || loadTimedOut) {
@@ -573,7 +601,7 @@ function DiaryEditorContent() {
       <section className="life-phase-overview" ref={exportRef} aria-labelledby="life-phase-title">
         <div className="phase-heading">
           <div><p className="editor-kicker"><span /> LIFE CHAPTERS / EDITABLE</p><h2 id="life-phase-title">人生階段總覽</h2><p>系統會先依事件時間與錨點編排階段；你也可以拖曳每個階段的起訖時間，讓分段更貼近自己的敘事。</p></div>
-          <div className="export-actions"><span>完整成長史備份</span><input ref={importInputRef} type="file" accept="application/json,.json" onChange={handleImportFile} hidden /><button onClick={() => exportArchive("pdf")}><FileDown size={15} /> 匯出 PDF</button><button onClick={() => exportArchive("image")}><ImageDown size={15} /> 匯出長圖片</button><button onClick={() => exportArchive("json")}><FileJson size={15} /> 匯出 JSON</button><button onClick={() => exportArchive("markdown")}><FilePenLine size={15} /> 匯出 Markdown</button><button onClick={selectImportFile}><Archive size={15} /> 匯入 JSON</button></div>
+          <div className="export-actions"><span>完整成長史備份</span><input ref={importInputRef} type="file" accept="application/json,.json" onChange={handleImportFile} hidden /><input ref={socialImportInputRef} type="file" accept="application/json,.json,text/csv,.csv" onChange={handleSocialImportFile} hidden /><button onClick={() => exportArchive("pdf")}><FileDown size={15} /> 匯出 PDF</button><button onClick={() => exportArchive("image")}><ImageDown size={15} /> 匯出長圖片</button><button onClick={() => exportArchive("json")}><FileJson size={15} /> 匯出 JSON</button><button onClick={() => exportArchive("markdown")}><FilePenLine size={15} /> 匯出 Markdown</button><button onClick={selectImportFile}><Archive size={15} /> 匯入 JSON</button><button onClick={selectSocialImportFile}><Archive size={15} /> 匯入社群草稿</button></div>
         </div>
         <div className="phase-grid">
           {data?.lifePhases.length ? data.lifePhases.map((phase) => {
@@ -612,6 +640,7 @@ function DiaryEditorContent() {
         <div className="import-warning"><Archive size={15} /> {importPreview.warnings[0]}</div>
         <div className="import-actions"><button type="button" onClick={() => setImportPreview(null)} disabled={importMutation.isPending}>取消</button><button type="button" onClick={confirmImport} disabled={importMutation.isPending}>{importMutation.isPending ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />} 確認建立 {importPreview.events.length} 段事件</button></div>
       </section> : null}
+      {socialPreview ? <section className="import-studio" aria-labelledby="social-import-title"><div><p className="editor-kicker"><span /> SOCIAL DRAFT / LOCAL ONLY</p><h2 id="social-import-title">先檢視，再帶進成長史</h2><p>已在此裝置解析 {socialPreview.length} 則候選；系統已依來源 ID 去重。確認前不會寫入日記，也不會連接社群帳號。</p></div><div className="import-preview-list">{socialPreview.slice(0, 5).map((candidate) => <article key={candidate.sourceId}><span>{formatDate(candidate.occurredAt, "day")}</span><b>{candidate.title}</b><small>{candidate.isSignificant ? "重大事件候選" : "一般候選"}</small></article>)}</div><div className="import-warning"><Archive size={15} /> 確認後一律建立為私人事件，並標記「社群匯入」。請先檢視原始內容。</div><div className="import-actions"><button type="button" onClick={() => setSocialPreview(null)} disabled={importMutation.isPending}>取消</button><button type="button" onClick={confirmSocialImport} disabled={importMutation.isPending}>{importMutation.isPending ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />} 確認建立 {socialPreview.length} 段事件</button></div></section> : null}
 
       <section className="annual-review-studio" aria-labelledby="annual-review-title">
         <div className="annual-review-heading"><p className="editor-kicker"><span /> YEAR IN REVIEW</p><h2 id="annual-review-title">把一年，整理成下一段故事的起點。</h2><p>從已經寫下的事件建立年度回顧。模板只重組你的日記內容，不會虛構新的經歷。</p></div>

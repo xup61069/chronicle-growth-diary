@@ -15,4 +15,9 @@ describe("social draft import", () => {
     const candidates = parseSocialDraftCsv("id,posted,content\n8,2024-05-02T12:00:00Z,完成第一次公開演講");
     expect(candidates[0]).toMatchObject({ sourceId: "8", title: "完成第一次公開演講" });
   });
+
+  it("keeps quoted commas and line breaks inside a CSV post body", () => {
+    const candidates = parseSocialDraftCsv('id,posted,content\n9,2024-05-03T12:00:00Z,"今天記下：逗號, 還有第二行\n並保留"');
+    expect(candidates[0]?.body).toBe("今天記下：逗號, 還有第二行 並保留");
+  });
 });

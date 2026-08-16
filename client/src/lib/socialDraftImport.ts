@@ -41,16 +41,18 @@ export function parseSocialDraftJson(raw: string): SocialDraftCandidate[] {
 
 /** Parses a small local CSV export with `id`, `posted`/`created_at`, and `content`/`text` columns. */
 export function parseSocialDraftCsv(raw: string): SocialDraftCandidate[] {
-  const [header, ...rows] = raw.trim().split(/\r?\n/);
-  if (!header || !rows.length) throw new Error("CSV 檔案沒有可讀取的標頭或貼文資料。 ");
-  const columns = header.split(",").map((column) => column.trim().toLowerCase());
+  const rows: string[][] = [[]]; let cell = ""; let quoted = false;
+  for (let index = 0; index < raw.length; index += 1) { const char = raw[index]; if (char === '"') { if (quoted && raw[index + 1] === '"') { cell += char; index += 1; } else quoted = !quoted; } else if (char === "," && !quoted) { rows.at(-1)?.push(cell); cell = ""; } else if ((char === "\n" || char === "\r") && !quoted) { if (char === "\r" && raw[index + 1] === "\n") index += 1; rows.at(-1)?.push(cell); cell = ""; rows.push([]); } else cell += char; }
+  rows.at(-1)?.push(cell);
+  const [header = [], ...dataRows] = rows.filter((row) => row.some((value) => value.length));
+  if (!header.length || !dataRows.length) throw new Error("CSV 檔案沒有可讀取的標頭或貼文資料。 ");
+  const columns = header.map((column) => column.trim().toLowerCase());
   const indexOf = (...names: string[]) => columns.findIndex((column) => names.includes(column));
   const idIndex = indexOf("id", "plurk_id");
   const dateIndex = indexOf("posted", "created_at", "createdat", "timestamp");
   const bodyIndex = indexOf("content_raw", "content", "text");
   if (dateIndex < 0 || bodyIndex < 0) throw new Error("CSV 需要日期與貼文文字欄位。 ");
-  const posts = rows.map((row) => {
-    const values = row.split(",");
+  const posts = dataRows.map((values) => {
     return { id: idIndex >= 0 ? values[idIndex] : undefined, posted: values[dateIndex], content_raw: values[bodyIndex] };
   });
   return parseSocialDraftJson(JSON.stringify({ plurks: posts }));
