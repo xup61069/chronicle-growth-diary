@@ -1,10 +1,10 @@
 import { COOKIE_NAME } from "@shared/const";
 import { z } from "zod";
-import { createLocalUser, getUserByEmail } from "./db";
+import { createLocalUser, deleteAccount, getUserByEmail } from "./db";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { ENV } from "./_core/env";
 import { systemRouter } from "./_core/systemRouter";
-import { publicProcedure, router } from "./_core/trpc";
+import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { hashLocalPassword, localOpenIdForEmail, normalizeLocalEmail, verifyLocalPassword } from "./localCredentials";
 import { getAuthProvider } from "./providers/auth";
 import { diaryRouter, shareRouter } from "./routers/diary";
@@ -41,6 +41,12 @@ export const appRouter = router({
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
       return { success: true } as const;
+    }),
+    deleteAccount: protectedProcedure.input(z.object({ confirmation: z.string().trim().refine((value) => value === "刪除我的帳號", "請輸入「刪除我的帳號」以確認。") })).mutation(async ({ ctx }) => {
+      const result = await deleteAccount(ctx.user.id);
+      const cookieOptions = getSessionCookieOptions(ctx.req);
+      ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
+      return result;
     }),
     localRegister: publicProcedure.input(localCredentialInput.extend({ name: z.string().trim().min(1, "請輸入顯示名稱。").max(100) })).mutation(async ({ ctx, input }) => {
       assertLocalAuthEnabled();

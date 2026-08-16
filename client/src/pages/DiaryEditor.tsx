@@ -27,6 +27,7 @@ import {
   FileDown,
   Globe2,
   GripVertical,
+  History,
   ImagePlus,
   ImageDown,
   Link2,
@@ -36,6 +37,7 @@ import {
   PencilLine,
   Plus,
   RefreshCw,
+  RotateCcw,
   Save,
   Search,
   Share2,
@@ -92,6 +94,8 @@ function DiaryEditorContent() {
   const [reflectionDraft, setReflectionDraft] = useState({ recap: "", reflection: "" });
   const [mobileWorkspacePanel, setMobileWorkspacePanel] = useState<MobileWorkspacePanel>("compose");
   const [importPreview, setImportPreview] = useState<ChronicleImportPreview | null>(null);
+  const [showRevisions, setShowRevisions] = useState(false);
+  const [accountDeleteConfirmation, setAccountDeleteConfirmation] = useState("");
   const exportRef = useRef<HTMLElement>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
   const tagEnterSubmitGuard = useRef(false);
@@ -122,6 +126,8 @@ function DiaryEditorContent() {
   const aiPreferenceMutation = trpc.diary.updateAiPreference.useMutation();
   const deleteReflectionMutation = trpc.diary.deletePhaseReflection.useMutation();
   const importMutation = trpc.diary.importEvents.useMutation();
+  const restoreRevisionMutation = trpc.diary.restoreEventRevision.useMutation();
+  const deleteAccountMutation = trpc.auth.deleteAccount.useMutation();
 
   type DiaryEvent = NonNullable<typeof data>["events"][number];
   const events: DiaryEvent[] = data?.events ?? [];
@@ -130,6 +136,10 @@ function DiaryEditorContent() {
     [dateFrom, dateTo, events, filterTag, filterType, searchQuery, sortOrder],
   );
   const selectedEvent = events.find((event) => event.id === (selectedId ?? editingId)) ?? visibleEvents[0] ?? events[0];
+  const revisionsQuery = trpc.diary.getEventRevisions.useQuery(
+    { eventId: selectedEvent?.id ?? 0 },
+    { enabled: Boolean(selectedEvent && showRevisions), staleTime: 0 },
+  );
   const isSaving = saveMutation.isPending || updateMutation.isPending || uploadMutation.isPending;
   const eventCountLabel = `${events.length.toString().padStart(2, "0")} 篇記憶`;
   const hasMedia = useMemo(() => events.reduce((total, event) => total + event.media.length, 0), [events]);
@@ -201,6 +211,7 @@ function DiaryEditorContent() {
     setSelectedId(event.id);
     setTagDraft("");
     setPendingImages([]);
+    setShowRevisions(false);
     setMediaCaptionDrafts(Object.fromEntries(event.media.map((media) => [media.id, media.caption ?? ""])));
     setForm({
       title: event.title,
@@ -440,6 +451,29 @@ function DiaryEditorContent() {
     }
   };
 
+  const restoreEventRevision = async (revisionId: number, version: number) => {
+    if (!selectedEvent) return;
+    if (!window.confirm(`要還原「${selectedEvent.title}」到第 ${version} 版嗎？目前內容會先自動保存為新的版本。`)) return;
+    try {
+      await restoreRevisionMutation.mutateAsync({ eventId: selectedEvent.id, revisionId });
+      await Promise.all([utils.diary.get.invalidate(), revisionsQuery.refetch()]);
+      toast.success(`已還原至第 ${version} 版；還原前內容也已保留在版本歷程。`);
+    } catch (restoreError) {
+      toast.error(restoreError instanceof Error ? restoreError.message : "無法還原這個版本，請稍後再試。 ");
+    }
+  };
+
+  const deleteCurrentAccount = async () => {
+    if (accountDeleteConfirmation !== "刪除我的帳號") return;
+    try {
+      await deleteAccountMutation.mutateAsync({ confirmation: accountDeleteConfirmation });
+      toast.success("帳號與日記資料已清除。即將回到首頁。 ");
+      window.setTimeout(() => window.location.assign("/"), 700);
+    } catch (deleteError) {
+      toast.error(deleteError instanceof Error ? deleteError.message : "無法刪除帳號，請稍後再試。 ");
+    }
+  };
+
   const beginReflectionEdit = (phaseKey: PhaseKey) => {
     const existing = reflectionsByPhase.get(phaseKey);
     if (!existing) return;
@@ -606,6 +640,16 @@ function DiaryEditorContent() {
         </div>
       </section>
 
+      <section className="account-danger-zone" aria-labelledby="account-delete-title">
+        <div>
+          <p className="editor-kicker"><span /> DATA CONTROL / IRREVERSIBLE</p>
+          <h2 id="account-delete-title">刪除帳號與日記資料</h2>
+          <p>這會立即刪除帳號、日記、事件、標籤、分享設定、存取紀錄、AI 回顧與版本歷程。媒體中繼資料與可存取引用也會一併移除；已上傳檔案不再有任何日記引用。</p>
+        </div>
+        <label>請輸入 <strong>刪除我的帳號</strong> 以確認<input value={accountDeleteConfirmation} onChange={(event) => setAccountDeleteConfirmation(event.target.value)} placeholder="刪除我的帳號" autoComplete="off" /></label>
+        <button type="button" onClick={deleteCurrentAccount} disabled={accountDeleteConfirmation !== "刪除我的帳號" || deleteAccountMutation.isPending}>{deleteAccountMutation.isPending ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />} 永久刪除我的帳號</button>
+      </section>
+
       <nav className="editor-mobile-tabs" aria-label="日記工作區分頁" role="tablist">
         {([
           ["index", Archive, "索引"],
@@ -766,6 +810,10 @@ function DiaryEditorContent() {
                 <div className="preview-tags">{selectedEvent.tags.map((tag) => <span key={tag.id}>{tag.name}</span>)}</div>
                 <div className="event-visibility-control"><span>{selectedEvent.isPublic ? <Globe2 size={13} /> : <LockKeyhole size={13} />}{selectedEvent.isPublic ? "允許分享" : "私人事件"}</span><button onClick={toggleSelectedEventVisibility} disabled={visibilityMutation.isPending}>{selectedEvent.isPublic ? "改為私人" : "允許分享"}</button></div>
                 {selectedEvent.media.length ? <section className="media-editor" aria-label="事件圖片編輯"><header><span><GripVertical size={13} /> 圖片排序與說明</span><b>{selectedEvent.media.length.toString().padStart(2, "0")} 張</b></header>{selectedEvent.media.map((media) => <article key={media.id} draggable={selectedEvent.media.length > 1} onDragStart={() => setDraggedMediaId(media.id)} onDragOver={(event) => event.preventDefault()} onDrop={() => dropImageAt(media.id)} onDragEnd={() => setDraggedMediaId(null)}><img src={media.url} alt={media.caption ?? selectedEvent.title} /><div><input value={mediaCaptionDrafts[media.id] ?? media.caption ?? ""} onChange={(event) => setMediaCaptionDrafts((current) => ({ ...current, [media.id]: event.target.value }))} placeholder="為這張圖片寫下說明" maxLength={240} /><div><button type="button" onClick={() => saveImageCaption(media.id)} disabled={updateImageMutation.isPending}><Save size={12} /> 儲存說明</button><button type="button" onClick={() => removeImage(media.id)}><Trash2 size={12} /> 移除</button></div></div></article>)}</section> : null}
+                <section className="event-revisions" aria-label="事件版本歷程">
+                  <button type="button" className="event-revisions-toggle" onClick={() => setShowRevisions((visible) => !visible)}><History size={13} /> {showRevisions ? "收起版本歷程" : "查看版本歷程"}</button>
+                  {showRevisions ? <div className="event-revisions-list">{revisionsQuery.isLoading ? <p><Loader2 size={13} className="animate-spin" /> 載入版本中…</p> : revisionsQuery.error ? <p>無法讀取版本：{revisionsQuery.error.message}</p> : revisionsQuery.data?.length ? revisionsQuery.data.map((revision) => <article key={revision.id}><div><b>第 {revision.version} 版</b><span>{revision.changeType === "create" ? "初始建立" : revision.changeType === "restore" ? "還原版本" : "內容更新"} · {new Date(revision.createdAt).toLocaleString("zh-TW")}</span></div><p>{revision.snapshot.title}</p><button type="button" onClick={() => restoreEventRevision(revision.id, revision.version)} disabled={restoreRevisionMutation.isPending}><RotateCcw size={12} /> 還原此版</button></article>) : <p>這段事件尚未有可顯示的版本。</p>}</div> : null}
+                </section>
                 <div className="preview-actions"><button onClick={() => editEvent(selectedEvent)}><PencilLine size={14} /> 編輯</button><button className="delete" onClick={() => removeEvent(selectedEvent.id)}><Trash2 size={14} /> 刪除</button></div>
               </article>
               <div className="preview-ruler" aria-hidden="true"><i /><b>{new Date(selectedEvent.occurredAt).getFullYear()}</b><i /><span>NOW</span></div>

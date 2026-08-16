@@ -5,11 +5,13 @@ import {
   deleteDiaryEventMedia,
   deletePhaseReflection,
   generatePhaseReflection,
+  getDiaryEventRevisions,
   getDiarySnapshot,
   importDiaryEvents,
   getSharedDiary,
   reorderDiaryEventMedia,
   reorderDiaryEvents,
+  restoreDiaryEventRevision,
   setDiaryEventVisibility,
   updateDiaryAiPreference,
   updateDiaryEvent,
@@ -45,6 +47,8 @@ export const diaryRouter = router({
     const { id, ...event } = input;
     return updateDiaryEvent(ctx.user.id, id, event);
   }),
+  getEventRevisions: protectedProcedure.input(z.object({ eventId: z.number().int().positive() })).query(({ ctx, input }) => getDiaryEventRevisions(ctx.user.id, input.eventId)),
+  restoreEventRevision: protectedProcedure.input(z.object({ eventId: z.number().int().positive(), revisionId: z.number().int().positive() })).mutation(({ ctx, input }) => restoreDiaryEventRevision(ctx.user.id, input.eventId, input.revisionId)),
   deleteEvent: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ ctx, input }) => deleteDiaryEvent(ctx.user.id, input.id)),
   setEventVisibility: protectedProcedure.input(z.object({ id: z.number().int().positive(), isPublic: z.boolean() })).mutation(({ ctx, input }) => setDiaryEventVisibility(ctx.user.id, input.id, input.isPublic)),
   reorderEvents: protectedProcedure.input(z.object({ eventIds: z.array(z.number().int().positive()).max(500) })).mutation(({ ctx, input }) => reorderDiaryEvents(ctx.user.id, input.eventIds)),

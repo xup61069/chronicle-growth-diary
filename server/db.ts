@@ -4,6 +4,7 @@ import { randomBytes } from "node:crypto";
 import {
   growthDiaries,
   growthEventMedia,
+  growthEventRevisions,
   growthEvents,
   growthEventTags,
   growthPhaseReflections,
@@ -134,6 +135,16 @@ export async function createLocalUser(input: {
   return user;
 }
 
+/** Removes the account and all diary metadata through the schema's cascading foreign keys.
+ * Uploaded media keys are deliberately left unreferenced, following the storage provider lifecycle contract. */
+export async function deleteAccount(userId: number) {
+  const db = await requireDb();
+  const existing = await db.select({ id: users.id }).from(users).where(eq(users.id, userId)).limit(1);
+  if (!existing[0]) throw new Error("找不到要刪除的帳號。");
+  await db.delete(users).where(eq(users.id, userId));
+  return { deleted: true } as const;
+}
+
 async function getOrCreateDiary(userId: number) {
   const db = await requireDb();
   const existing = await db.select().from(growthDiaries).where(eq(growthDiaries.userId, userId)).limit(1);
@@ -231,6 +242,101 @@ export async function getDiarySnapshot(userId: number) {
   };
 }
 
+type EventRevisionChangeType = "create" | "update" | "restore";
+
+async function writeEventRevision(userId: number, eventId: number, changeType: EventRevisionChangeType) {
+  const db = await requireDb();
+  await assertEventOwnership(eventId, userId);
+  const event = await db.select().from(growthEvents).where(eq(growthEvents.id, eventId)).limit(1);
+  if (!event[0]) throw new Error("找不到這筆成長事件。");
+  const tags = await db.select({ name: growthTags.name })
+    .from(growthEventTags)
+    .innerJoin(growthTags, eq(growthEventTags.tagId, growthTags.id))
+    .where(eq(growthEventTags.eventId, eventId))
+    .orderBy(asc(growthTags.name));
+  const latest = await db.select({ version: growthEventRevisions.version })
+    .from(growthEventRevisions)
+    .where(eq(growthEventRevisions.eventId, eventId))
+    .orderBy(desc(growthEventRevisions.version))
+    .limit(1);
+  const snapshot = JSON.stringify({
+    occurredAt: event[0].occurredAt,
+    datePrecision: event[0].datePrecision,
+    eventType: event[0].eventType,
+    title: event[0].title,
+    body: event[0].body,
+    ageLabel: event[0].ageLabel,
+    place: event[0].place,
+    color: event[0].color,
+    isPublic: event[0].isPublic,
+    timelinePosition: event[0].timelinePosition,
+    tagNames: tags.map((tag) => tag.name),
+  });
+  const version = (latest[0]?.version ?? 0) + 1;
+  await db.insert(growthEventRevisions).values({ eventId, version, changeType, snapshot });
+  return { eventId, version, changeType, snapshot };
+}
+
+function parseEventRevisionSnapshot(snapshot: string): DiaryEventInput & { isPublic: boolean; timelinePosition: number } {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(snapshot);
+  } catch {
+    throw new Error("這個版本快照已損毀，無法還原。");
+  }
+  if (
+    !parsed || typeof parsed !== "object" || Array.isArray(parsed) ||
+    typeof (parsed as Record<string, unknown>).occurredAt !== "number" ||
+    typeof (parsed as Record<string, unknown>).title !== "string" ||
+    typeof (parsed as Record<string, unknown>).body !== "string" ||
+    !Array.isArray((parsed as Record<string, unknown>).tagNames)
+  ) {
+    throw new Error("這個版本快照格式無效，無法還原。");
+  }
+  return parsed as DiaryEventInput & { isPublic: boolean; timelinePosition: number };
+}
+
+export async function getDiaryEventRevisions(userId: number, eventId: number) {
+  const db = await requireDb();
+  await assertEventOwnership(eventId, userId);
+  const revisions = await db.select().from(growthEventRevisions)
+    .where(eq(growthEventRevisions.eventId, eventId))
+    .orderBy(desc(growthEventRevisions.version));
+  return revisions.map((revision) => ({
+    id: revision.id,
+    eventId: revision.eventId,
+    version: revision.version,
+    changeType: revision.changeType,
+    snapshot: parseEventRevisionSnapshot(revision.snapshot),
+    createdAt: revision.createdAt,
+  }));
+}
+
+export async function restoreDiaryEventRevision(userId: number, eventId: number, revisionId: number) {
+  const db = await requireDb();
+  await assertEventOwnership(eventId, userId);
+  const revision = await db.select().from(growthEventRevisions)
+    .where(and(eq(growthEventRevisions.id, revisionId), eq(growthEventRevisions.eventId, eventId)))
+    .limit(1);
+  if (!revision[0]) throw new Error("找不到可還原的事件版本。");
+  const snapshot = parseEventRevisionSnapshot(revision[0].snapshot);
+  await db.update(growthEvents).set({
+    occurredAt: snapshot.occurredAt,
+    datePrecision: snapshot.datePrecision,
+    eventType: snapshot.eventType,
+    title: snapshot.title.trim(),
+    body: snapshot.body.trim(),
+    ageLabel: snapshot.ageLabel?.trim() || null,
+    place: snapshot.place?.trim() || null,
+    color: snapshot.color,
+    isPublic: snapshot.isPublic,
+    timelinePosition: snapshot.timelinePosition,
+  }).where(eq(growthEvents.id, eventId));
+  await saveEventTags(eventId, userId, snapshot.tagNames);
+  const restored = await writeEventRevision(userId, eventId, "restore");
+  return { eventId, restoredVersion: restored.version };
+}
+
 export async function createDiaryEvent(userId: number, input: DiaryEventInput) {
   const db = await requireDb();
   const diary = await getOrCreateDiary(userId);
@@ -239,6 +345,7 @@ export async function createDiaryEvent(userId: number, input: DiaryEventInput) {
   const created = await db.select().from(growthEvents).where(eq(growthEvents.diaryId, diary.id)).orderBy(desc(growthEvents.id)).limit(1);
   if (!created[0]) throw new Error("無法儲存這筆成長事件。");
   await saveEventTags(created[0].id, userId, input.tagNames);
+  await writeEventRevision(userId, created[0].id, "create");
   return { id: created[0].id };
 }
 
@@ -261,6 +368,7 @@ export async function updateDiaryEvent(userId: number, eventId: number, input: D
   await assertEventOwnership(eventId, userId);
   await db.update(growthEvents).set({ occurredAt: input.occurredAt, datePrecision: input.datePrecision, eventType: input.eventType, title: input.title.trim(), body: input.body.trim(), ageLabel: input.ageLabel?.trim() || null, place: input.place?.trim() || null, color: input.color }).where(eq(growthEvents.id, eventId));
   await saveEventTags(eventId, userId, input.tagNames);
+  await writeEventRevision(userId, eventId, "update");
   return { id: eventId };
 }
 

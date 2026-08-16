@@ -43,6 +43,13 @@
       "when": 1786781288412,
       "tag": "0005_simple_ultragirl",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1786784579998,
+      "tag": "0006_friendly_mimic",
+      "breakpoints": true
     }
   ]
 }

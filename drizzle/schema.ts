@@ -124,6 +124,23 @@ export const growthEventMedia = mysqlTable(
   (table) => [index("growth_event_media_event_idx").on(table.eventId)],
 );
 
+/** Immutable snapshots of a personal event after a meaningful content change. */
+export const growthEventRevisions = mysqlTable(
+  "growth_event_revisions",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    eventId: int("eventId").notNull().references(() => growthEvents.id, { onDelete: "cascade" }),
+    version: int("version").notNull(),
+    changeType: mysqlEnum("changeType", ["create", "update", "restore"]).notNull(),
+    snapshot: text("snapshot").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("growth_event_revisions_event_version_idx").on(table.eventId, table.version),
+    index("growth_event_revisions_event_created_idx").on(table.eventId, table.createdAt),
+  ],
+);
+
 /** A user-approved AI recap attached to a single stage of the personal story. */
 export const growthPhaseReflections = mysqlTable(
   "growth_phase_reflections",
@@ -158,4 +175,5 @@ export type GrowthDiary = typeof growthDiaries.$inferSelect;
 export type GrowthEvent = typeof growthEvents.$inferSelect;
 export type GrowthTag = typeof growthTags.$inferSelect;
 export type GrowthEventMedia = typeof growthEventMedia.$inferSelect;
+export type GrowthEventRevision = typeof growthEventRevisions.$inferSelect;
 export type GrowthPhaseReflection = typeof growthPhaseReflections.$inferSelect;

@@ -17,6 +17,7 @@ const diaryDb = vi.hoisted(() => {
   return {
     state,
     getDiarySnapshot,
+    getDiaryEventRevisions: vi.fn(async () => [{ id: 31, eventId: 8, version: 2, changeType: "update", snapshot: { title: "第二版" }, createdAt: new Date("2026-01-02") }]),
     uploadDiaryCoverImage,
     createDiaryEvent: vi.fn(),
     deleteDiaryEvent: vi.fn(),
@@ -27,6 +28,7 @@ const diaryDb = vi.hoisted(() => {
     getSharedDiary: vi.fn(),
     reorderDiaryEventMedia: vi.fn(),
     reorderDiaryEvents: vi.fn(),
+    restoreDiaryEventRevision: vi.fn(async () => ({ eventId: 8, restoredVersion: 3 })),
     setDiaryEventVisibility: vi.fn(),
     updateDiaryAiPreference: vi.fn(),
     updateDiaryEvent: vi.fn(),
@@ -102,5 +104,17 @@ describe("diary router validation", () => {
     expect(diaryDb.uploadDiaryCoverImage).toHaveBeenCalledWith({ userId: 1, fileName: "cover.webp", mimeType: "image/webp", base64: "dGVzdA==" });
     expect(uploaded.url).toBe("/manus-storage/growth-diary/1/cover/test-cover.webp");
     expect(refreshedDiary.diary.publicCoverUrl).toBe(uploaded.url);
+  });
+
+  it("scopes event revision reads and restores to the authenticated diary owner", async () => {
+    const caller = diaryRouter.createCaller(authenticatedContext);
+    const revisions = await caller.getEventRevisions({ eventId: 8 });
+    const restored = await caller.restoreEventRevision({ eventId: 8, revisionId: 31 });
+
+    expect(diaryDb.getDiaryEventRevisions).toHaveBeenCalledWith(1, 8);
+    expect(revisions).toHaveLength(1);
+    expect(revisions[0]?.snapshot.title).toBe("第二版");
+    expect(diaryDb.restoreDiaryEventRevision).toHaveBeenCalledWith(1, 8, 31);
+    expect(restored).toEqual({ eventId: 8, restoredVersion: 3 });
   });
 });
