@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseSocialDraftJson } from "./socialDraftImport";
+import { parseSocialDraftCsv, parseSocialDraftJson } from "./socialDraftImport";
 
 describe("social draft import", () => {
   it("parses Plurk-compatible posts locally, removes duplicates, and flags meaningful candidates", () => {
@@ -9,5 +9,10 @@ describe("social draft import", () => {
     ] }));
     expect(candidates).toHaveLength(1);
     expect(candidates[0]).toMatchObject({ sourceId: "7", isSignificant: true });
+  });
+
+  it("parses a local CSV export with standard date and content columns", () => {
+    const candidates = parseSocialDraftCsv("id,posted,content\n8,2024-05-02T12:00:00Z,完成第一次公開演講");
+    expect(candidates[0]).toMatchObject({ sourceId: "8", title: "完成第一次公開演講" });
   });
 });

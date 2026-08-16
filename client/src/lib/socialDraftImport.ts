@@ -39,4 +39,21 @@ export function parseSocialDraftJson(raw: string): SocialDraftCandidate[] {
   return candidates.sort((left, right) => left.occurredAt - right.occurredAt);
 }
 
+/** Parses a small local CSV export with `id`, `posted`/`created_at`, and `content`/`text` columns. */
+export function parseSocialDraftCsv(raw: string): SocialDraftCandidate[] {
+  const [header, ...rows] = raw.trim().split(/\r?\n/);
+  if (!header || !rows.length) throw new Error("CSV 檔案沒有可讀取的標頭或貼文資料。 ");
+  const columns = header.split(",").map((column) => column.trim().toLowerCase());
+  const indexOf = (...names: string[]) => columns.findIndex((column) => names.includes(column));
+  const idIndex = indexOf("id", "plurk_id");
+  const dateIndex = indexOf("posted", "created_at", "createdat", "timestamp");
+  const bodyIndex = indexOf("content_raw", "content", "text");
+  if (dateIndex < 0 || bodyIndex < 0) throw new Error("CSV 需要日期與貼文文字欄位。 ");
+  const posts = rows.map((row) => {
+    const values = row.split(",");
+    return { id: idIndex >= 0 ? values[idIndex] : undefined, posted: values[dateIndex], content_raw: values[bodyIndex] };
+  });
+  return parseSocialDraftJson(JSON.stringify({ plurks: posts }));
+}
+
 export { MAX_CANDIDATES };
