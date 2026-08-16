@@ -1,0 +1,42 @@
+export type SocialDraftCandidate = { sourceId: string; occurredAt: number; body: string; title: string; isSignificant: boolean };
+
+const MAX_CANDIDATES = 250;
+
+function toText(value: unknown) {
+  return typeof value === "string" ? value.trim().replace(/\s+/g, " ").slice(0, 8000) : "";
+}
+
+function toTimestamp(value: unknown) {
+  const timestamp = typeof value === "number" ? value : typeof value === "string" ? new Date(value).getTime() : NaN;
+  return Number.isFinite(timestamp) && timestamp >= -2208988800000 && timestamp <= 4102444800000 ? timestamp : null;
+}
+
+function toSourceId(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? String(value) : toText(value);
+}
+
+/** Parses Plurk-compatible `plurks` exports or generic `posts` arrays locally. */
+export function parseSocialDraftJson(raw: string): SocialDraftCandidate[] {
+  let parsed: unknown;
+  try { parsed = JSON.parse(raw); } catch { throw new Error("檔案不是有效的 JSON。請選擇社群貼文匯出檔。 "); }
+  const record = parsed && typeof parsed === "object" ? parsed as Record<string, unknown> : null;
+  const posts = Array.isArray(parsed) ? parsed : Array.isArray(record?.plurks) ? record.plurks : Array.isArray(record?.posts) ? record.posts : null;
+  if (!posts?.length) throw new Error("找不到可讀取的貼文陣列。支援噗浪相容的 plurks 或通用 posts JSON。 ");
+  const seen = new Set<string>();
+  const candidates: SocialDraftCandidate[] = [];
+  for (const item of posts) {
+    if (!item || typeof item !== "object") continue;
+    const post = item as Record<string, unknown>;
+    const body = toText(post.content_raw ?? post.text ?? post.content);
+    const occurredAt = toTimestamp(post.posted ?? post.created_at ?? post.createdAt ?? post.timestamp);
+    if (!body || occurredAt === null) continue;
+    const sourceId = toSourceId(post.plurk_id ?? post.id) || `${occurredAt}:${body.slice(0, 80)}`;
+    if (seen.has(sourceId) || candidates.length >= MAX_CANDIDATES) continue;
+    seen.add(sourceId);
+    candidates.push({ sourceId, occurredAt, body, title: body.slice(0, 56), isSignificant: body.length >= 80 || /畢業|錄取|搬家|結婚|出生|離職|轉職|獲獎/.test(body) });
+  }
+  if (!candidates.length) throw new Error("貼文缺少可辨識的日期或文字內容。 ");
+  return candidates.sort((left, right) => left.occurredAt - right.occurredAt);
+}
+
+export { MAX_CANDIDATES };
