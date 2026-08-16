@@ -11,6 +11,7 @@ import { filterDiaryEvents, type DiarySortOrder } from "@/lib/diaryFilters";
 import { exportDiaryAsLongImage, exportDiaryAsPdf } from "@/lib/diaryExport";
 import { createPortableDiaryExport, downloadPortableDiary } from "@/lib/diaryPortable";
 import { parseChronicleImport, type ChronicleImportPreview } from "@/lib/diaryImport";
+import { appendWritingGuide, getLocalWritingGuides } from "@/lib/writingGuide";
 import { trpc } from "@/lib/trpc";
 import {
   Archive,
@@ -154,6 +155,7 @@ function DiaryEditorContent() {
   const reflectionsByPhase = useMemo(() => new Map((data?.reflections ?? []).map((reflection) => [reflection.phaseKey, reflection])), [data?.reflections]);
   const availableYears = useMemo(() => Array.from(new Set(events.map((event) => new Date(event.occurredAt).getFullYear()))).sort((left, right) => right - left), [events]);
   const annualReview = useMemo(() => buildAnnualReview(events, Number(annualYear || availableYears[0] || new Date().getFullYear()), annualTemplate), [annualTemplate, annualYear, availableYears, events]);
+  const writingGuides = useMemo(() => getLocalWritingGuides(form.eventType), [form.eventType]);
 
   useEffect(() => {
     if (!data) return;
@@ -194,6 +196,10 @@ function DiaryEditorContent() {
       addTag();
     });
     if (consumed) window.setTimeout(() => { tagEnterSubmitGuard.current = false; }, 0);
+  };
+
+  const applyWritingGuide = (template: string) => {
+    setForm((current) => ({ ...current, body: appendWritingGuide(current.body, template) }));
   };
 
   const startNewEvent = () => {
@@ -760,6 +766,12 @@ function DiaryEditorContent() {
               <span>把故事寫下來</span>
               <textarea value={form.body} onChange={(event) => setForm({ ...form, body: event.target.value })} placeholder="發生了什麼？你當時怎麼想？這段經驗後來帶給了你什麼？" rows={5} maxLength={8000} />
             </label>
+
+            <section className="writing-guide" aria-labelledby="writing-guide-title">
+              <header><span id="writing-guide-title"><LockKeyhole size={13} /> 本機寫作引導</span><small>只在此裝置補上文字，不會送出日記內容。</small></header>
+              <p>選一個起筆，會附加在目前草稿後方，你仍可自由修改或刪除。</p>
+              <div>{writingGuides.map((guide) => <button type="button" key={guide.key} onClick={() => applyWritingGuide(guide.template)}>{guide.label}</button>)}</div>
+            </section>
 
             <label className="form-field">
               <span><MapPin size={14} /> 地點（選填）</span>

@@ -402,6 +402,17 @@ a { color: inherit; text-decoration: none; }
 .form-field input:focus, .form-field textarea:focus, .form-field select:focus { border-color: var(--cinnabar); background: #fffdf8; }
 .form-field textarea { resize: vertical; line-height: 1.75; }
 .form-title input { font: 400 25px/1.2 "DM Serif Display", serif; letter-spacing: -.01em; padding: 12px; }
+.writing-guide { margin-top: 13px; padding: 12px 13px; border-left: 2px solid var(--cinnabar); background: #f1ede2; }
+.writing-guide header { display: flex; align-items: center; justify-content: space-between; gap: 11px; }
+.writing-guide header > span { display: inline-flex; align-items: center; gap: 6px; color: var(--ink); font: 500 10px "IBM Plex Mono", monospace; letter-spacing: .04em; }
+.writing-guide header > span svg { color: var(--cinnabar); }
+.writing-guide header small { color: var(--ink-soft); font-size: 9px; text-align: right; }
+.writing-guide > p { margin: 8px 0 10px; color: var(--ink-soft); font-size: 10px; line-height: 1.6; }
+.writing-guide > div { display: flex; flex-wrap: wrap; gap: 6px; }
+.writing-guide button { color: var(--ink); border: 1px solid rgba(20,38,58,.34); background: transparent; padding: 6px 8px; font-size: 10px; transition: background .18s ease-out, color .18s ease-out, border-color .18s ease-out, transform .16s ease-out; }
+.writing-guide button:hover { color: #fff; border-color: var(--ink); background: var(--ink); }
+.writing-guide button:focus-visible { outline: 2px solid var(--cinnabar); outline-offset: 2px; }
+.writing-guide button:active { transform: scale(.97); }
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .precision-field { margin: 19px 0 0; padding: 0; border: 0; }
 .precision-field > div { display: flex; height: 42px; border: 1px solid rgba(20,38,58,.36); }
