@@ -1,5 +1,7 @@
 # Chronicle — 個人成長史時間軸
 
+[English](./README.en.md) · [本機開發](./docs/LOCAL_DEVELOPMENT.md) · [自架指南](./docs/SELF_HOSTING.md) · [貢獻方式](./CONTRIBUTING.md)
+
 Chronicle 是一個以時間軸呈現的私人數位日記。它幫助使用者把童年記憶、學習歷程、人生轉折與個人成就，整理成可持續編輯的成長檔案。
 
 ## 核心功能
