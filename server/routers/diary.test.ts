@@ -125,6 +125,44 @@ describe("diary router validation", () => {
     expect(diaryDb.getDiarySnapshot).toHaveBeenCalledWith(1);
   });
 
+  it("connects an owned event editing flow from creation through media ordering and sharing", async () => {
+    diaryDb.createDiaryEvent.mockResolvedValue({ id: 8 });
+    diaryDb.uploadDiaryEventImage.mockResolvedValue({ id: 41, url: "/manus-storage/growth-diary/1/event/8/photo.webp" });
+    const caller = diaryRouter.createCaller(authenticatedContext);
+    const event = {
+      occurredAt: 1_704_067_200_000,
+      datePrecision: "day" as const,
+      eventType: "achievement" as const,
+      title: "完成第一份作品集",
+      body: "整理了學習與創作歷程。",
+      color: "#EE623B" as const,
+      tagNames: ["創作"],
+    };
+
+    await caller.createEvent(event);
+    await caller.updateEvent({ ...event, id: 8, body: "完成整理並公開分享。" });
+    await caller.uploadImage({
+      eventId: 8,
+      fileName: "portfolio.webp",
+      mimeType: "image/webp",
+      base64: "dGVzdA==",
+      caption: "作品集封面",
+    });
+    await caller.reorderImages({ eventId: 8, mediaIds: [41] });
+    await caller.updateSharing({
+      shareMode: "link",
+      publicCoverTitle: "創作紀事",
+      publicStoryLayout: "editorial",
+      clearPublicCover: false,
+    });
+
+    expect(diaryDb.createDiaryEvent).toHaveBeenCalledWith(1, event);
+    expect(diaryDb.updateDiaryEvent).toHaveBeenCalledWith(1, 8, expect.objectContaining({ body: "完成整理並公開分享。" }));
+    expect(diaryDb.uploadDiaryEventImage).toHaveBeenCalledWith(expect.objectContaining({ userId: 1, eventId: 8, caption: "作品集封面" }));
+    expect(diaryDb.reorderDiaryEventMedia).toHaveBeenCalledWith(1, 8, [41]);
+    expect(diaryDb.updateDiarySharing).toHaveBeenCalledWith(1, expect.objectContaining({ shareMode: "link", publicCoverTitle: "創作紀事", publicStoryLayout: "editorial" }));
+  });
+
   it("keeps a public cover after sharing configuration, upload, and a subsequent diary read", async () => {
     const caller = diaryRouter.createCaller(authenticatedContext);
     await caller.updateSharing({ shareMode: "public", publicCoverTitle: "海岸檔案", publicStoryLayout: "minimal", clearPublicCover: false });
