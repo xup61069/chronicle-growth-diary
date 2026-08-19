@@ -22,6 +22,7 @@ import "@/styles/diary-profile.css";
 import "@/styles/annual-review.css";
 import "@/styles/account-revisions.css";
 import "@/styles/diary-workspace.css";
+import "@/styles/diary-event-studio.css";
 import {
   Archive,
   ArrowDownUp,
