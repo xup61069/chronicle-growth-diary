@@ -26,4 +26,13 @@ describe("Home", () => {
     expect(html).toContain('class="text-button" href="#stories"');
     expect(html).not.toContain("已開啟一份範例時間軸");
   });
+
+  it("routes the timeboard and story examples to the editor instead of showing temporary notices", () => {
+    const html = renderToStaticMarkup(<Home />);
+    expect(html).toContain('class="timeline-detail"');
+    expect(html).toContain('>開啟工作台');
+    expect(html).toContain('class="story-link" href="/editor"');
+    expect(html).not.toContain("完整檔案將於後續內容管理功能中開啟");
+    expect(html).not.toContain("案例詳情可連結至實際分享頁面");
+  });
 });

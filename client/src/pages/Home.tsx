@@ -21,7 +21,6 @@ import {
 } from "lucide-react";
 import { startLogin } from "@/const";
 import { isMobileMenuDismissKey, shouldHandleTimelineArrowKey } from "@/lib/homeNavigation";
-import { toast } from "sonner";
 
 type TimelineEvent = {
   date: string;
@@ -323,7 +322,7 @@ export default function Home() {
               <h3>{selectedEvent.title}</h3>
               <p>{selectedEvent.copy}</p>
             </div>
-            <button onClick={() => toast.info("這個範例事件的完整檔案將於後續內容管理功能中開啟。")}>開啟事件 <ArrowUpRight size={17} /></button>
+            <a href="/editor">開啟工作台 <ArrowUpRight size={17} /></a>
           </div>
 
           <div className="timeboard-scale" aria-hidden="true">
@@ -366,7 +365,7 @@ export default function Home() {
                 <div className="story-image-wrap"><img src={example.image} alt="" loading="lazy" decoding="async" /></div>
                 <div className="story-meta"><span>{example.number} / {example.type}</span><ArrowUpRight size={18} /></div>
                 <h3>{example.title}</h3>
-                <button onClick={() => toast.info("案例詳情可連結至實際分享頁面。")}>查看時間帶 <ChevronRight size={16} /></button>
+                <a className="story-link" href="/editor">查看時間帶 <ChevronRight size={16} /></a>
               </article>
             ))}
           </div>

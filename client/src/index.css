@@ -155,8 +155,8 @@ a { color: inherit; text-decoration: none; }
 .detail-copy > span { color: #aebcc1; font: 500 10px "IBM Plex Mono", monospace; letter-spacing: .08em; }
 .detail-copy h3 { margin: 6px 0; font-size: 20px; font-weight: 600; }
 .detail-copy p { max-width: 570px; margin: 0; color: #c8d2d6; font-size: 13px; line-height: 1.7; }
-.timeline-detail > button { color: #fff; border: 0; border-bottom: 1px solid #fff; background: transparent; padding: 5px 0; display: flex; align-items: center; gap: 7px; font-size: 13px; }
-.timeline-detail > button:hover { color: var(--cinnabar); border-color: var(--cinnabar); }
+.timeline-detail > a { color: #fff; border-bottom: 1px solid #fff; padding: 5px 0; display: flex; align-items: center; gap: 7px; font-size: 13px; }
+.timeline-detail > a:hover { color: var(--cinnabar); border-color: var(--cinnabar); }
 .timeboard-scale { display: flex; align-items: center; gap: 13px; margin-top: 22px; color: #a7b5bb; font: 10px "IBM Plex Mono", monospace; letter-spacing: .08em; }
 .timeboard-scale div { flex: 1; border-top: 1px dashed rgba(255,255,255,.27); }
 
@@ -190,8 +190,8 @@ a { color: inherit; text-decoration: none; }
 .story-meta { color: var(--ink-soft); margin: 13px 0 10px; display: flex; justify-content: space-between; align-items: center; }
 .story-meta svg { color: var(--cinnabar); }
 .story-card h3 { max-width: 280px; margin: 0; font: 400 30px/1.08 "DM Serif Display", serif; letter-spacing: -.02em; }
-.story-card button { background: none; border: 0; padding: 16px 0 2px; display: flex; align-items: center; gap: 3px; color: var(--ink); font-size: 13px; }
-.story-card button:hover { color: var(--cinnabar); }
+.story-link { padding: 16px 0 2px; display: flex; align-items: center; gap: 3px; color: var(--ink); font-size: 13px; }
+.story-link:hover { color: var(--cinnabar); }
 
 .plan-section { min-height: 730px; position: relative; overflow: hidden; padding: clamp(74px, 10vw, 136px) clamp(20px, 13vw, 205px); display: grid; align-items: center; }
 .plan-art { position: absolute; inset: 0; }
