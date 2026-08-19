@@ -134,3 +134,9 @@
 首頁三張故事案例圖片現在使用原生 `loading="lazy"` 與 `decoding="async"`。這些圖片仍保留空替代文字，因為相鄰標題已提供相同敘事內容，不會向輔助技術重複朗讀。新增首頁靜態渲染回歸，確認三張案例圖片均維持延後載入與非同步解碼設定。
 
 完整 `pnpm check`、43 個測試檔共 119 項 Vitest 與正式建置均通過；首頁全頁桌面與 375px 行動截圖皆確認案例區、文字與下方區塊保持可讀且版面穩定。此改善未觸發登入流程。
+
+## 2026-08-19：首頁字型載入優化
+
+將 DM Serif Display、IBM Plex Mono 與 Noto Sans TC 的 Google Fonts 宣告從 CSS `@import` 移至文件 `<head>`，並新增 `fonts.googleapis.com` 與 `fonts.gstatic.com` 的預連線；既有 `display=swap`、字型家族與權重均維持不變。這避免 CSS import 形成額外的字型樣式表載入相依，且在字型尚未到達時保留可讀 fallback。
+
+新增 `fontLoading.test.ts` 確認預連線、三種設計字型、`display=swap` 與 CSS import 移除。完整 `pnpm check`、44 個測試檔共 120 項 Vitest 與正式建置通過；1280×720 首頁截圖確認展示字、內文與資料微文案均保持可讀。此驗證未觸發登入流程。
