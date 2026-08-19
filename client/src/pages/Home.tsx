@@ -237,7 +237,7 @@ export default function Home() {
             </p>
             <div className="hero-actions">
               <a className="solid-button" href="/editor">開始書寫成長故事 <ArrowUpRight size={17} /></a>
-              <button className="text-button" onClick={() => toast.info("已開啟一份範例時間軸。")}>觀看範例 <ChevronRight size={17} /></button>
+              <a className="text-button" href="#stories">觀看範例 <ChevronRight size={17} /></a>
             </div>
           </div>
 

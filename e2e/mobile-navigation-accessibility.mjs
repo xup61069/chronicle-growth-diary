@@ -12,6 +12,17 @@ const page = await browser.newPage({ viewport: { width: 375, height: 812 } });
 try {
   await page.goto(`${baseUrl.replace(/\/$/, "")}/`, { waitUntil: "domcontentloaded" });
 
+  const exampleLink = page.getByRole("link", { name: "觀看範例" });
+  if (await exampleLink.getAttribute("href") !== "#stories") {
+    throw new Error("首頁範例入口未指向故事案例區段。");
+  }
+  await Promise.all([
+    page.waitForURL(/#stories$/),
+    exampleLink.click(),
+  ]);
+
+  await page.goto(`${baseUrl.replace(/\/$/, "")}/`, { waitUntil: "domcontentloaded" });
+
   const menuButton = page.locator("button.mobile-menu");
   const navigation = page.locator("#primary-navigation");
 
@@ -40,7 +51,7 @@ try {
     throw new Error("點擊行動導覽連結後未收合選單。");
   }
 
-  console.log("行動導覽可及性回歸通過：展開、Escape 與連結收合均正常。");
+  console.log("公開首頁回歸通過：範例入口、行動選單展開、Escape 與連結收合均正常。");
 } finally {
   await browser.close();
 }

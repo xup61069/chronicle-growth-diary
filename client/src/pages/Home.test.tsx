@@ -19,4 +19,10 @@ describe("Home", () => {
     expect(isMobileMenuDismissKey("Escape")).toBe(true);
     expect(isMobileMenuDismissKey("Enter")).toBe(false);
   });
+
+  it("links the hero example entry to the story examples instead of a temporary notification", () => {
+    const html = renderToStaticMarkup(<Home />);
+    expect(html).toContain('class="text-button" href="#stories"');
+    expect(html).not.toContain("已開啟一份範例時間軸");
+  });
 });
