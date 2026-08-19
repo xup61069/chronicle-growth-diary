@@ -1,6 +1,6 @@
 # Chronicle — 個人成長史時間軸
 
-[English](./README.en.md) · [本機開發](./docs/LOCAL_DEVELOPMENT.md) · [自架指南](./docs/SELF_HOSTING.md) · [貢獻方式](./CONTRIBUTING.md)
+[English](./README.en.md) · [本機開發](./docs/LOCAL_DEVELOPMENT.md) · [自架指南](./docs/SELF_HOSTING.md) · [媒體封存格式](./docs/MEDIA_ARCHIVE.md) · [貢獻方式](./CONTRIBUTING.md) · [安全性](./SECURITY.md)
 
 Chronicle 是一個以時間軸呈現的私人數位日記。它幫助使用者把童年記憶、學習歷程、人生轉折與個人成就，整理成可持續編輯的成長檔案。
 
@@ -16,7 +16,7 @@ Chronicle 是一個以時間軸呈現的私人數位日記。它幫助使用者�
 | 私人資料保護 | 編輯器操作以登入身分保護，伺服器會確認資料擁有權。 |
 | 人生階段總覽 | 依事件時間、年齡標記與可選的成長錨點，自動分群為童年、求學與職涯。 |
 | 受控分享 | 可選擇完全私密、公開閱讀或私密連結；只有明確允許的事件會顯示在分享頁。 |
-| 可攜備份 | 可在瀏覽器端將完整成長史輸出為分頁 PDF 或一張長圖片。 |
+| 可攜備份 | 可在瀏覽器端將完整成長史輸出為分頁 PDF、長圖片、版本化 JSON、Markdown，或含事件圖片位元組的受限媒體 ZIP 封存。 |
 | AI 階段回顧 | 僅根據選定人生階段內的事件產生回顧與開放式反思；使用者可重新生成、手動編輯並保存最終文字。 |
 | 可調整時間工作台 | 可拖曳各人生階段的起訖年份，並以手動順序拖曳重排事件；調整會持久化保存。 |
 | 進階分享連結 | 分享可設為密碼保護與到期日；擁有者可查看成功開啟故事的累積次數與最近存取時間，系統不記錄閱覽者身分或 IP 位址。 |
@@ -72,4 +72,4 @@ server/_core/llm.ts              內建模型呼叫與 AI 階段回顧整合
 
 ## 致謝
 
-匯出功能使用 [jsPDF](https://github.com/parallax/jsPDF) 與 [html2canvas](https://github.com/niklasvh/html2canvas) 建立；若它們對你的專案有幫助，請考慮支持原始維護者。
+匯出功能使用 [jsPDF](https://github.com/parallax/jsPDF)、[html2canvas](https://github.com/niklasvh/html2canvas) 與 [JSZip](https://github.com/Stuk/jszip) 建立；若它們對你的專案有幫助，請考慮支持原始維護者。

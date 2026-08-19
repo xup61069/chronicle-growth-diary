@@ -1,6 +1,6 @@
 # Chronicle — Personal Growth Timeline
 
-[繁體中文](./README.md) · [Local development](./docs/LOCAL_DEVELOPMENT.md) · [Self-hosting](./docs/SELF_HOSTING.md) · [Contributing](./CONTRIBUTING.md)
+[繁體中文](./README.md) · [Local development](./docs/LOCAL_DEVELOPMENT.md) · [Self-hosting](./docs/SELF_HOSTING.md) · [Media archive format](./docs/MEDIA_ARCHIVE.md) · [Contributing](./CONTRIBUTING.md) · [Security](./SECURITY.md)
 
 Chronicle is a private, timeline-first journal for preserving childhood memories, learning, milestones, turning points, and the chapters that connect them. Its editorial workspace lets people arrange lived experience into a long-term personal archive rather than a feed.
 
@@ -13,7 +13,7 @@ Chronicle is a private, timeline-first journal for preserving childhood memories
 | Life chapters | Group events into childhood, education, and career chapters, with editable boundaries. |
 | Reflection | Build annual reviews in the browser and generate optional chapter reflections when AI is enabled. Local writing guides never send diary text to an external service. |
 | Controlled sharing | Share only explicitly public events through public or secret links, with optional passwords, expiry dates, and access counts. |
-| Portability | Export PDF, long-image, versioned JSON, or Markdown archives. JSON imports create private events only and deliberately exclude credentials and media bytes. |
+| Portability | Export PDF, long-image, versioned JSON, Markdown, or a constrained ZIP media archive with event-image bytes. JSON imports create private events only and deliberately exclude credentials and media bytes. |
 | Recovery | Keep event revision snapshots, restore an earlier version, or permanently delete the account through an explicit confirmation phrase. |
 
 ## Privacy commitments
@@ -54,7 +54,7 @@ drizzle/schema.ts                  MySQL/TiDB-compatible data model
 
 ## Contributing and community
 
-Read [AGENTS.md](./AGENTS.md) before changing the application. It defines architecture, privacy, migration, and visual-system rules. The repository includes [contribution guidance](./CONTRIBUTING.md), a [code of conduct](./CODE_OF_CONDUCT.md), and CI checks for TypeScript, Vitest, and production builds.
+Read [AGENTS.md](./AGENTS.md) before changing the application. It defines architecture, privacy, migration, and visual-system rules. The repository includes [contribution guidance](./CONTRIBUTING.md), a [code of conduct](./CODE_OF_CONDUCT.md), a [security reporting policy](./SECURITY.md), and CI checks for TypeScript, Vitest, and production builds.
 
 ## License
 
