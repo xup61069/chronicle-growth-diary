@@ -11,7 +11,7 @@ import {
   growthShareAccessLogs,
   growthTags,
 } from "../drizzle/schema";
-import { normalizeTagNames, safeMediaName } from "./diaryHelpers";
+import { normalizeTagNames } from "./diaryHelpers";
 import { getEnrichedDiaryEvents } from "./db/diaryRead";
 import { deriveLifePhases, getInvalidLifePhaseBoundary } from "./lifePhases";
 import { parseDiaryEventRevisionSnapshot } from "./db/revisions";
@@ -31,6 +31,7 @@ import { persistDiarySharing, readSharedDiary } from "./db/sharing";
 export type { DiarySharingInput } from "./db/sharing";
 import type { DiarySharingInput } from "./db/sharing";
 import { updateDiaryPhaseBoundariesForDiary, updateDiaryProfileForDiary } from "./db/diarySettings";
+import { deleteDiaryEventMediaForUser, reorderDiaryEventMediaForUser, updateDiaryEventMediaForUser, uploadDiaryCoverMedia, uploadDiaryEventMedia } from "./db/diaryMedia";
 export type { DiaryPhaseBoundariesInput, DiaryProfileInput } from "./db/diarySettings";
 import type { DiaryPhaseBoundariesInput, DiaryProfileInput } from "./db/diarySettings";
 import {
@@ -43,7 +44,6 @@ import {
 } from "./db/aiReflections";
 export { assertAiEnabled } from "./db/aiReflections";
 import type { PhaseReflectionInput, ReflectionPhaseKey } from "./db/aiReflections";
-import { storagePut } from "./storage";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -389,57 +389,28 @@ export async function getSharedDiary(slug: string, token?: string | null, passwo
 
 export async function uploadDiaryEventImage(input: { userId: number; eventId: number; fileName: string; mimeType: string; base64: string; caption?: string; }) {
   const db = await requireDb();
-  await assertEventWriteAccess(input.eventId, input.userId);
-  const bytes = Buffer.from(input.base64, "base64");
-  if (bytes.byteLength > 4 * 1024 * 1024) throw new Error("圖片檔案不可超過 4MB。");
-  const fileName = safeMediaName(input.fileName);
-  const stored = await storagePut(`growth-diary/${input.userId}/event-${input.eventId}/${fileName}`, bytes, input.mimeType);
-  const existingMedia = await db.select({ count: growthEventMedia.id }).from(growthEventMedia).where(eq(growthEventMedia.eventId, input.eventId));
-  await db.insert(growthEventMedia).values({ eventId: input.eventId, storageKey: stored.key, url: stored.url, fileName, mimeType: input.mimeType, caption: input.caption?.trim() || null, sortOrder: existingMedia.length });
-  return stored;
+  return uploadDiaryEventMedia(db, assertEventWriteAccess, input);
 }
 
 export async function deleteDiaryEventMedia(userId: number, mediaId: number) {
   const db = await requireDb();
-  const media = await db.select({ id: growthEventMedia.id, eventId: growthEventMedia.eventId }).from(growthEventMedia).where(eq(growthEventMedia.id, mediaId)).limit(1);
-  if (!media[0]) throw new Error("找不到這張圖片，或你沒有刪除權限。");
-  await assertEventWriteAccess(media[0].eventId, userId);
-  await db.delete(growthEventMedia).where(eq(growthEventMedia.id, mediaId));
-  return { id: mediaId };
+  return deleteDiaryEventMediaForUser(db, assertEventWriteAccess, userId, mediaId);
 }
 
 export async function updateDiaryEventMedia(userId: number, mediaId: number, caption: string | null) {
   const db = await requireDb();
-  const media = await db.select({ id: growthEventMedia.id, eventId: growthEventMedia.eventId }).from(growthEventMedia).where(eq(growthEventMedia.id, mediaId)).limit(1);
-  if (!media[0]) throw new Error("找不到這張圖片，或你沒有編輯權限。");
-  await assertEventWriteAccess(media[0].eventId, userId);
-  const nextCaption = caption?.trim() || null;
-  await db.update(growthEventMedia).set({ caption: nextCaption }).where(eq(growthEventMedia.id, mediaId));
-  return { id: mediaId, caption: nextCaption };
+  return updateDiaryEventMediaForUser(db, assertEventWriteAccess, userId, mediaId, caption);
 }
 
 export async function reorderDiaryEventMedia(userId: number, eventId: number, mediaIds: number[]) {
   const db = await requireDb();
-  await assertEventWriteAccess(eventId, userId);
-  const media = await db.select({ id: growthEventMedia.id }).from(growthEventMedia).where(eq(growthEventMedia.eventId, eventId));
-  if (media.length !== mediaIds.length || new Set(mediaIds).size !== mediaIds.length || media.some((item) => !mediaIds.includes(item.id))) {
-    throw new Error("圖片排序內容不完整，請重新整理後再試。");
-  }
-  for (let sortOrder = 0; sortOrder < mediaIds.length; sortOrder += 1) {
-    await db.update(growthEventMedia).set({ sortOrder }).where(eq(growthEventMedia.id, mediaIds[sortOrder]!));
-  }
-  return { eventId, mediaIds };
+  return reorderDiaryEventMediaForUser(db, assertEventWriteAccess, userId, eventId, mediaIds);
 }
 
 export async function uploadDiaryCoverImage(input: { userId: number; fileName: string; mimeType: string; base64: string }) {
   const db = await requireDb();
   const diary = await getOrCreateDiary(input.userId);
-  const bytes = Buffer.from(input.base64, "base64");
-  if (bytes.byteLength > 4 * 1024 * 1024) throw new Error("封面圖片不可超過 4MB。");
-  const fileName = safeMediaName(input.fileName);
-  const stored = await storagePut(`growth-diary/${input.userId}/cover/${Date.now()}-${fileName}`, bytes, input.mimeType);
-  await db.update(growthDiaries).set({ publicCoverStorageKey: stored.key, publicCoverUrl: stored.url }).where(eq(growthDiaries.id, diary.id));
-  return stored;
+  return uploadDiaryCoverMedia(db, diary.id, input);
 }
 
 async function getOwnedDiary(userId: number) {
