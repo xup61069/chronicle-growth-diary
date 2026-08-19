@@ -2,6 +2,7 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import DiaryEditor from "@/pages/DiaryEditor";
+import FamilyInvite from "@/pages/FamilyInvite";
 import QuickNote from "@/pages/QuickNote";
 import SharedStory from "@/pages/SharedStory";
 import NotFound from "@/pages/NotFound";
@@ -16,6 +17,7 @@ function Router() {
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/editor" component={DiaryEditor} />
+      <Route path="/family-invite" component={FamilyInvite} />
       <Route path="/quick-note" component={QuickNote} />
       <Route path="/story/:slug" component={SharedStory} />
       <Route path="/404" component={NotFound} />
@@ -28,7 +30,7 @@ function RouteMetadata() {
   const [location] = useLocation();
 
   useEffect(() => {
-    const isPrivateRoute = location === "/editor" || location === "/quick-note";
+    const isPrivateRoute = location === "/editor" || location === "/quick-note" || location.startsWith("/family-invite");
     let robots = document.querySelector<HTMLMetaElement>('meta[name="robots"]');
     if (!robots) {
       robots = document.createElement("meta");
