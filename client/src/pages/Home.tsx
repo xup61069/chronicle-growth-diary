@@ -2,7 +2,7 @@
  * Design reminder — 編集室時間帶：Swiss editorial composition, archival paper tactility,
  * deep ink + cinnabar accents, and time as the primary navigational structure.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDown,
   ArrowLeft,
@@ -350,7 +350,7 @@ export default function Home() {
           <div className="story-grid">
             {examples.map((example, index) => (
               <article className={`story-card story-${index + 1}`} key={example.number}>
-                <div className="story-image-wrap"><img src={example.image} alt="" /></div>
+                <div className="story-image-wrap"><img src={example.image} alt="" loading="lazy" decoding="async" /></div>
                 <div className="story-meta"><span>{example.number} / {example.type}</span><ArrowUpRight size={18} /></div>
                 <h3>{example.title}</h3>
                 <button onClick={() => toast.info("案例詳情可連結至實際分享頁面。")}>查看時間帶 <ChevronRight size={16} /></button>
