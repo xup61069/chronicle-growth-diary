@@ -71,6 +71,13 @@
       "when": 1787137083746,
       "tag": "0009_ordinary_ben_grimm",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1787138281840,
+      "tag": "0010_green_mantis",
+      "breakpoints": true
     }
   ]
 }

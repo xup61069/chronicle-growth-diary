@@ -26,6 +26,7 @@ export type MultitrackEvent = {
   milestoneType: MilestoneType;
   milestoneWeight: number;
   skills: TimelineSkill[];
+  phaseKeywords?: string[];
   unlocksAt?: number | null;
 };
 
@@ -58,10 +59,13 @@ export function buildTrackRows<T extends MultitrackEvent>(events: T[], skillName
 
 export function getTimelineInsights(events: MultitrackEvent[]) {
   const skillFrequency = new Map<string, number>();
+  const keywordFrequency = new Map<string, number>();
   for (const event of events) {
     event.skills.forEach((skill) => skillFrequency.set(skill.name, (skillFrequency.get(skill.name) ?? 0) + 1));
+    event.phaseKeywords?.forEach((keyword) => keywordFrequency.set(keyword, (keywordFrequency.get(keyword) ?? 0) + 1));
   }
   const leadingSkill = Array.from(skillFrequency.entries()).sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0], "zh-Hant"))[0]?.[0] ?? null;
+  const leadingPhaseKeyword = Array.from(keywordFrequency.entries()).sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0], "zh-Hant"))[0]?.[0] ?? null;
   return {
     eventCount: events.length,
     projectCount: events.filter((event) => event.track === "career").length,
@@ -69,5 +73,6 @@ export function getTimelineInsights(events: MultitrackEvent[]) {
     turningPointCount: events.filter((event) => event.milestoneType === "turning_point").length,
     totalWeight: events.reduce((total, event) => total + event.milestoneWeight, 0),
     leadingSkill,
+    leadingPhaseKeyword,
   };
 }

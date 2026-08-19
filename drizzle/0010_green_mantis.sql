@@ -1,0 +1,1 @@
+ALTER TABLE `growth_events` ADD `phaseKeywords` text;

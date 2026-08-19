@@ -64,6 +64,7 @@ const initialSnapshot = JSON.stringify({
   isPublic: false,
   timelinePosition: 0,
   tagNames: [],
+  phaseKeywords: ["重新定位"],
 });
 
 beforeAll(async () => {
@@ -86,7 +87,7 @@ describe("event revision data helpers", () => {
     const revisions = await dbHelpers.getDiaryEventRevisions(3, 8);
 
     expect(revisions).toEqual([
-      expect.objectContaining({ id: 22, eventId: 8, version: 2, changeType: "update", snapshot: expect.objectContaining({ title: "第一版" }) }),
+      expect.objectContaining({ id: 22, eventId: 8, version: 2, changeType: "update", snapshot: expect.objectContaining({ title: "第一版", phaseKeywords: ["重新定位"] }) }),
     ]);
     expect(harness.db.select).toHaveBeenCalledTimes(3);
   });

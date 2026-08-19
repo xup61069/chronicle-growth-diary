@@ -166,7 +166,7 @@ describe("diary router validation", () => {
       color: "#EE623B" as const,
       tagNames: ["創作"],
     };
-    const normalizedEvent = { ...event, skillNames: [], track: "life" as const, milestoneType: "standard" as const, milestoneWeight: 1 };
+    const normalizedEvent = { ...event, skillNames: [], phaseKeywords: [], track: "life" as const, milestoneType: "standard" as const, milestoneWeight: 1 };
 
     await caller.createEvent(event);
     await caller.updateEvent({ ...event, id: 8, body: "完成整理並公開分享。" });
@@ -198,7 +198,7 @@ describe("diary router validation", () => {
     diaryDb.reorderDiaryEvents.mockResolvedValue({ eventIds: [8] });
     const caller = diaryRouter.createCaller(authenticatedContext);
     const event = { occurredAt: 1_704_067_200_000, datePrecision: "day" as const, eventType: "memory" as const, title: "家庭記事", body: "共同整理的記憶。", color: "#EE623B" as const, tagNames: [] };
-    const normalizedEvent = { ...event, skillNames: [], track: "life" as const, milestoneType: "standard" as const, milestoneWeight: 1 };
+    const normalizedEvent = { ...event, skillNames: [], phaseKeywords: [], track: "life" as const, milestoneType: "standard" as const, milestoneWeight: 1 };
 
     await caller.createEvent({ ...event, diaryId: 42 });
     await caller.importEvents({ diaryId: 42, events: [event] });

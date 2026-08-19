@@ -88,6 +88,7 @@ function DiaryEditorContent() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [tagDraft, setTagDraft] = useState("");
   const [skillDraft, setSkillDraft] = useState("");
+  const [phaseKeywordDraft, setPhaseKeywordDraft] = useState("");
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [commentDraft, setCommentDraft] = useState("");
@@ -308,6 +309,19 @@ function DiaryEditorContent() {
     setSkillDraft("");
   };
 
+  const addPhaseKeyword = (rawKeyword = phaseKeywordDraft) => {
+    const keyword = rawKeyword.trim().replace(/\s+/g, " ");
+    if (!keyword) return;
+    if (keyword.length > 24) return toast.error("每個階段關鍵字最多 24 個字元。");
+    if (form.phaseKeywords.some((item) => item.toLocaleLowerCase() === keyword.toLocaleLowerCase())) {
+      setPhaseKeywordDraft("");
+      return;
+    }
+    if (form.phaseKeywords.length >= 8) return toast.error("每筆記憶最多保留 8 個階段關鍵字。");
+    setForm((current) => ({ ...current, phaseKeywords: [...current.phaseKeywords, keyword] }));
+    setPhaseKeywordDraft("");
+  };
+
   const handleTagInputKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     const consumed = consumeTagInputEnter(event, () => {
       tagEnterSubmitGuard.current = true;
@@ -320,6 +334,14 @@ function DiaryEditorContent() {
     const consumed = consumeTagInputEnter(event, () => {
       tagEnterSubmitGuard.current = true;
       addSkill();
+    });
+    if (consumed) window.setTimeout(() => { tagEnterSubmitGuard.current = false; }, 0);
+  };
+
+  const handlePhaseKeywordInputKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    const consumed = consumeTagInputEnter(event, () => {
+      tagEnterSubmitGuard.current = true;
+      addPhaseKeyword();
     });
     if (consumed) window.setTimeout(() => { tagEnterSubmitGuard.current = false; }, 0);
   };
@@ -341,6 +363,7 @@ function DiaryEditorContent() {
     setPendingImages([]);
     setTagDraft("");
     setSkillDraft("");
+    setPhaseKeywordDraft("");
     setForm(makeEmptyForm());
   };
 
@@ -350,6 +373,7 @@ function DiaryEditorContent() {
     setSelectedId(event.id);
     setTagDraft("");
     setSkillDraft("");
+    setPhaseKeywordDraft("");
     setPendingImages([]);
     setShowRevisions(false);
     setMediaCaptionDrafts(Object.fromEntries(event.media.map((media) => [media.id, media.caption ?? ""])));
@@ -364,6 +388,7 @@ function DiaryEditorContent() {
       color: event.color as (typeof diaryColors)[number],
       tagNames: event.tags.map((tag) => tag.name),
       skillNames: event.skills.map((skill) => skill.name),
+      phaseKeywords: event.phaseKeywords,
       track: event.track,
       milestoneType: event.milestoneType,
       milestoneWeight: event.milestoneWeight,
@@ -1084,6 +1109,18 @@ function DiaryEditorContent() {
               <small>技能會獨立保存，可在多軌時間軸中反向篩選相關成長事件。</small>
             </div>
 
+            <div className="form-field tags-field phase-keywords-field">
+              <span><BookOpenCheck size={14} /> 階段關鍵字</span>
+              <div className="tag-input-row">
+                <input value={phaseKeywordDraft} onChange={(event) => setPhaseKeywordDraft(event.target.value)} onKeyDown={handlePhaseKeywordInputKeyDown} placeholder="輸入後按 Enter，例如：重新定位" maxLength={24} />
+                <button type="button" onClick={() => addPhaseKeyword()}>加入</button>
+              </div>
+              <div className="tag-chips">
+                {form.phaseKeywords.map((keyword) => <button type="button" key={keyword} onClick={() => setForm({ ...form, phaseKeywords: form.phaseKeywords.filter((item) => item !== keyword) })}>{keyword}<X size={12} /></button>)}
+              </div>
+              <small>用來描述這段事件在所屬人生章節中的主題；它不會取代一般標籤或技能。</small>
+            </div>
+
             <label className="form-field">
               <span><LockKeyhole size={14} /> 時空膠囊解鎖日（選填）</span>
               <input type="date" value={form.unlocksAt} onChange={(event) => setForm({ ...form, unlocksAt: event.target.value })} />
@@ -1128,6 +1165,7 @@ function DiaryEditorContent() {
               <span><b>{timelineInsights.highlightCount}</b>高光節點</span>
               <span><b>{timelineInsights.turningPointCount}</b>重大轉折</span>
               <span><b>{timelineInsights.leadingSkill ?? "—"}</b>投入最深技能</span>
+              <span><b>{timelineInsights.leadingPhaseKeyword ?? "—"}</b>階段代表字</span>
             </div>
             <div className="track-lanes">
               {trackRows.map((track) => <section className="track-lane" key={track.key} style={{ "--track-color": track.color } as React.CSSProperties} aria-label={`${track.label}軌道`}>

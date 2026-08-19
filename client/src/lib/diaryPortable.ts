@@ -13,6 +13,7 @@ type PortableEventSource = {
   color: string;
   isPublic: boolean;
   timelinePosition?: number;
+  phaseKeywords?: string[];
   tags: PortableTagSource[];
   media: PortableMediaSource[];
 };
@@ -91,6 +92,7 @@ export function createPortableDiaryExport(source: PortableDiarySource, exportedA
       color: event.color,
       isPublic: event.isPublic,
       timelinePosition: event.timelinePosition ?? 0,
+      phaseKeywords: event.phaseKeywords ?? [],
       tags: event.tags.map((tag) => ({ name: tag.name, color: tag.color ?? null })),
       media: event.media.map((media) => ({ url: media.url, fileName: media.fileName, mimeType: media.mimeType, caption: media.caption ?? null, sortOrder: media.sortOrder ?? 0 })),
     })),
@@ -108,6 +110,7 @@ export function portableDiaryToMarkdown(portable: ChroniclePortableExport) {
     lines.push(`- 類型：${event.eventType}`);
     if (event.ageLabel) lines.push(`- 年紀／階段：${event.ageLabel}`);
     if (event.place) lines.push(`- 地點：${event.place}`);
+    if (event.phaseKeywords?.length) lines.push(`- 階段關鍵字：${event.phaseKeywords.map((keyword) => `#${keyword}`).join(" ")}`);
     if (event.tags.length) lines.push(`- 標籤：${event.tags.map((tag) => `#${tag.name}`).join(" ")}`);
     lines.push("", event.body || "（未填寫內容）", "");
     if (event.media.length) {

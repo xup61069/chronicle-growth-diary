@@ -78,6 +78,7 @@ export const growthEvents = mysqlTable(
     milestoneWeight: int("milestoneWeight").notNull().default(1),
     comparisonGroup: varchar("comparisonGroup", { length: 96 }),
     unlocksAt: bigint("unlocksAt", { mode: "number" }),
+    phaseKeywords: text("phaseKeywords"),
     isPublic: boolean("isPublic").notNull().default(false),
     timelinePosition: int("timelinePosition").notNull().default(0),
     createdAt: timestamp("createdAt").defaultNow().notNull(),

@@ -2,6 +2,18 @@ import { and, asc, eq, inArray } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import { growthEventMedia, growthEvents, growthEventTags, growthTags } from "../../drizzle/schema";
 
+function parsePhaseKeywords(rawKeywords: string | null) {
+  if (!rawKeywords) return [];
+  try {
+    const parsed: unknown = JSON.parse(rawKeywords);
+    return Array.isArray(parsed)
+      ? parsed.filter((keyword): keyword is string => typeof keyword === "string").map((keyword) => keyword.trim()).filter(Boolean).slice(0, 8)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
 export async function getEnrichedDiaryEvents(db: MySql2Database<Record<string, unknown>>, diaryId: number, isPublicOnly = false) {
   const where = isPublicOnly
     ? and(eq(growthEvents.diaryId, diaryId), eq(growthEvents.isPublic, true))
@@ -17,6 +29,7 @@ export async function getEnrichedDiaryEvents(db: MySql2Database<Record<string, u
     : [];
   return events.map((event) => ({
     ...event,
+    phaseKeywords: parsePhaseKeywords(event.phaseKeywords),
     tags: taggedRows.filter((tag) => tag.eventId === event.id && tag.kind === "general").map(({ eventId: _eventId, kind: _kind, ...tag }) => tag),
     skills: taggedRows.filter((tag) => tag.eventId === event.id && tag.kind === "skill").map(({ eventId: _eventId, kind: _kind, ...tag }) => tag),
     media: mediaRows.filter((media) => media.eventId === event.id),

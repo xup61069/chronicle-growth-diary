@@ -22,6 +22,7 @@ export type EventForm = {
   color: (typeof diaryColors)[number];
   tagNames: string[];
   skillNames: string[];
+  phaseKeywords: string[];
   track: TimelineTrack;
   milestoneType: MilestoneType;
   milestoneWeight: number;
@@ -44,6 +45,7 @@ export const makeEmptyForm = (): EventForm => ({
   color: "#EE623B",
   tagNames: [],
   skillNames: [],
+  phaseKeywords: [],
   track: "life",
   milestoneType: "standard",
   milestoneWeight: 1,

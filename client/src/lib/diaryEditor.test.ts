@@ -7,8 +7,10 @@ describe("diary editor helpers", () => {
     const second = makeEmptyForm();
     first.tagNames.push("不應共用");
     first.skillNames.push("不應共用的技能");
+    first.phaseKeywords.push("不應共用的階段關鍵字");
     expect(second.tagNames).toEqual([]);
     expect(second.skillNames).toEqual([]);
+    expect(second.phaseKeywords).toEqual([]);
     expect(second).toMatchObject({
       datePrecision: "day",
       eventType: "memory",

@@ -28,11 +28,26 @@ type DiaryEventInput = {
   milestoneWeight: number;
   comparisonGroup?: string | null;
   unlocksAt?: number | null;
+  phaseKeywords?: string[];
 };
 type WritableDiaryAccess = { diary: { id: number; userId: number } };
 type EventWriteAccess = { id: number; diaryId: number; access: { diary: { id: number; userId: number } } };
 type GetWritableDiary = (userId: number, requestedDiaryId?: number) => Promise<WritableDiaryAccess>;
 type AssertEventWriteAccess = (eventId: number, userId: number) => Promise<EventWriteAccess>;
+
+function serializePhaseKeywords(rawKeywords: string[] = []) {
+  return JSON.stringify(normalizeTagNames(rawKeywords));
+}
+
+function parsePhaseKeywords(rawKeywords: string | null) {
+  if (!rawKeywords) return [];
+  try {
+    const parsed: unknown = JSON.parse(rawKeywords);
+    return Array.isArray(parsed) ? normalizeTagNames(parsed.filter((keyword): keyword is string => typeof keyword === "string")) : [];
+  } catch {
+    return [];
+  }
+}
 
 export async function saveEventTagsForDiaryUser(db: DbClient, eventId: number, diaryUserId: number, rawTagNames: string[], rawSkillNames: string[] = []) {
   const tagNames = normalizeTagNames(rawTagNames);
@@ -89,6 +104,7 @@ export async function writeEventRevisionSnapshot(db: DbClient, assertEventWriteA
     milestoneWeight: event[0].milestoneWeight,
     comparisonGroup: event[0].comparisonGroup,
     unlocksAt: event[0].unlocksAt,
+    phaseKeywords: parsePhaseKeywords(event[0].phaseKeywords),
     isPublic: event[0].isPublic,
     timelinePosition: event[0].timelinePosition,
     tagNames: tags.filter((tag) => tag.kind === "general").map((tag) => tag.name),
@@ -136,6 +152,7 @@ export async function restoreDiaryEventRevisionForUser(db: DbClient, assertEvent
     milestoneWeight: snapshot.milestoneWeight,
     comparisonGroup: snapshot.comparisonGroup?.trim() || null,
     unlocksAt: snapshot.unlocksAt ?? null,
+    phaseKeywords: serializePhaseKeywords(snapshot.phaseKeywords),
     isPublic: snapshot.isPublic,
     timelinePosition: snapshot.timelinePosition,
   }).where(eq(growthEvents.id, eventId));
@@ -162,6 +179,7 @@ export async function createDiaryEventForUser(db: DbClient, getWritableDiary: Ge
     milestoneWeight: input.milestoneWeight,
     comparisonGroup: input.comparisonGroup?.trim() || null,
     unlocksAt: input.unlocksAt ?? null,
+    phaseKeywords: serializePhaseKeywords(input.phaseKeywords),
     timelinePosition: existingEvents.length,
   });
   const created = await db.select().from(growthEvents).where(eq(growthEvents.diaryId, diary.id)).orderBy(desc(growthEvents.id)).limit(1);
@@ -175,7 +193,7 @@ export async function importDiaryEventsForUser(db: DbClient, createDiaryEvent: (
   const createdIds: number[] = [];
   try {
     for (const input of inputs) {
-      const created = await createDiaryEvent(userId, { ...input, tagNames: input.tagNames.slice(0, 8), skillNames: input.skillNames.slice(0, 8) }, requestedDiaryId);
+      const created = await createDiaryEvent(userId, { ...input, tagNames: input.tagNames.slice(0, 8), skillNames: input.skillNames.slice(0, 8), phaseKeywords: input.phaseKeywords?.slice(0, 8) ?? [] }, requestedDiaryId);
       createdIds.push(created.id);
     }
     return { importedCount: createdIds.length, eventIds: createdIds };
@@ -201,6 +219,7 @@ export async function updateDiaryEventForUser(db: DbClient, assertEventWriteAcce
     milestoneWeight: input.milestoneWeight,
     comparisonGroup: input.comparisonGroup?.trim() || null,
     unlocksAt: input.unlocksAt ?? null,
+    phaseKeywords: serializePhaseKeywords(input.phaseKeywords),
   }).where(eq(growthEvents.id, eventId));
   await saveEventTagsForDiaryUser(db, eventId, eventAccess.access.diary.userId, input.tagNames, input.skillNames);
   await writeEventRevisionSnapshot(db, assertEventWriteAccess, userId, eventId, "update");

@@ -64,6 +64,7 @@ export type DiaryEventInput = {
   milestoneWeight: number;
   comparisonGroup?: string | null;
   unlocksAt?: number | null;
+  phaseKeywords?: string[];
 };
 
 
