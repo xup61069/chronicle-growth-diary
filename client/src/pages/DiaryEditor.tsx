@@ -16,6 +16,7 @@ import { appendWritingGuide, getLocalWritingGuides } from "@/lib/writingGuide";
 import { parseSocialDraftCsv, parseSocialDraftJson, type SocialDraftCandidate } from "@/lib/socialDraftImport";
 import { trpc } from "@/lib/trpc";
 import { canEditFamilyDiary, canManageFamilyDiarySettings, describeFamilyAuditAction, type FamilyDiaryAccessRole } from "@/lib/familyCollaboration";
+import "@/styles/family-collaboration.css";
 import {
   Archive,
   ArrowDownUp,
