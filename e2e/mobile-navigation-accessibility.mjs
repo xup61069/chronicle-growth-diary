@@ -16,6 +16,20 @@ try {
   if (await exampleLink.getAttribute("href") !== "#stories") {
     throw new Error("首頁範例入口未指向故事案例區段。");
   }
+
+  const timelineTitle = page.locator(".timeline-detail h3");
+  const initialTimelineTitle = (await timelineTitle.textContent())?.trim();
+  await exampleLink.focus();
+  await page.keyboard.press("ArrowRight");
+  if ((await timelineTitle.textContent())?.trim() !== initialTimelineTitle) {
+    throw new Error("連結取得焦點時，方向鍵不應切換時間帶事件。");
+  }
+  await page.evaluate(() => (document.activeElement instanceof HTMLElement ? document.activeElement.blur() : undefined));
+  await page.keyboard.press("ArrowRight");
+  if ((await timelineTitle.textContent())?.trim() === initialTimelineTitle) {
+    throw new Error("沒有互動控制項取得焦點時，方向鍵應可切換時間帶事件。");
+  }
+
   await Promise.all([
     page.waitForURL(/#stories$/),
     exampleLink.click(),
@@ -51,7 +65,7 @@ try {
     throw new Error("點擊行動導覽連結後未收合選單。");
   }
 
-  console.log("公開首頁回歸通過：範例入口、行動選單展開、Escape 與連結收合均正常。");
+  console.log("公開首頁回歸通過：範例入口、方向鍵焦點保護、行動選單展開、Escape 與連結收合均正常。");
 } finally {
   await browser.close();
 }

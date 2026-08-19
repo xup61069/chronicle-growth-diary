@@ -20,7 +20,7 @@ import {
   X,
 } from "lucide-react";
 import { startLogin } from "@/const";
-import { isMobileMenuDismissKey } from "@/lib/homeNavigation";
+import { isMobileMenuDismissKey, shouldHandleTimelineArrowKey } from "@/lib/homeNavigation";
 import { toast } from "sonner";
 
 type TimelineEvent = {
@@ -136,6 +136,8 @@ export default function Home() {
         if (isMobileMenuDismissKey(event.key)) setMenuOpen(false);
         return;
       }
+      const target = event.target as HTMLElement | null;
+      if (!shouldHandleTimelineArrowKey(event.key, target?.tagName, target?.isContentEditable)) return;
       if (event.key === "ArrowLeft") {
         setActiveIndex((current) => Math.max(0, current - 1));
       }
