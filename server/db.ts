@@ -4,12 +4,8 @@ import {
   growthDiaries,
   growthDiaryMembers,
   growthEvents,
-  growthPhaseReflections,
-  growthShareAccessLogs,
-  growthTags,
 } from "../drizzle/schema";
-import { getEnrichedDiaryEvents } from "./db/diaryRead";
-import { deriveLifePhases } from "./lifePhases";
+import { buildDiarySnapshotForDiary } from "./db/diarySnapshot";
 import {
   acceptDiaryInviteForUser,
   createDiaryInviteForDiary,
@@ -127,50 +123,13 @@ async function assertEventWriteAccess(eventId: number, userId: number) {
   return { ...event[0], access };
 }
 
-function makeLifePhaseSnapshot(diary: typeof growthDiaries.$inferSelect, events: Awaited<ReturnType<typeof getEnrichedDiaryEvents>>) {
-  return deriveLifePhases(events, {
-    birthYear: diary.birthYear,
-    educationStartYear: diary.educationStartYear,
-    careerStartYear: diary.careerStartYear,
-    childhoodStartYear: diary.childhoodStartYear,
-    childhoodEndYear: diary.childhoodEndYear,
-    educationEndYear: diary.educationEndYear,
-    careerEndYear: diary.careerEndYear,
-  });
-}
-
 export async function getDiarySnapshot(userId: number, requestedDiaryId?: number) {
   const db = await requireDb();
   const access = await getDiaryAccessForUser(userId, requestedDiaryId);
   if (requestedDiaryId && !access) throw new Error("找不到這本家庭成長史，或你沒有檢視權限。");
   const diary = access?.diary ?? await getOrCreateDiary(userId);
   const accessRole: DiaryAccessRole = access?.role ?? "owner";
-  const tags = await db.select().from(growthTags).where(eq(growthTags.userId, diary.userId)).orderBy(asc(growthTags.name));
-  const events = await getEnrichedDiaryEvents(db, diary.id);
-  const reflections = await db.select().from(growthPhaseReflections).where(eq(growthPhaseReflections.diaryId, diary.id));
-  const annualReflections = reflections
-    .filter((reflection) => /^annual-\d{4}$/.test(reflection.phaseKey))
-    .map((reflection) => ({ ...reflection, year: Number(reflection.phaseKey.slice("annual-".length)) }));
-  const accessLogs = await db.select().from(growthShareAccessLogs).where(eq(growthShareAccessLogs.diaryId, diary.id)).orderBy(desc(growthShareAccessLogs.accessedAt)).limit(6);
-  return {
-    diary,
-    accessRole,
-    tags,
-    events,
-    lifePhases: makeLifePhaseSnapshot(diary, events),
-    sharing: {
-      mode: diary.shareMode,
-      slug: diary.shareSlug,
-      hasPrivateLink: Boolean(diary.shareTokenHash),
-      hasPassword: Boolean(diary.sharePasswordHash),
-      expiresAt: diary.shareExpiresAt,
-      accessCount: diary.shareAccessCount,
-      lastSharedAt: diary.lastSharedAt,
-      recentAccesses: accessLogs,
-    },
-    reflections: reflections.filter((reflection) => !/^annual-\d{4}$/.test(reflection.phaseKey)),
-    annualReflections,
-  };
+  return buildDiarySnapshotForDiary(db, diary, accessRole);
 }
 
 export async function getDiaryEventRevisions(userId: number, eventId: number) {
