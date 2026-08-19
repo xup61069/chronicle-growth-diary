@@ -14,14 +14,12 @@ import {
   growthPhaseReflections,
   growthShareAccessLogs,
   growthTags,
-  InsertUser,
-  User,
   users,
 } from "../drizzle/schema";
 import { normalizeTagNames, safeMediaName } from "./diaryHelpers";
 import { deriveLifePhases, getInvalidLifePhaseBoundary } from "./lifePhases";
+import { parseDiaryEventRevisionSnapshot } from "./db/revisions";
 import { hasShareAccess, hashSharePassword, hashShareToken, isShareExpired, verifySharePassword } from "./shareAccess";
-import { ENV } from "./_core/env";
 import { invokeLLM } from "./_core/llm";
 import { storagePut } from "./storage";
 
@@ -87,69 +85,7 @@ function makeShareToken() {
   return randomBytes(24).toString("base64url");
 }
 
-export async function upsertUser(user: InsertUser): Promise<void> {
-  if (!user.openId) throw new Error("User openId is required for upsert");
-  const db = await getDb();
-  if (!db) return;
-
-  const values: InsertUser = { openId: user.openId };
-  const updateSet: Record<string, unknown> = {};
-  (["name", "email", "loginMethod"] as const).forEach((field) => {
-    if (user[field] !== undefined) {
-      values[field] = user[field] ?? null;
-      updateSet[field] = user[field] ?? null;
-    }
-  });
-  values.lastSignedIn = user.lastSignedIn ?? new Date();
-  updateSet.lastSignedIn = values.lastSignedIn;
-  values.role = user.role ?? (user.openId === ENV.ownerOpenId ? "admin" : "user");
-  updateSet.role = values.role;
-  await db.insert(users).values(values).onDuplicateKeyUpdate({ set: updateSet });
-}
-
-export async function getUserByOpenId(openId: string) {
-  const db = await getDb();
-  if (!db) return undefined;
-  const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
-  return result[0];
-}
-
-export async function getUserByEmail(email: string) {
-  const db = await getDb();
-  if (!db) return undefined;
-  const result = await db.select().from(users).where(eq(users.email, email)).limit(1);
-  return result[0];
-}
-
-export async function createLocalUser(input: {
-  openId: string;
-  email: string;
-  name: string;
-  passwordHash: string;
-}): Promise<User> {
-  const db = await requireDb();
-  await db.insert(users).values({
-    openId: input.openId,
-    email: input.email,
-    name: input.name,
-    loginMethod: "local",
-    passwordHash: input.passwordHash,
-    emailVerified: false,
-  });
-  const user = await getUserByOpenId(input.openId);
-  if (!user) throw new Error("無法建立本機帳號。");
-  return user;
-}
-
-/** Removes the account and all diary metadata through the schema's cascading foreign keys.
- * Uploaded media keys are deliberately left unreferenced, following the storage provider lifecycle contract. */
-export async function deleteAccount(userId: number) {
-  const db = await requireDb();
-  const existing = await db.select({ id: users.id }).from(users).where(eq(users.id, userId)).limit(1);
-  if (!existing[0]) throw new Error("找不到要刪除的帳號。");
-  await db.delete(users).where(eq(users.id, userId));
-  return { deleted: true } as const;
-}
+export { createLocalUser, deleteAccount, getUserByEmail, getUserByOpenId, upsertUser } from "./db/account";
 
 async function getOrCreateDiary(userId: number) {
   const db = await requireDb();
@@ -309,25 +245,6 @@ async function writeEventRevision(userId: number, eventId: number, changeType: E
   return { eventId, version, changeType, snapshot };
 }
 
-function parseEventRevisionSnapshot(snapshot: string): DiaryEventInput & { isPublic: boolean; timelinePosition: number } {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(snapshot);
-  } catch {
-    throw new Error("這個版本快照已損毀，無法還原。");
-  }
-  if (
-    !parsed || typeof parsed !== "object" || Array.isArray(parsed) ||
-    typeof (parsed as Record<string, unknown>).occurredAt !== "number" ||
-    typeof (parsed as Record<string, unknown>).title !== "string" ||
-    typeof (parsed as Record<string, unknown>).body !== "string" ||
-    !Array.isArray((parsed as Record<string, unknown>).tagNames)
-  ) {
-    throw new Error("這個版本快照格式無效，無法還原。");
-  }
-  return parsed as DiaryEventInput & { isPublic: boolean; timelinePosition: number };
-}
-
 export async function getDiaryEventRevisions(userId: number, eventId: number) {
   const db = await requireDb();
   await assertEventWriteAccess(eventId, userId);
@@ -339,7 +256,7 @@ export async function getDiaryEventRevisions(userId: number, eventId: number) {
     eventId: revision.eventId,
     version: revision.version,
     changeType: revision.changeType,
-    snapshot: parseEventRevisionSnapshot(revision.snapshot),
+    snapshot: parseDiaryEventRevisionSnapshot(revision.snapshot),
     createdAt: revision.createdAt,
   }));
 }
@@ -351,7 +268,7 @@ export async function restoreDiaryEventRevision(userId: number, eventId: number,
     .where(and(eq(growthEventRevisions.id, revisionId), eq(growthEventRevisions.eventId, eventId)))
     .limit(1);
   if (!revision[0]) throw new Error("找不到可還原的事件版本。");
-  const snapshot = parseEventRevisionSnapshot(revision[0].snapshot);
+  const snapshot = parseDiaryEventRevisionSnapshot(revision[0].snapshot);
   await db.update(growthEvents).set({
     occurredAt: snapshot.occurredAt,
     datePrecision: snapshot.datePrecision,
