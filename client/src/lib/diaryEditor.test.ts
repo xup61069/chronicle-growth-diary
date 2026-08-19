@@ -6,8 +6,19 @@ describe("diary editor helpers", () => {
     const first = makeEmptyForm();
     const second = makeEmptyForm();
     first.tagNames.push("不應共用");
+    first.skillNames.push("不應共用的技能");
     expect(second.tagNames).toEqual([]);
-    expect(second).toMatchObject({ datePrecision: "day", eventType: "memory", color: "#EE623B" });
+    expect(second.skillNames).toEqual([]);
+    expect(second).toMatchObject({
+      datePrecision: "day",
+      eventType: "memory",
+      color: "#EE623B",
+      track: "life",
+      milestoneType: "standard",
+      milestoneWeight: 1,
+      comparisonGroup: "",
+      unlocksAt: "",
+    });
   });
 
   it("converts display precision to a stable local calendar timestamp", () => {

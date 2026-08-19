@@ -15,6 +15,7 @@ import { createPortableDiaryExport, downloadPortableDiary } from "@/lib/diaryPor
 import { parseChronicleImport, type ChronicleImportPreview } from "@/lib/diaryImport";
 import { appendWritingGuide, getLocalWritingGuides } from "@/lib/writingGuide";
 import { parseSocialDraftCsv, parseSocialDraftJson, type SocialDraftCandidate } from "@/lib/socialDraftImport";
+import { buildTrackRows, filterEventsBySkill, getTimelineInsights, getTimelineSkills, isTimeCapsuleLocked, milestoneLabels } from "@/lib/multitrackTimeline";
 import { trpc } from "@/lib/trpc";
 import { canEditFamilyDiary, canManageFamilyDiarySettings, describeFamilyAuditAction, type FamilyDiaryAccessRole } from "@/lib/familyCollaboration";
 import "@/styles/family-collaboration.css";
@@ -86,6 +87,7 @@ function DiaryEditorContent() {
   const [form, setForm] = useState<EventForm>(makeEmptyForm);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [tagDraft, setTagDraft] = useState("");
+  const [skillDraft, setSkillDraft] = useState("");
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [commentDraft, setCommentDraft] = useState("");
@@ -94,6 +96,8 @@ function DiaryEditorContent() {
   const [familyInviteUrl, setFamilyInviteUrl] = useState<string | null>(null);
   const [filterType, setFilterType] = useState<"all" | EventType>("all");
   const [filterTag, setFilterTag] = useState("all");
+  const [phaseFilter, setPhaseFilter] = useState("all");
+  const [skillFilter, setSkillFilter] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -218,10 +222,21 @@ function DiaryEditorContent() {
 
   type DiaryEvent = NonNullable<typeof data>["events"][number];
   const events: DiaryEvent[] = data?.events ?? [];
-  const visibleEvents = useMemo(
+  const baseVisibleEvents = useMemo(
     () => filterDiaryEvents(events, { type: filterType, tag: filterTag, search: searchQuery, dateFrom, dateTo, sortOrder }),
     [dateFrom, dateTo, events, filterTag, filterType, searchQuery, sortOrder],
   );
+  const phaseScopedEvents = useMemo(() => {
+    if (phaseFilter === "all") return baseVisibleEvents;
+    const phase = data?.lifePhases.find((item) => item.key === phaseFilter);
+    if (!phase) return baseVisibleEvents;
+    const eventIds = new Set(phase.events.map((event) => event.id));
+    return baseVisibleEvents.filter((event) => eventIds.has(event.id));
+  }, [baseVisibleEvents, data?.lifePhases, phaseFilter]);
+  const timelineSkills = useMemo(() => getTimelineSkills(phaseScopedEvents), [phaseScopedEvents]);
+  const visibleEvents = useMemo(() => filterEventsBySkill(phaseScopedEvents, skillFilter), [phaseScopedEvents, skillFilter]);
+  const trackRows = useMemo(() => buildTrackRows(visibleEvents, null), [visibleEvents]);
+  const timelineInsights = useMemo(() => getTimelineInsights(visibleEvents), [visibleEvents]);
   const selectedEvent = events.find((event) => event.id === (selectedId ?? editingId)) ?? visibleEvents[0] ?? events[0];
   const revisionsQuery = trpc.diary.getEventRevisions.useQuery(
     { eventId: selectedEvent?.id ?? 0 },
@@ -280,10 +295,31 @@ function DiaryEditorContent() {
     setTagDraft("");
   };
 
+  const addSkill = (rawSkill = skillDraft) => {
+    const skill = rawSkill.trim().replace(/\s+/g, " ");
+    if (!skill) return;
+    if (skill.length > 24) return toast.error("每個技能標籤最多 24 個字元。");
+    if (form.skillNames.some((name) => name.toLocaleLowerCase() === skill.toLocaleLowerCase())) {
+      setSkillDraft("");
+      return;
+    }
+    if (form.skillNames.length >= 8) return toast.error("每筆記憶最多保留 8 個技能標籤。");
+    setForm((current) => ({ ...current, skillNames: [...current.skillNames, skill] }));
+    setSkillDraft("");
+  };
+
   const handleTagInputKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     const consumed = consumeTagInputEnter(event, () => {
       tagEnterSubmitGuard.current = true;
       addTag();
+    });
+    if (consumed) window.setTimeout(() => { tagEnterSubmitGuard.current = false; }, 0);
+  };
+
+  const handleSkillInputKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    const consumed = consumeTagInputEnter(event, () => {
+      tagEnterSubmitGuard.current = true;
+      addSkill();
     });
     if (consumed) window.setTimeout(() => { tagEnterSubmitGuard.current = false; }, 0);
   };
@@ -304,6 +340,7 @@ function DiaryEditorContent() {
     setSelectedId(null);
     setPendingImages([]);
     setTagDraft("");
+    setSkillDraft("");
     setForm(makeEmptyForm());
   };
 
@@ -312,6 +349,7 @@ function DiaryEditorContent() {
     setEditingId(event.id);
     setSelectedId(event.id);
     setTagDraft("");
+    setSkillDraft("");
     setPendingImages([]);
     setShowRevisions(false);
     setMediaCaptionDrafts(Object.fromEntries(event.media.map((media) => [media.id, media.caption ?? ""])));
@@ -325,6 +363,12 @@ function DiaryEditorContent() {
       place: event.place ?? "",
       color: event.color as (typeof diaryColors)[number],
       tagNames: event.tags.map((tag) => tag.name),
+      skillNames: event.skills.map((skill) => skill.name),
+      track: event.track,
+      milestoneType: event.milestoneType,
+      milestoneWeight: event.milestoneWeight,
+      comparisonGroup: event.comparisonGroup ?? "",
+      unlocksAt: event.unlocksAt ? formatInputDate(event.unlocksAt) : "",
     });
   };
 
@@ -370,6 +414,8 @@ function DiaryEditorContent() {
       occurredAt: toTimestamp(form.occurredAt, form.datePrecision),
       ageLabel: form.ageLabel.trim() || null,
       place: form.place.trim() || null,
+      comparisonGroup: form.comparisonGroup.trim() || null,
+      unlocksAt: form.unlocksAt ? new Date(`${form.unlocksAt}T00:00:00`).getTime() : null,
     };
 
     try {
@@ -959,6 +1005,45 @@ function DiaryEditorContent() {
               </label>
             </div>
 
+            <div className="form-row">
+              <label className="form-field">
+                <span>平行軌道</span>
+                <select value={form.track} onChange={(event) => setForm({ ...form, track: event.target.value as EventForm["track"] })}>
+                  <option value="career">職涯與專案</option>
+                  <option value="skills">技術與技能</option>
+                  <option value="life">生活與心境</option>
+                  <option value="hardware">硬體與環境</option>
+                </select>
+              </label>
+              <label className="form-field">
+                <span>里程碑類型</span>
+                <select value={form.milestoneType} onChange={(event) => setForm({ ...form, milestoneType: event.target.value as EventForm["milestoneType"] })}>
+                  <option value="standard">一般記錄</option>
+                  <option value="highlight">高光時刻</option>
+                  <option value="turning_point">重大轉折</option>
+                  <option value="gear_workflow">技術／設備紀錄</option>
+                  <option value="reflection">日常反思</option>
+                </select>
+              </label>
+            </div>
+
+            <div className="form-row">
+              <label className="form-field">
+                <span>里程碑權重</span>
+                <select value={form.milestoneWeight} onChange={(event) => setForm({ ...form, milestoneWeight: Number(event.target.value) })}>
+                  <option value={1}>1 — 日常</option>
+                  <option value={2}>2 — 重要</option>
+                  <option value={3}>3 — 顯著</option>
+                  <option value={4}>4 — 關鍵</option>
+                  <option value={5}>5 — 人生節點</option>
+                </select>
+              </label>
+              <label className="form-field">
+                <span>Before／After 對比群組（選填）</span>
+                <input value={form.comparisonGroup} onChange={(event) => setForm({ ...form, comparisonGroup: event.target.value })} placeholder="例如：工作桌演進" maxLength={96} />
+              </label>
+            </div>
+
             <label className="form-field">
               <span>把故事寫下來</span>
               <textarea value={form.body} onChange={(event) => setForm({ ...form, body: event.target.value })} placeholder="發生了什麼？你當時怎麼想？這段經驗後來帶給了你什麼？" rows={5} maxLength={8000} />
@@ -987,6 +1072,24 @@ function DiaryEditorContent() {
               {data?.tags.length ? <div className="tag-suggestions">常用：{data.tags.slice(0, 5).map((tag) => <button type="button" key={tag.id} onClick={() => addTag(tag.name)}>{tag.name}</button>)}</div> : null}
             </div>
 
+            <div className="form-field tags-field skill-tags-field">
+              <span><Sparkles size={14} /> 技能標籤</span>
+              <div className="tag-input-row">
+                <input value={skillDraft} onChange={(event) => setSkillDraft(event.target.value)} onKeyDown={handleSkillInputKeyDown} placeholder="輸入後按 Enter，例如：Ableton Live" maxLength={24} />
+                <button type="button" onClick={() => addSkill()}>加入</button>
+              </div>
+              <div className="tag-chips">
+                {form.skillNames.map((skill) => <button type="button" key={skill} onClick={() => setForm({ ...form, skillNames: form.skillNames.filter((item) => item !== skill) })}>{skill}<X size={12} /></button>)}
+              </div>
+              <small>技能會獨立保存，可在多軌時間軸中反向篩選相關成長事件。</small>
+            </div>
+
+            <label className="form-field">
+              <span><LockKeyhole size={14} /> 時空膠囊解鎖日（選填）</span>
+              <input type="date" value={form.unlocksAt} onChange={(event) => setForm({ ...form, unlocksAt: event.target.value })} />
+              <small>設定後，閱讀端會在指定日期前維持鎖定狀態。</small>
+            </label>
+
             <div className="form-field color-field">
               <span>事件標記色</span>
               <div>{diaryColors.map((color) => <button type="button" key={color} aria-label={`選擇${color}標記色`} className={form.color === color ? "selected" : ""} style={{ backgroundColor: color }} onClick={() => setForm({ ...form, color })}><Check size={13} /></button>)}</div>
@@ -1008,6 +1111,40 @@ function DiaryEditorContent() {
 
         <aside id="mobile-workspace-preview" role="tabpanel" className={`timeline-preview mobile-workspace-panel ${mobileWorkspacePanel === "preview" ? "is-active" : ""}`} aria-label="選取事件的時間帶預覽">
           <div className="panel-title"><span>時間帶預覽</span><b>LIVE</b></div>
+          <section className="multitrack-timeline" aria-labelledby="multitrack-title">
+            <header className="multitrack-heading">
+              <div><p>PARALLEL LOG / {visibleEvents.length.toString().padStart(2, "0")}</p><h3 id="multitrack-title">四條軌道，同步回看</h3></div>
+              {skillFilter ? <button type="button" className="multitrack-reset" onClick={() => setSkillFilter(null)}>清除技能篩選</button> : null}
+            </header>
+            {data?.lifePhases.length ? <div className="phase-filter-list" aria-label="依人生階段檢視多軌事件">
+              <button type="button" className={phaseFilter === "all" ? "is-active" : ""} aria-pressed={phaseFilter === "all"} onClick={() => { setPhaseFilter("all"); setSkillFilter(null); }}>全部階段</button>
+              {data.lifePhases.map((phase) => <button type="button" key={phase.key} className={phaseFilter === phase.key ? "is-active" : ""} aria-pressed={phaseFilter === phase.key} onClick={() => { setPhaseFilter(phase.key); setSkillFilter(null); }}>{phase.label} <small>{phase.yearRange ?? `${phase.count} 段`}</small></button>)}
+            </div> : null}
+            {timelineSkills.length ? <div className="skill-filter-list" aria-label="依技能反向篩選事件">
+              {timelineSkills.map((skill) => <button type="button" key={skill} className={skillFilter === skill ? "is-active" : ""} aria-pressed={skillFilter === skill} onClick={() => setSkillFilter((current) => current === skill ? null : skill)}>{skill}</button>)}
+            </div> : <p className="multitrack-empty-note">為事件加入技能標籤後，可從這裡反向查看技能如何穿越不同人生軌道。</p>}
+            <div className="track-insights" aria-label="目前篩選範圍的里程碑統計">
+              <span><b>{timelineInsights.projectCount}</b>職涯／專案</span>
+              <span><b>{timelineInsights.highlightCount}</b>高光節點</span>
+              <span><b>{timelineInsights.turningPointCount}</b>重大轉折</span>
+              <span><b>{timelineInsights.leadingSkill ?? "—"}</b>投入最深技能</span>
+            </div>
+            <div className="track-lanes">
+              {trackRows.map((track) => <section className="track-lane" key={track.key} style={{ "--track-color": track.color } as React.CSSProperties} aria-label={`${track.label}軌道`}>
+                <header><span className="track-label"><i />{track.shortLabel}</span><small>{track.events.length.toString().padStart(2, "0")} 段 {track.lockedCount ? `／ ${track.lockedCount} 個膠囊` : ""}</small></header>
+                <div className="track-events">
+                  {track.events.length ? track.events.map((event) => {
+                    const isLocked = isTimeCapsuleLocked(event);
+                    return <button type="button" className={`track-event milestone-${event.milestoneType} ${selectedEvent?.id === event.id ? "is-selected" : ""}`} key={event.id} onClick={() => { setSelectedId(event.id); setMobileWorkspacePanel("preview"); }}>
+                      <span className="track-event-marker" style={{ backgroundColor: event.color }} />
+                      <span className="track-event-copy"><small>{new Date(event.occurredAt).getFullYear()} · {isLocked ? `解鎖於 ${new Date(event.unlocksAt!).toLocaleDateString("zh-TW")}` : milestoneLabels[event.milestoneType]}</small><b>{isLocked ? "時空膠囊鎖定中" : event.title}</b></span>
+                      <em aria-label={`里程碑權重 ${event.milestoneWeight}／5`}>{event.milestoneWeight}</em>
+                    </button>;
+                  }) : <p>尚無事件</p>}
+                </div>
+              </section>)}
+            </div>
+          </section>
           {selectedEvent ? (
             <>
               <div className="preview-date"><span>{formatDate(selectedEvent.occurredAt, selectedEvent.datePrecision)}</span><i style={{ backgroundColor: selectedEvent.color }} /></div>

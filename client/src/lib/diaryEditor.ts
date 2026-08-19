@@ -9,6 +9,8 @@ export const diaryColors = ["#EE623B", "#587A8B", "#78976D", "#A06A82", "#D19B43
 
 export type EventType = (typeof eventTypes)[number]["value"];
 export type DatePrecision = "day" | "month" | "year";
+export type TimelineTrack = "career" | "skills" | "life" | "hardware";
+export type MilestoneType = "standard" | "highlight" | "turning_point" | "gear_workflow" | "reflection";
 export type EventForm = {
   title: string;
   occurredAt: string;
@@ -19,6 +21,12 @@ export type EventForm = {
   place: string;
   color: (typeof diaryColors)[number];
   tagNames: string[];
+  skillNames: string[];
+  track: TimelineTrack;
+  milestoneType: MilestoneType;
+  milestoneWeight: number;
+  comparisonGroup: string;
+  unlocksAt: string;
 };
 export type PendingImage = { id: string; name: string; type: string; base64: string; preview: string; caption: string };
 export type TagInputKeyEvent = { key: string; preventDefault: () => void; stopPropagation: () => void };
@@ -35,6 +43,12 @@ export const makeEmptyForm = (): EventForm => ({
   place: "",
   color: "#EE623B",
   tagNames: [],
+  skillNames: [],
+  track: "life",
+  milestoneType: "standard",
+  milestoneWeight: 1,
+  comparisonGroup: "",
+  unlocksAt: "",
 });
 
 export function formatInputDate(timestamp: number) {

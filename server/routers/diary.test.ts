@@ -166,6 +166,7 @@ describe("diary router validation", () => {
       color: "#EE623B" as const,
       tagNames: ["創作"],
     };
+    const normalizedEvent = { ...event, skillNames: [], track: "life" as const, milestoneType: "standard" as const, milestoneWeight: 1 };
 
     await caller.createEvent(event);
     await caller.updateEvent({ ...event, id: 8, body: "完成整理並公開分享。" });
@@ -184,7 +185,7 @@ describe("diary router validation", () => {
       clearPublicCover: false,
     });
 
-    expect(diaryDb.createDiaryEvent).toHaveBeenCalledWith(1, event);
+    expect(diaryDb.createDiaryEvent).toHaveBeenCalledWith(1, normalizedEvent);
     expect(diaryDb.updateDiaryEvent).toHaveBeenCalledWith(1, 8, expect.objectContaining({ body: "完成整理並公開分享。" }));
     expect(diaryDb.uploadDiaryEventImage).toHaveBeenCalledWith(expect.objectContaining({ userId: 1, eventId: 8, caption: "作品集封面" }));
     expect(diaryDb.reorderDiaryEventMedia).toHaveBeenCalledWith(1, 8, [41]);
@@ -197,13 +198,14 @@ describe("diary router validation", () => {
     diaryDb.reorderDiaryEvents.mockResolvedValue({ eventIds: [8] });
     const caller = diaryRouter.createCaller(authenticatedContext);
     const event = { occurredAt: 1_704_067_200_000, datePrecision: "day" as const, eventType: "memory" as const, title: "家庭記事", body: "共同整理的記憶。", color: "#EE623B" as const, tagNames: [] };
+    const normalizedEvent = { ...event, skillNames: [], track: "life" as const, milestoneType: "standard" as const, milestoneWeight: 1 };
 
     await caller.createEvent({ ...event, diaryId: 42 });
     await caller.importEvents({ diaryId: 42, events: [event] });
     await caller.reorderEvents({ diaryId: 42, eventIds: [8] });
 
-    expect(diaryDb.createDiaryEvent).toHaveBeenCalledWith(1, event, 42);
-    expect(diaryDb.importDiaryEvents).toHaveBeenCalledWith(1, [event], 42);
+    expect(diaryDb.createDiaryEvent).toHaveBeenCalledWith(1, normalizedEvent, 42);
+    expect(diaryDb.importDiaryEvents).toHaveBeenCalledWith(1, [normalizedEvent], 42);
     expect(diaryDb.reorderDiaryEvents).toHaveBeenCalledWith(1, [8], 42);
   });
 

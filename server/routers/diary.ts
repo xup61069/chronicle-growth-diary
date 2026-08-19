@@ -46,6 +46,12 @@ const diaryEventInput = z.object({
   place: z.string().trim().max(180).optional().nullable(),
   color: z.enum(EVENT_COLORS),
   tagNames: z.array(z.string().trim().max(24)).max(8),
+  skillNames: z.array(z.string().trim().max(24)).max(8).default([]),
+  track: z.enum(["career", "skills", "life", "hardware"]).default("life"),
+  milestoneType: z.enum(["standard", "highlight", "turning_point", "gear_workflow", "reflection"]).default("standard"),
+  milestoneWeight: z.number().int().min(1).max(5).default(1),
+  comparisonGroup: z.string().trim().max(96).nullable().optional(),
+  unlocksAt: z.number().int().min(0).max(4102444800000).nullable().optional(),
 });
 
 const year = z.number().int().min(1900).max(2200).nullable().optional();

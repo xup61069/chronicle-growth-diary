@@ -58,6 +58,12 @@ export type DiaryEventInput = {
   place?: string | null;
   color: string;
   tagNames: string[];
+  skillNames: string[];
+  track: "career" | "skills" | "life" | "hardware";
+  milestoneType: "standard" | "highlight" | "turning_point" | "gear_workflow" | "reflection";
+  milestoneWeight: number;
+  comparisonGroup?: string | null;
+  unlocksAt?: number | null;
 };
 
 

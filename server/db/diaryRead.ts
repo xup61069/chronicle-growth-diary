@@ -9,7 +9,7 @@ export async function getEnrichedDiaryEvents(db: MySql2Database<Record<string, u
   const events = await db.select().from(growthEvents).where(where).orderBy(asc(growthEvents.timelinePosition), asc(growthEvents.occurredAt), asc(growthEvents.id));
   const eventIds = events.map((event) => event.id);
   const taggedRows = eventIds.length
-    ? await db.select({ eventId: growthEventTags.eventId, id: growthTags.id, name: growthTags.name, color: growthTags.color })
+    ? await db.select({ eventId: growthEventTags.eventId, id: growthTags.id, name: growthTags.name, color: growthTags.color, kind: growthTags.kind })
       .from(growthEventTags).innerJoin(growthTags, eq(growthEventTags.tagId, growthTags.id)).where(inArray(growthEventTags.eventId, eventIds))
     : [];
   const mediaRows = eventIds.length
@@ -17,7 +17,8 @@ export async function getEnrichedDiaryEvents(db: MySql2Database<Record<string, u
     : [];
   return events.map((event) => ({
     ...event,
-    tags: taggedRows.filter((tag) => tag.eventId === event.id).map(({ eventId: _eventId, ...tag }) => tag),
+    tags: taggedRows.filter((tag) => tag.eventId === event.id && tag.kind === "general").map(({ eventId: _eventId, kind: _kind, ...tag }) => tag),
+    skills: taggedRows.filter((tag) => tag.eventId === event.id && tag.kind === "skill").map(({ eventId: _eventId, kind: _kind, ...tag }) => tag),
     media: mediaRows.filter((media) => media.eventId === event.id),
   }));
 }
