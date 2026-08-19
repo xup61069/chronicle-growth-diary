@@ -592,12 +592,6 @@ a { color: inherit; text-decoration: none; }
 .shared-layout-minimal .shared-phase-list { display: none; }
 .shared-layout-minimal .shared-event-card { padding: 17px; box-shadow: none; }
 
-.family-invite-page { max-width: 680px; margin: 72px auto; border-top: 2px solid var(--cinnabar); padding: 34px 0; }
-.family-invite-page h1 { margin: 10px 0 12px; color: var(--ink); font-family: "DM Serif Display", serif; font-size: clamp(38px,6vw,58px); line-height: .95; }
-.family-invite-page > p:not(.editor-kicker) { max-width: 580px; color: var(--ink-soft); font-size: 14px; line-height: 1.75; }
-.family-invite-page > button { display: inline-flex; align-items: center; gap: 8px; margin-top: 18px; border: 1px solid var(--ink); background: var(--ink); color: #fff; padding: 12px 15px; font: 600 11px "IBM Plex Mono", monospace; }
-.family-invite-invalid { display: flex; align-items: center; gap: 9px; margin-top: 18px; color: var(--cinnabar); }
-
 @media (prefers-reduced-motion: no-preference) {
   .hero-copy, .hero-side-note { animation: reveal-up .7s cubic-bezier(.23,1,.32,1) both; }
   .hero-side-note { animation-delay: .15s; }
@@ -669,9 +663,6 @@ a { color: inherit; text-decoration: none; }
   .export-actions { justify-content: flex-start; max-width: none; }
   .export-actions > span { text-align: left; }
   .sharing-studio { gap: 25px; padding: 24px; }
-  .annual-review-studio { grid-template-columns: 1fr; gap: 22px; padding: 26px 23px; }
-  .account-danger-zone { grid-template-columns: 1fr; align-items: stretch; padding: 24px; }
-  .account-danger-zone > button { width: 100%; }
   .shared-hero:has(.shared-hero-cover) { grid-template-columns: 1fr; }
   .shared-hero-cover { grid-column: 1; grid-row: auto; height: min(64vw, 420px); }
   .shared-layout-gallery .shared-events { grid-template-columns: 1fr; }
@@ -706,8 +697,6 @@ a { color: inherit; text-decoration: none; }
   .phase-anchor-fields { grid-template-columns: 1fr; }
   .share-mode-options { grid-template-columns: 1fr; }
   .share-mode-options button { min-height: 60px; }
-  .family-collaboration-control > div { grid-template-columns: 1fr; }
-  .family-collaboration-control button { min-height: 38px; }
   .share-access-summary { gap: 12px; }
   .phase-boundary-actions button { width: 100%; justify-content: center; }
   .shared-password form { flex-direction: column; gap: 8px; }
@@ -719,14 +708,10 @@ a { color: inherit; text-decoration: none; }
   .shared-event { grid-template-columns: 1fr; gap: 8px; }
   .shared-event-card h2 { font-size: 33px; }
   .shared-hero-copy > p:not(.shared-subtitle) { margin-top: 42px; }
-  .annual-review-controls > div { grid-template-columns: 1fr; }
-  .annual-review-highlights { grid-template-columns: 1fr; }
   .shared-event-media img, .shared-event-media.media-count-1 img { height: 190px; }
   .form-actions { align-items: flex-start; flex-direction: column; }
   .form-actions > button { width: 100%; justify-content: center; }
   .pending-media-grid { grid-template-columns: 1fr; }
   .media-editor > article { grid-template-columns: 68px minmax(0, 1fr); }
   .media-editor > article > img { width: 68px; height: 68px; }
-  .event-revisions-list article { grid-template-columns: 1fr; }
-  .event-revisions-list article button { justify-self: start; }
 }

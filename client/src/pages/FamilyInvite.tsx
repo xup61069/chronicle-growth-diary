@@ -1,5 +1,6 @@
 import DashboardLayout from "@/components/DashboardLayout";
 import { trpc } from "@/lib/trpc";
+import "@/styles/family-collaboration.css";
 import { Check, Loader2, LockKeyhole } from "lucide-react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";

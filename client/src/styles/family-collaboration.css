@@ -25,8 +25,17 @@
 .event-comment-compose { display: grid; gap: 7px; margin-top: 10px; }
 .event-comment-compose textarea { resize: vertical; min-height: 72px; }
 .event-comment-compose button { justify-self: start; min-height: 31px; }
+.family-invite-page { max-width: 680px; margin: 72px auto; border-top: 2px solid var(--cinnabar); padding: 34px 0; }
+.family-invite-page h1 { margin: 10px 0 12px; color: var(--ink); font-family: "DM Serif Display", serif; font-size: clamp(38px,6vw,58px); line-height: .95; }
+.family-invite-page > p:not(.editor-kicker) { max-width: 580px; color: var(--ink-soft); font-size: 14px; line-height: 1.75; }
+.family-invite-page > button { display: inline-flex; align-items: center; gap: 8px; margin-top: 18px; border: 1px solid var(--ink); background: var(--ink); color: #fff; padding: 12px 15px; font: 600 11px "IBM Plex Mono", monospace; }
+.family-invite-invalid { display: flex; align-items: center; gap: 9px; margin-top: 18px; color: var(--cinnabar); }
 
 @media (max-width: 820px) {
   .family-collaboration-control > div { grid-template-columns: 1fr; }
   .family-collaboration-control button { min-height: 36px; }
+}
+
+@media (max-width: 430px) {
+  .family-collaboration-control button { min-height: 38px; }
 }

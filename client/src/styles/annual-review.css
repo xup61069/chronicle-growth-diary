@@ -34,7 +34,7 @@
 .annual-ai-reflection .annual-ai-delete { color: var(--cinnabar); border-color: rgba(238,98,59,.55); background: transparent; }
 
 @media (max-width: 820px) {
-  .annual-review-studio { grid-template-columns: 1fr; padding: 28px 18px; }
+  .annual-review-studio { grid-template-columns: 1fr; gap: 22px; padding: 26px 23px; }
   .annual-review-heading h2 { font-size: 34px; }
 }
 
