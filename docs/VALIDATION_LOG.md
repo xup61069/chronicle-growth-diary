@@ -139,4 +139,4 @@
 
 將 DM Serif Display、IBM Plex Mono 與 Noto Sans TC 的 Google Fonts 宣告從 CSS `@import` 移至文件 `<head>`，並新增 `fonts.googleapis.com` 與 `fonts.gstatic.com` 的預連線；既有 `display=swap`、字型家族與權重均維持不變。這避免 CSS import 形成額外的字型樣式表載入相依，且在字型尚未到達時保留可讀 fallback。
 
-新增 `fontLoading.test.ts` 確認預連線、三種設計字型、`display=swap` 與 CSS import 移除。完整 `pnpm check`、44 個測試檔共 120 項 Vitest 與正式建置通過；1280×720 首頁截圖確認展示字、內文與資料微文案均保持可讀。此驗證未觸發登入流程。
+新增 `fontLoading.test.ts` 確認預連線、三種設計字型、`display=swap` 與 CSS import 移除。完整 `pnpm check`、44 個測試檔共 120 項 Vitest 與正式建置通過；1280×720 與 375×812 首頁截圖確認展示字、內文與資料微文案均保持可讀。此驗證未觸發登入流程。
