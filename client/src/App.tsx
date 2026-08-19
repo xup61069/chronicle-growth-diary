@@ -1,28 +1,35 @@
 /** Design reminder — route public storytelling into a private, archival growth-diary workspace. */
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import DiaryEditor from "@/pages/DiaryEditor";
-import FamilyInvite from "@/pages/FamilyInvite";
-import QuickNote from "@/pages/QuickNote";
-import SharedStory from "@/pages/SharedStory";
-import NotFound from "@/pages/NotFound";
-import { useEffect } from "react";
+import React, { lazy, Suspense, useEffect } from "react";
 import { Route, Switch, useLocation } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
 
+const DiaryEditor = lazy(() => import("@/pages/DiaryEditor"));
+const FamilyInvite = lazy(() => import("@/pages/FamilyInvite"));
+const QuickNote = lazy(() => import("@/pages/QuickNote"));
+const SharedStory = lazy(() => import("@/pages/SharedStory"));
+const NotFound = lazy(() => import("@/pages/NotFound"));
+
+export function RouteLoadingState() {
+  return <main className="grid min-h-screen place-items-center bg-[#f7f4ec] px-6 text-center text-[#14263a]"><p className="font-mono text-xs tracking-[0.14em]">正在整理閱讀頁面…</p></main>;
+}
+
 function Router() {
   return (
-    <Switch>
-      <Route path="/" component={Home} />
-      <Route path="/editor" component={DiaryEditor} />
-      <Route path="/family-invite" component={FamilyInvite} />
-      <Route path="/quick-note" component={QuickNote} />
-      <Route path="/story/:slug" component={SharedStory} />
-      <Route path="/404" component={NotFound} />
-      <Route component={NotFound} />
-    </Switch>
+    <Suspense fallback={<RouteLoadingState />}>
+      <Switch>
+        <Route path="/" component={Home} />
+        <Route path="/editor" component={DiaryEditor} />
+        <Route path="/family-invite" component={FamilyInvite} />
+        <Route path="/quick-note" component={QuickNote} />
+        <Route path="/story/:slug" component={SharedStory} />
+        <Route path="/404" component={NotFound} />
+        <Route component={NotFound} />
+      </Switch>
+    </Suspense>
   );
 }
 

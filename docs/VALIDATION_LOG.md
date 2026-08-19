@@ -122,3 +122,9 @@
 問題根因是首頁導覽列的「登入」按鈕仍保留模板時期的提示訊息，只顯示「登入功能可於後續串接會員系統」，沒有呼叫 OAuth 導向。已改為直接從使用者點擊事件呼叫既有 `startLogin`，維持一次性 nonce cookie、`state`、`appId`、`redirectUri` 和 `type=signIn` 的既有安全合約。
 
 新增 `client/src/const.test.ts`，驗證登入導向會寫入短效 nonce cookie 並建立正確登入 URL；新增 `test:e2e:login`。主開發站的隔離 Chromium 回歸已實際點擊首頁「登入」，並確認導向 `https://manus.im/app-auth`，包含 `appId`、callback、`state` 與 `signIn` 參數。完整 `pnpm check`、41 個測試檔共 117 項 Vitest 和正式建置均通過。
+
+## 2026-08-19：公開入口路由延後載入
+
+將 `DiaryEditor`、`FamilyInvite`、`QuickNote`、`SharedStory` 與 `NotFound` 改為 route-level lazy loading，首頁保留為直接載入；載入中的非首頁路由會顯示可讀的「正在整理閱讀頁面…」邊界。正式建置確認這些路由各自輸出為獨立 chunk，編輯器與其匯出依賴不再進入首頁初始 JavaScript。
+
+新增 `RouteLoadingState` 靜態回歸測試。完整 `pnpm check`、42 個測試檔共 118 項 Vitest 與正式建置通過；首頁已在 1280×720 與 375×812 截圖確認可讀，延後載入的 `/quick-note` 在 375×812 亦成功開啟且無可見水平溢位。此驗證未觸發正式 OAuth 登入。
