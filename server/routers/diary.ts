@@ -25,6 +25,7 @@ import {
   updateDiaryEventMedia,
   updateDiaryPhaseBoundaries,
   updateDiarySharing,
+  updateDiaryMemberRole,
   updatePhaseReflection,
   uploadDiaryCoverImage,
   uploadDiaryEventImage,
@@ -47,9 +48,12 @@ const diaryEventInput = z.object({
 const year = z.number().int().min(1900).max(2200).nullable().optional();
 
 export const diaryRouter = router({
-  get: protectedProcedure.query(({ ctx }) => getDiarySnapshot(ctx.user.id)),
-  createEvent: protectedProcedure.input(diaryEventInput).mutation(({ ctx, input }) => createDiaryEvent(ctx.user.id, input)),
-  importEvents: protectedProcedure.input(z.object({ events: z.array(diaryEventInput).min(1).max(250) })).mutation(({ ctx, input }) => importDiaryEvents(ctx.user.id, input.events)),
+  get: protectedProcedure.input(z.object({ diaryId: z.number().int().positive().optional() }).optional()).query(({ ctx, input }) => input?.diaryId ? getDiarySnapshot(ctx.user.id, input.diaryId) : getDiarySnapshot(ctx.user.id)),
+  createEvent: protectedProcedure.input(diaryEventInput.extend({ diaryId: z.number().int().positive().optional() })).mutation(({ ctx, input }) => {
+    const { diaryId, ...event } = input;
+    return diaryId ? createDiaryEvent(ctx.user.id, event, diaryId) : createDiaryEvent(ctx.user.id, event);
+  }),
+  importEvents: protectedProcedure.input(z.object({ diaryId: z.number().int().positive().optional(), events: z.array(diaryEventInput).min(1).max(250) })).mutation(({ ctx, input }) => input.diaryId ? importDiaryEvents(ctx.user.id, input.events, input.diaryId) : importDiaryEvents(ctx.user.id, input.events)),
   updateEvent: protectedProcedure.input(diaryEventInput.extend({ id: z.number().int().positive() })).mutation(({ ctx, input }) => {
     const { id, ...event } = input;
     return updateDiaryEvent(ctx.user.id, id, event);
@@ -59,13 +63,14 @@ export const diaryRouter = router({
   getFamilyMembers: protectedProcedure.query(({ ctx }) => getDiaryMembers(ctx.user.id)),
   getFamilyAudit: protectedProcedure.query(({ ctx }) => getDiaryAuditLogs(ctx.user.id)),
   removeFamilyMember: protectedProcedure.input(z.object({ memberId: z.number().int().positive() })).mutation(({ ctx, input }) => removeDiaryMember(ctx.user.id, input.memberId)),
+  updateFamilyMemberRole: protectedProcedure.input(z.object({ memberId: z.number().int().positive(), role: z.enum(["editor", "commenter"]) })).mutation(({ ctx, input }) => updateDiaryMemberRole(ctx.user.id, input.memberId, input.role)),
   createEventComment: protectedProcedure.input(z.object({ eventId: z.number().int().positive(), body: z.string().trim().min(1).max(2000) })).mutation(({ ctx, input }) => createEventComment(ctx.user.id, input.eventId, input.body)),
   createFamilyInvite: protectedProcedure.input(z.object({ email: z.string().trim().email().max(320), role: z.enum(["editor", "commenter"]), expiresAt: z.number().int().min(Date.now() + 60_000).max(4102444800000) })).mutation(({ ctx, input }) => createDiaryInvite(ctx.user.id, input)),
   acceptFamilyInvite: protectedProcedure.input(z.object({ token: z.string().trim().min(16).max(128) })).mutation(({ ctx, input }) => acceptDiaryInvite(ctx.user.id, ctx.user.email, input.token)),
   restoreEventRevision: protectedProcedure.input(z.object({ eventId: z.number().int().positive(), revisionId: z.number().int().positive() })).mutation(({ ctx, input }) => restoreDiaryEventRevision(ctx.user.id, input.eventId, input.revisionId)),
   deleteEvent: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ ctx, input }) => deleteDiaryEvent(ctx.user.id, input.id)),
   setEventVisibility: protectedProcedure.input(z.object({ id: z.number().int().positive(), isPublic: z.boolean() })).mutation(({ ctx, input }) => setDiaryEventVisibility(ctx.user.id, input.id, input.isPublic)),
-  reorderEvents: protectedProcedure.input(z.object({ eventIds: z.array(z.number().int().positive()).max(500) })).mutation(({ ctx, input }) => reorderDiaryEvents(ctx.user.id, input.eventIds)),
+  reorderEvents: protectedProcedure.input(z.object({ diaryId: z.number().int().positive().optional(), eventIds: z.array(z.number().int().positive()).max(500) })).mutation(({ ctx, input }) => input.diaryId ? reorderDiaryEvents(ctx.user.id, input.eventIds, input.diaryId) : reorderDiaryEvents(ctx.user.id, input.eventIds)),
   updatePhaseBoundaries: protectedProcedure.input(z.object({
     childhoodStartYear: year,
     childhoodEndYear: year,

@@ -11,7 +11,11 @@ const harness = vi.hoisted(() => {
     const chain: Record<string, ReturnType<typeof vi.fn>> = {};
     chain.from = vi.fn(() => chain);
     chain.innerJoin = vi.fn(() => chain);
-    chain.where = vi.fn(() => chain);
+    chain.where = vi.fn(() => {
+      (chain as Record<string, unknown>).then = (resolve: (value: unknown[]) => unknown, reject?: (reason: unknown) => unknown) =>
+        Promise.resolve(selectQueue.shift() ?? []).then(resolve, reject);
+      return chain;
+    });
     chain.orderBy = vi.fn(() => {
       (chain as Record<string, unknown>).then = (resolve: (value: unknown[]) => unknown, reject?: (reason: unknown) => unknown) =>
         Promise.resolve(selectQueue.shift() ?? []).then(resolve, reject);
@@ -75,6 +79,7 @@ describe("event revision data helpers", () => {
   it("reads an owned event's revision snapshots in descending version order", async () => {
     harness.selectQueue.push(
       [{ id: 8, diaryId: 4 }],
+      [{ id: 4, userId: 3 }],
       [{ id: 22, eventId: 8, version: 2, changeType: "update", snapshot: initialSnapshot, createdAt: new Date("2026-08-15") }],
     );
 
@@ -83,14 +88,16 @@ describe("event revision data helpers", () => {
     expect(revisions).toEqual([
       expect.objectContaining({ id: 22, eventId: 8, version: 2, changeType: "update", snapshot: expect.objectContaining({ title: "第一版" }) }),
     ]);
-    expect(harness.db.select).toHaveBeenCalledTimes(2);
+    expect(harness.db.select).toHaveBeenCalledTimes(3);
   });
 
   it("restores an owned snapshot and records a new restore revision", async () => {
     harness.selectQueue.push(
       [{ id: 8, diaryId: 4 }],
+      [{ id: 4, userId: 3 }],
       [{ id: 22, eventId: 8, version: 1, changeType: "create", snapshot: initialSnapshot, createdAt: new Date("2026-08-15") }],
       [{ id: 8, diaryId: 4 }],
+      [{ id: 4, userId: 3 }],
       [{ id: 8, occurredAt: 1_704_067_200_000, datePrecision: "day", eventType: "memory", title: "第一版", body: "原始內容", ageLabel: null, place: null, color: "#EE623B", isPublic: false, timelinePosition: 0 }],
       [],
       [{ version: 2 }],
@@ -101,6 +108,30 @@ describe("event revision data helpers", () => {
     expect(result).toEqual({ eventId: 8, restoredVersion: 3 });
     expect(harness.updatedWhere).toHaveBeenCalled();
     expect(harness.insertedValues).toHaveBeenCalledWith(expect.objectContaining({ eventId: 8, version: 3, changeType: "restore" }));
+  });
+
+  it("allows an editor to create in the specified family diary and rejects a commenter before writing", async () => {
+    const input = { occurredAt: 1_704_067_200_000, datePrecision: "day" as const, eventType: "memory" as const, title: "家庭記事", body: "共同整理的記憶。", color: "#EE623B", tagNames: [] };
+    harness.selectQueue.push(
+      [],
+      [{ diary: { id: 4, userId: 1 }, role: "editor" }],
+      [],
+      [{ id: 8, diaryId: 4 }],
+      [{ id: 8, diaryId: 4 }],
+      [],
+      [{ diary: { id: 4, userId: 1 }, role: "editor" }],
+      [{ id: 8, occurredAt: input.occurredAt, datePrecision: input.datePrecision, eventType: input.eventType, title: input.title, body: input.body, ageLabel: null, place: null, color: input.color, isPublic: false, timelinePosition: 0 }],
+      [],
+      [],
+    );
+
+    await expect(dbHelpers.createDiaryEvent(2, input, 4)).resolves.toEqual({ id: 8 });
+    expect(harness.insertedValues).toHaveBeenCalledWith(expect.objectContaining({ diaryId: 4, title: input.title }));
+
+    harness.reset();
+    harness.selectQueue.push([], [{ diary: { id: 4, userId: 1 }, role: "commenter" }]);
+    await expect(dbHelpers.createDiaryEvent(2, input, 4)).rejects.toThrow("僅有註解權限");
+    expect(harness.insertedValues).not.toHaveBeenCalled();
   });
 });
 

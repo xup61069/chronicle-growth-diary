@@ -161,13 +161,35 @@ async function getOrCreateDiary(userId: number) {
   return created[0];
 }
 
-async function assertEventOwnership(eventId: number, userId: number) {
+type DiaryAccessRole = "owner" | DiaryMemberRole;
+
+async function getDiaryAccessForUser(userId: number, requestedDiaryId?: number) {
   const db = await requireDb();
-  const event = await db.select({ id: growthEvents.id, diaryId: growthEvents.diaryId }).from(growthEvents)
-    .innerJoin(growthDiaries, eq(growthEvents.diaryId, growthDiaries.id))
-    .where(and(eq(growthEvents.id, eventId), eq(growthDiaries.userId, userId))).limit(1);
-  if (!event[0]) throw new Error("找不到這筆成長事件，或你沒有編輯權限。");
-  return event[0];
+  const owned = await db.select().from(growthDiaries).where(requestedDiaryId ? and(eq(growthDiaries.userId, userId), eq(growthDiaries.id, requestedDiaryId)) : eq(growthDiaries.userId, userId)).limit(1);
+  if (owned[0]) return { diary: owned[0], role: "owner" as const };
+  const membership = await db.select({ diary: growthDiaries, role: growthDiaryMembers.role })
+    .from(growthDiaryMembers)
+    .innerJoin(growthDiaries, eq(growthDiaryMembers.diaryId, growthDiaries.id))
+    .where(requestedDiaryId ? and(eq(growthDiaryMembers.userId, userId), eq(growthDiaryMembers.diaryId, requestedDiaryId)) : eq(growthDiaryMembers.userId, userId))
+    .limit(1);
+  return membership[0] ? { diary: membership[0].diary, role: membership[0].role as DiaryMemberRole } : undefined;
+}
+
+async function getWritableDiary(userId: number, requestedDiaryId?: number) {
+  const access = await getDiaryAccessForUser(userId, requestedDiaryId);
+  if (access?.role === "owner" || access?.role === "editor") return access;
+  if (access?.role === "commenter") throw new Error("你僅有註解權限，無法修改這段成長史。");
+  if (requestedDiaryId) throw new Error("找不到這本家庭成長史，或你沒有編輯權限。");
+  return { diary: await getOrCreateDiary(userId), role: "owner" as const };
+}
+
+async function assertEventWriteAccess(eventId: number, userId: number) {
+  const db = await requireDb();
+  const event = await db.select({ id: growthEvents.id, diaryId: growthEvents.diaryId }).from(growthEvents).where(eq(growthEvents.id, eventId)).limit(1);
+  if (!event[0]) throw new Error("找不到這筆成長事件。");
+  const access = await getWritableDiary(userId, event[0].diaryId);
+  if (access.diary.id !== event[0].diaryId) throw new Error("找不到這筆成長事件，或你沒有編輯權限。");
+  return { ...event[0], access };
 }
 
 async function saveEventTags(eventId: number, userId: number, rawTagNames: string[]) {
@@ -222,15 +244,19 @@ function makeLifePhaseSnapshot(diary: typeof growthDiaries.$inferSelect, events:
   });
 }
 
-export async function getDiarySnapshot(userId: number) {
+export async function getDiarySnapshot(userId: number, requestedDiaryId?: number) {
   const db = await requireDb();
-  const diary = await getOrCreateDiary(userId);
-  const tags = await db.select().from(growthTags).where(eq(growthTags.userId, userId)).orderBy(asc(growthTags.name));
+  const access = await getDiaryAccessForUser(userId, requestedDiaryId);
+  if (requestedDiaryId && !access) throw new Error("找不到這本家庭成長史，或你沒有檢視權限。");
+  const diary = access?.diary ?? await getOrCreateDiary(userId);
+  const accessRole: DiaryAccessRole = access?.role ?? "owner";
+  const tags = await db.select().from(growthTags).where(eq(growthTags.userId, diary.userId)).orderBy(asc(growthTags.name));
   const events = await getEnrichedDiaryEvents(diary.id);
   const reflections = await db.select().from(growthPhaseReflections).where(eq(growthPhaseReflections.diaryId, diary.id));
   const accessLogs = await db.select().from(growthShareAccessLogs).where(eq(growthShareAccessLogs.diaryId, diary.id)).orderBy(desc(growthShareAccessLogs.accessedAt)).limit(6);
   return {
     diary,
+    accessRole,
     tags,
     events,
     lifePhases: makeLifePhaseSnapshot(diary, events),
@@ -252,7 +278,7 @@ type EventRevisionChangeType = "create" | "update" | "restore";
 
 async function writeEventRevision(userId: number, eventId: number, changeType: EventRevisionChangeType) {
   const db = await requireDb();
-  await assertEventOwnership(eventId, userId);
+  await assertEventWriteAccess(eventId, userId);
   const event = await db.select().from(growthEvents).where(eq(growthEvents.id, eventId)).limit(1);
   if (!event[0]) throw new Error("找不到這筆成長事件。");
   const tags = await db.select({ name: growthTags.name })
@@ -304,7 +330,7 @@ function parseEventRevisionSnapshot(snapshot: string): DiaryEventInput & { isPub
 
 export async function getDiaryEventRevisions(userId: number, eventId: number) {
   const db = await requireDb();
-  await assertEventOwnership(eventId, userId);
+  await assertEventWriteAccess(eventId, userId);
   const revisions = await db.select().from(growthEventRevisions)
     .where(eq(growthEventRevisions.eventId, eventId))
     .orderBy(desc(growthEventRevisions.version));
@@ -320,7 +346,7 @@ export async function getDiaryEventRevisions(userId: number, eventId: number) {
 
 export async function restoreDiaryEventRevision(userId: number, eventId: number, revisionId: number) {
   const db = await requireDb();
-  await assertEventOwnership(eventId, userId);
+  const eventAccess = await assertEventWriteAccess(eventId, userId);
   const revision = await db.select().from(growthEventRevisions)
     .where(and(eq(growthEventRevisions.id, revisionId), eq(growthEventRevisions.eventId, eventId)))
     .limit(1);
@@ -338,28 +364,28 @@ export async function restoreDiaryEventRevision(userId: number, eventId: number,
     isPublic: snapshot.isPublic,
     timelinePosition: snapshot.timelinePosition,
   }).where(eq(growthEvents.id, eventId));
-  await saveEventTags(eventId, userId, snapshot.tagNames);
+  await saveEventTags(eventId, eventAccess.access.diary.userId, snapshot.tagNames);
   const restored = await writeEventRevision(userId, eventId, "restore");
   return { eventId, restoredVersion: restored.version };
 }
 
-export async function createDiaryEvent(userId: number, input: DiaryEventInput) {
+export async function createDiaryEvent(userId: number, input: DiaryEventInput, requestedDiaryId?: number) {
   const db = await requireDb();
-  const diary = await getOrCreateDiary(userId);
+  const { diary } = await getWritableDiary(userId, requestedDiaryId);
   const existingEvents = await db.select({ id: growthEvents.id }).from(growthEvents).where(eq(growthEvents.diaryId, diary.id));
   await db.insert(growthEvents).values({ diaryId: diary.id, occurredAt: input.occurredAt, datePrecision: input.datePrecision, eventType: input.eventType, title: input.title.trim(), body: input.body.trim(), ageLabel: input.ageLabel?.trim() || null, place: input.place?.trim() || null, color: input.color, timelinePosition: existingEvents.length });
   const created = await db.select().from(growthEvents).where(eq(growthEvents.diaryId, diary.id)).orderBy(desc(growthEvents.id)).limit(1);
   if (!created[0]) throw new Error("無法儲存這筆成長事件。");
-  await saveEventTags(created[0].id, userId, input.tagNames);
+  await saveEventTags(created[0].id, diary.userId, input.tagNames);
   await writeEventRevision(userId, created[0].id, "create");
   return { id: created[0].id };
 }
 
-export async function importDiaryEvents(userId: number, inputs: DiaryEventInput[]) {
+export async function importDiaryEvents(userId: number, inputs: DiaryEventInput[], requestedDiaryId?: number) {
   const createdIds: number[] = [];
   try {
     for (const input of inputs) {
-      const created = await createDiaryEvent(userId, { ...input, tagNames: input.tagNames.slice(0, 8) });
+      const created = await createDiaryEvent(userId, { ...input, tagNames: input.tagNames.slice(0, 8) }, requestedDiaryId);
       createdIds.push(created.id);
     }
     return { importedCount: createdIds.length, eventIds: createdIds };
@@ -371,16 +397,16 @@ export async function importDiaryEvents(userId: number, inputs: DiaryEventInput[
 
 export async function updateDiaryEvent(userId: number, eventId: number, input: DiaryEventInput) {
   const db = await requireDb();
-  await assertEventOwnership(eventId, userId);
+  const eventAccess = await assertEventWriteAccess(eventId, userId);
   await db.update(growthEvents).set({ occurredAt: input.occurredAt, datePrecision: input.datePrecision, eventType: input.eventType, title: input.title.trim(), body: input.body.trim(), ageLabel: input.ageLabel?.trim() || null, place: input.place?.trim() || null, color: input.color }).where(eq(growthEvents.id, eventId));
-  await saveEventTags(eventId, userId, input.tagNames);
+  await saveEventTags(eventId, eventAccess.access.diary.userId, input.tagNames);
   await writeEventRevision(userId, eventId, "update");
   return { id: eventId };
 }
 
 export async function deleteDiaryEvent(userId: number, eventId: number) {
   const db = await requireDb();
-  await assertEventOwnership(eventId, userId);
+  await assertEventWriteAccess(eventId, userId);
   await db.delete(growthEventTags).where(eq(growthEventTags.eventId, eventId));
   await db.delete(growthEventMedia).where(eq(growthEventMedia.eventId, eventId));
   await db.delete(growthEvents).where(eq(growthEvents.id, eventId));
@@ -389,14 +415,14 @@ export async function deleteDiaryEvent(userId: number, eventId: number) {
 
 export async function setDiaryEventVisibility(userId: number, eventId: number, isPublic: boolean) {
   const db = await requireDb();
-  await assertEventOwnership(eventId, userId);
+  await assertEventWriteAccess(eventId, userId);
   await db.update(growthEvents).set({ isPublic }).where(eq(growthEvents.id, eventId));
   return { id: eventId, isPublic };
 }
 
-export async function reorderDiaryEvents(userId: number, eventIds: number[]) {
+export async function reorderDiaryEvents(userId: number, eventIds: number[], requestedDiaryId?: number) {
   const db = await requireDb();
-  const diary = await getOrCreateDiary(userId);
+  const { diary } = await getWritableDiary(userId, requestedDiaryId);
   const ownedEvents = await db.select({ id: growthEvents.id }).from(growthEvents).where(eq(growthEvents.diaryId, diary.id));
   if (ownedEvents.length !== eventIds.length || new Set(eventIds).size !== eventIds.length || ownedEvents.some((event) => !eventIds.includes(event.id))) {
     throw new Error("事件排序內容不完整，請重新整理後再試。");
@@ -538,7 +564,7 @@ export async function getSharedDiary(slug: string, token?: string | null, passwo
 
 export async function uploadDiaryEventImage(input: { userId: number; eventId: number; fileName: string; mimeType: string; base64: string; caption?: string; }) {
   const db = await requireDb();
-  await assertEventOwnership(input.eventId, input.userId);
+  await assertEventWriteAccess(input.eventId, input.userId);
   const bytes = Buffer.from(input.base64, "base64");
   if (bytes.byteLength > 4 * 1024 * 1024) throw new Error("圖片檔案不可超過 4MB。");
   const fileName = safeMediaName(input.fileName);
@@ -550,19 +576,18 @@ export async function uploadDiaryEventImage(input: { userId: number; eventId: nu
 
 export async function deleteDiaryEventMedia(userId: number, mediaId: number) {
   const db = await requireDb();
-  const media = await db.select({ id: growthEventMedia.id }).from(growthEventMedia).innerJoin(growthEvents, eq(growthEventMedia.eventId, growthEvents.id)).innerJoin(growthDiaries, eq(growthEvents.diaryId, growthDiaries.id)).where(and(eq(growthEventMedia.id, mediaId), eq(growthDiaries.userId, userId))).limit(1);
+  const media = await db.select({ id: growthEventMedia.id, eventId: growthEventMedia.eventId }).from(growthEventMedia).where(eq(growthEventMedia.id, mediaId)).limit(1);
   if (!media[0]) throw new Error("找不到這張圖片，或你沒有刪除權限。");
+  await assertEventWriteAccess(media[0].eventId, userId);
   await db.delete(growthEventMedia).where(eq(growthEventMedia.id, mediaId));
   return { id: mediaId };
 }
 
 export async function updateDiaryEventMedia(userId: number, mediaId: number, caption: string | null) {
   const db = await requireDb();
-  const media = await db.select({ id: growthEventMedia.id }).from(growthEventMedia)
-    .innerJoin(growthEvents, eq(growthEventMedia.eventId, growthEvents.id))
-    .innerJoin(growthDiaries, eq(growthEvents.diaryId, growthDiaries.id))
-    .where(and(eq(growthEventMedia.id, mediaId), eq(growthDiaries.userId, userId))).limit(1);
+  const media = await db.select({ id: growthEventMedia.id, eventId: growthEventMedia.eventId }).from(growthEventMedia).where(eq(growthEventMedia.id, mediaId)).limit(1);
   if (!media[0]) throw new Error("找不到這張圖片，或你沒有編輯權限。");
+  await assertEventWriteAccess(media[0].eventId, userId);
   const nextCaption = caption?.trim() || null;
   await db.update(growthEventMedia).set({ caption: nextCaption }).where(eq(growthEventMedia.id, mediaId));
   return { id: mediaId, caption: nextCaption };
@@ -570,7 +595,7 @@ export async function updateDiaryEventMedia(userId: number, mediaId: number, cap
 
 export async function reorderDiaryEventMedia(userId: number, eventId: number, mediaIds: number[]) {
   const db = await requireDb();
-  await assertEventOwnership(eventId, userId);
+  await assertEventWriteAccess(eventId, userId);
   const media = await db.select({ id: growthEventMedia.id }).from(growthEventMedia).where(eq(growthEventMedia.eventId, eventId));
   if (media.length !== mediaIds.length || new Set(mediaIds).size !== mediaIds.length || media.some((item) => !mediaIds.includes(item.id))) {
     throw new Error("圖片排序內容不完整，請重新整理後再試。");
@@ -599,7 +624,7 @@ async function getOwnedDiary(userId: number) {
   return diary[0];
 }
 
-async function writeDiaryAudit(diaryId: number, actorUserId: number, action: "invite_created" | "invite_accepted" | "member_removed" | "comment_created", targetType: string, targetId?: number, metadata?: Record<string, unknown>) {
+async function writeDiaryAudit(diaryId: number, actorUserId: number, action: "invite_created" | "invite_accepted" | "member_role_updated" | "member_removed" | "comment_created", targetType: string, targetId?: number, metadata?: Record<string, unknown>) {
   const db = await requireDb();
   await db.insert(growthDiaryAuditLogs).values({ diaryId, actorUserId, action, targetType, targetId: targetId ?? null, metadata: metadata ? JSON.stringify(metadata) : null });
 }
@@ -671,6 +696,16 @@ export async function removeDiaryMember(userId: number, memberId: number) {
   await db.delete(growthDiaryMembers).where(eq(growthDiaryMembers.id, memberId));
   await writeDiaryAudit(diary.id, userId, "member_removed", "member", memberId, { removedUserId: member[0].userId });
   return { id: memberId };
+}
+
+export async function updateDiaryMemberRole(userId: number, memberId: number, role: DiaryMemberRole) {
+  const db = await requireDb();
+  const diary = await getOwnedDiary(userId);
+  const member = await db.select().from(growthDiaryMembers).where(and(eq(growthDiaryMembers.id, memberId), eq(growthDiaryMembers.diaryId, diary.id))).limit(1);
+  if (!member[0]) throw new Error("找不到這位家庭成員。");
+  await db.update(growthDiaryMembers).set({ role }).where(eq(growthDiaryMembers.id, memberId));
+  await writeDiaryAudit(diary.id, userId, "member_role_updated", "member", memberId, { previousRole: member[0].role, role });
+  return { id: memberId, role };
 }
 
 export async function getDiaryAuditLogs(userId: number) {

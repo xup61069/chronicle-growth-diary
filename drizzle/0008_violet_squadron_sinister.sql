@@ -1,0 +1,1 @@
+ALTER TABLE `growth_diary_audit_logs` MODIFY COLUMN `action` enum('invite_created','invite_accepted','member_role_updated','member_removed','comment_created') NOT NULL;

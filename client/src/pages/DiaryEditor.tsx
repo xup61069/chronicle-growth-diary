@@ -14,6 +14,7 @@ import { parseChronicleImport, type ChronicleImportPreview } from "@/lib/diaryIm
 import { appendWritingGuide, getLocalWritingGuides } from "@/lib/writingGuide";
 import { parseSocialDraftCsv, parseSocialDraftJson, type SocialDraftCandidate } from "@/lib/socialDraftImport";
 import { trpc } from "@/lib/trpc";
+import { canEditFamilyDiary, describeFamilyAuditAction, type FamilyDiaryAccessRole } from "@/lib/familyCollaboration";
 import {
   Archive,
   ArrowDownUp,
@@ -52,6 +53,7 @@ import {
 } from "lucide-react";
 import { ChangeEvent, FormEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { useLocation } from "wouter";
 
 type ShareMode = "private" | "public" | "link";
 type PublicStoryLayout = "editorial" | "gallery" | "minimal";
@@ -61,7 +63,17 @@ type MobileWorkspacePanel = "index" | "compose" | "preview";
 
 function DiaryEditorContent() {
   const utils = trpc.useUtils();
-  const { data, isLoading, error, refetch } = trpc.diary.get.useQuery(undefined, { retry: 1, staleTime: 0, refetchOnMount: "always" });
+  const [location] = useLocation();
+  const requestedDiaryId = useMemo(() => {
+    const value = new URLSearchParams(location.split("?")[1] ?? "").get("diary");
+    const parsed = value ? Number(value) : undefined;
+    return parsed && Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+  }, [location]);
+  const diaryQueryInput = useMemo(() => requestedDiaryId ? { diaryId: requestedDiaryId } : undefined, [requestedDiaryId]);
+  const { data, isLoading, error, refetch } = trpc.diary.get.useQuery(diaryQueryInput, { retry: 1, staleTime: 0, refetchOnMount: "always" });
+  const accessRole = (data?.accessRole ?? "owner") as FamilyDiaryAccessRole;
+  const canEdit = canEditFamilyDiary(accessRole);
+  const isOwner = accessRole === "owner";
   const [loadTimedOut, setLoadTimedOut] = useState(false);
   const [form, setForm] = useState<EventForm>(makeEmptyForm);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -152,12 +164,19 @@ function DiaryEditorContent() {
     },
     onError: (error) => toast.error(error.message),
   });
-  const familyMembersQuery = trpc.diary.getFamilyMembers.useQuery();
-  const familyAuditQuery = trpc.diary.getFamilyAudit.useQuery();
+  const familyMembersQuery = trpc.diary.getFamilyMembers.useQuery(undefined, { enabled: isOwner });
+  const familyAuditQuery = trpc.diary.getFamilyAudit.useQuery(undefined, { enabled: isOwner });
   const removeFamilyMemberMutation = trpc.diary.removeFamilyMember.useMutation({
     onSuccess: async () => {
       await Promise.all([utils.diary.getFamilyMembers.invalidate(), utils.diary.getFamilyAudit.invalidate()]);
       toast.success("已移除家庭成員的日記存取權限。");
+    },
+    onError: (error) => toast.error(error.message),
+  });
+  const updateFamilyMemberRoleMutation = trpc.diary.updateFamilyMemberRole.useMutation({
+    onSuccess: async () => {
+      await Promise.all([utils.diary.getFamilyMembers.invalidate(), utils.diary.getFamilyAudit.invalidate()]);
+      toast.success("已更新家庭成員角色。");
     },
     onError: (error) => toast.error(error.message),
   });
@@ -295,6 +314,7 @@ function DiaryEditorContent() {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!canEdit) return toast.error("你目前只有註解權限，無法修改事件。");
     if (tagEnterSubmitGuard.current) {
       tagEnterSubmitGuard.current = false;
       return;
@@ -310,7 +330,7 @@ function DiaryEditorContent() {
     try {
       const saved = editingId
         ? await updateMutation.mutateAsync({ id: editingId, ...payload })
-        : await saveMutation.mutateAsync(payload);
+        : await saveMutation.mutateAsync({ ...payload, ...(requestedDiaryId ? { diaryId: requestedDiaryId } : {}) });
 
       for (const image of pendingImages) {
         await uploadMutation.mutateAsync({ eventId: saved.id, fileName: image.name, mimeType: image.type, base64: image.base64, caption: image.caption.trim() || undefined });
@@ -347,6 +367,7 @@ function DiaryEditorContent() {
   };
 
   const saveImageCaption = async (id: number) => {
+    if (!canEdit) return toast.error("你目前只有註解權限，無法修改圖片說明。");
     try {
       await updateImageMutation.mutateAsync({ id, caption: mediaCaptionDrafts[id]?.trim() || null });
       await utils.diary.get.invalidate();
@@ -422,6 +443,7 @@ function DiaryEditorContent() {
 
   const toggleSelectedEventVisibility = async () => {
     if (!selectedEvent) return;
+    if (!canEdit) return toast.error("你目前只有註解權限，無法修改事件可見度。");
     try {
       await visibilityMutation.mutateAsync({ id: selectedEvent.id, isPublic: !selectedEvent.isPublic });
       await utils.diary.get.invalidate();
@@ -533,6 +555,7 @@ function DiaryEditorContent() {
 
   const dropEventAt = async (targetId: number) => {
     if (draggedEventId === null || draggedEventId === targetId) return;
+    if (!canEdit) return toast.error("你目前只有註解權限，無法調整事件順序。");
     if (filterType !== "all" || filterTag !== "all" || searchQuery || dateFrom || dateTo || sortOrder !== "custom") return toast.info("請先切換為「手動順序」並清除搜尋與篩選，再拖曳重新排序。");
     const orderedIds = events.map((event) => event.id);
     const fromIndex = orderedIds.indexOf(draggedEventId);
@@ -541,7 +564,7 @@ function DiaryEditorContent() {
     orderedIds.splice(fromIndex, 1);
     orderedIds.splice(targetIndex, 0, draggedEventId);
     try {
-      await reorderMutation.mutateAsync({ eventIds: orderedIds });
+      await reorderMutation.mutateAsync({ eventIds: orderedIds, ...(requestedDiaryId ? { diaryId: requestedDiaryId } : {}) });
       await utils.diary.get.invalidate();
       toast.success("事件順序已更新。");
     } catch (orderError) {
@@ -583,7 +606,7 @@ function DiaryEditorContent() {
   const confirmImport = async () => {
     if (!importPreview) return;
     try {
-      const result = await importMutation.mutateAsync({ events: importPreview.events });
+      const result = await importMutation.mutateAsync({ events: importPreview.events, ...(requestedDiaryId ? { diaryId: requestedDiaryId } : {}) });
       await utils.diary.get.invalidate();
       setImportPreview(null);
       startNewEvent();
@@ -608,7 +631,7 @@ function DiaryEditorContent() {
   const confirmSocialImport = async () => {
     if (!socialPreview?.length) return;
     try {
-      const result = await importMutation.mutateAsync({ events: socialPreview.map((candidate) => ({ occurredAt: candidate.occurredAt, datePrecision: "day" as const, eventType: "memory" as const, title: candidate.title, body: candidate.body, ageLabel: null, place: null, color: "#EE623B" as const, tagNames: ["社群匯入"] })) });
+      const result = await importMutation.mutateAsync({ events: socialPreview.map((candidate) => ({ occurredAt: candidate.occurredAt, datePrecision: "day" as const, eventType: "memory" as const, title: candidate.title, body: candidate.body, ageLabel: null, place: null, color: "#EE623B" as const, tagNames: ["社群匯入"] })), ...(requestedDiaryId ? { diaryId: requestedDiaryId } : {}) });
       await utils.diary.get.invalidate();
       setSocialPreview(null);
       toast.success(`已建立 ${result.importedCount} 段私人社群記事。`);
@@ -626,6 +649,7 @@ function DiaryEditorContent() {
   return (
     <div className="diary-editor">
       <DiaryEditorHeader title={data?.diary.title ?? "我的成長史"} eventCountLabel={eventCountLabel} mediaCount={hasMedia} />
+      {!isOwner ? <section className="family-access-notice" aria-label="家庭共寫權限"><ShieldCheck size={17} /><div><b>{accessRole === "editor" ? "共同編輯權限" : "註解權限"}</b><p>{accessRole === "editor" ? "你可新增、編輯、排序事件與圖片，也可與家人以註解交流；分享、AI、階段設定與成員管理仍只由日記擁有者控制。" : "你可閱讀事件並新增註解；日記內容、圖片、排序、分享與帳號設定均維持由日記擁有者管理。"}</p></div></section> : null}
 
       <section className="life-phase-overview" ref={exportRef} aria-labelledby="life-phase-title">
         <div className="phase-heading">
@@ -677,6 +701,7 @@ function DiaryEditorContent() {
         <article className={`annual-review-card annual-${annualTemplate}`}><div><p>{annualReview.title}</p><b>{annualReview.count.toString().padStart(2, "0")} <small>段日記</small></b></div><h3>{annualReview.lead}</h3><div className="annual-review-highlights">{annualReview.highlights.map((highlight) => <article key={highlight.id}><span>{highlight.label}</span><h4>{highlight.title}</h4><p>{highlight.body}</p></article>)}</div>{annualReview.tags.length ? <div className="annual-review-tags">{annualReview.tags.map((tag) => <span key={tag}>#{tag}</span>)}</div> : null}<blockquote>{annualReview.prompt}</blockquote></article>
       </section>
 
+      {isOwner ? <>
       <section className="sharing-studio" aria-labelledby="sharing-title">
         <div className="sharing-intro"><p className="editor-kicker"><span /> SHARING CONTROLS</p><h2 id="sharing-title">由你決定，哪些故事可以被看見。</h2><p>每個事件都從私人狀態開始。你可以只公開某些片段，或建立一條只交給特定對象的私密連結。</p><div className="sharing-stat"><ShieldCheck size={16} /><span>目前有 <b>{publicEventCount}</b> 篇事件允許分享</span></div></div>
         <div className="sharing-settings">
@@ -691,8 +716,8 @@ function DiaryEditorContent() {
               <p><ShieldCheck size={14} /> 家庭共寫邀請</p><small>邀請只授予此私人日記的共同編輯或註解權限；連結僅能使用一次，且預設 7 天後失效。</small>
               <div><input type="email" value={familyInviteEmail} onChange={(event) => setFamilyInviteEmail(event.target.value)} placeholder="家人的電子郵件" maxLength={320} /><select value={familyInviteRole} onChange={(event) => setFamilyInviteRole(event.target.value as "editor" | "commenter")}><option value="commenter">可註解</option><option value="editor">可共同編輯</option></select><button type="button" onClick={() => familyInviteMutation.mutate({ email: familyInviteEmail, role: familyInviteRole, expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000 })} disabled={!familyInviteEmail || familyInviteMutation.isPending}>{familyInviteMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Share2 size={14} />} 建立邀請</button></div>
               {familyInviteUrl ? <div className="family-invite-url"><span>一次性邀請已建立；離開此頁後不會再次顯示。</span><button type="button" onClick={() => navigator.clipboard.writeText(familyInviteUrl).then(() => toast.success("已複製家庭邀請連結。"))}><Copy size={13} /> 複製邀請連結</button></div> : null}
-              {familyMembersQuery.data?.length ? <div className="family-member-list">{familyMembersQuery.data.map((member) => <article key={member.id}><span><b>{member.name ?? member.email ?? "受邀成員"}</b><small>{member.role === "editor" ? "共同編輯" : "可註解"}</small></span><button type="button" onClick={() => removeFamilyMemberMutation.mutate({ memberId: member.id })} disabled={removeFamilyMemberMutation.isPending}>移除</button></article>)}</div> : <p className="family-empty">尚未有已接受邀請的家庭成員。</p>}
-              {familyAuditQuery.data?.length ? <details className="family-audit"><summary>查看最近協作紀錄</summary><div>{familyAuditQuery.data.slice(0, 6).map((log) => <p key={log.id}><b>{log.actorName ?? "成員"}</b> · {log.action === "invite_created" ? "建立邀請" : log.action === "invite_accepted" ? "接受邀請" : log.action === "member_removed" ? "移除成員" : "發表註解"} · {new Date(log.createdAt).toLocaleString("zh-TW")}</p>)}</div></details> : null}
+              {familyMembersQuery.data?.length ? <div className="family-member-list">{familyMembersQuery.data.map((member) => <article key={member.id}><span><b>{member.name ?? member.email ?? "受邀成員"}</b><small>{member.role === "editor" ? "共同編輯" : "可註解"}</small></span><select aria-label={`${member.name ?? member.email ?? "成員"}角色`} value={member.role} onChange={(event) => updateFamilyMemberRoleMutation.mutate({ memberId: member.id, role: event.target.value as "editor" | "commenter" })} disabled={updateFamilyMemberRoleMutation.isPending}><option value="commenter">可註解</option><option value="editor">共同編輯</option></select><button type="button" onClick={() => removeFamilyMemberMutation.mutate({ memberId: member.id })} disabled={removeFamilyMemberMutation.isPending}>移除</button></article>)}</div> : <p className="family-empty">尚未有已接受邀請的家庭成員。</p>}
+              {familyAuditQuery.data?.length ? <details className="family-audit"><summary>查看最近協作紀錄</summary><div>{familyAuditQuery.data.slice(0, 6).map((log) => <p key={log.id}><b>{log.actorName ?? "成員"}</b> · {describeFamilyAuditAction(log.action)} · {new Date(log.createdAt).toLocaleString("zh-TW")}</p>)}</div></details> : null}
             </div>
             <div className="phase-anchor-fields"><p>人生階段的時間錨點（選填）</p><label>出生年<input type="number" min="1900" max="2200" value={birthYear} onChange={(event) => setBirthYear(event.target.value)} placeholder="例如：1994" /></label><label>開始求學<input type="number" min="1900" max="2200" value={educationStartYear} onChange={(event) => setEducationStartYear(event.target.value)} placeholder="例如：2000" /></label><label>開始職涯<input type="number" min="1900" max="2200" value={careerStartYear} onChange={(event) => setCareerStartYear(event.target.value)} placeholder="例如：2016" /></label></div>
           {shareMode !== "private" ? <div className="sharing-security-fields">
@@ -720,6 +745,7 @@ function DiaryEditorContent() {
         <label>請輸入 <strong>刪除我的帳號</strong> 以確認<input value={accountDeleteConfirmation} onChange={(event) => setAccountDeleteConfirmation(event.target.value)} placeholder="刪除我的帳號" autoComplete="off" /></label>
         <button type="button" onClick={deleteCurrentAccount} disabled={accountDeleteConfirmation !== "刪除我的帳號" || deleteAccountMutation.isPending}>{deleteAccountMutation.isPending ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />} 永久刪除我的帳號</button>
       </section>
+      </> : null}
 
       <nav className="editor-mobile-tabs" aria-label="日記工作區分頁" role="tablist">
         {([

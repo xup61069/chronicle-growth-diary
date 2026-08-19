@@ -8,9 +8,9 @@ function FamilyInviteContent() {
   const [location, navigate] = useLocation();
   const token = new URLSearchParams(location.split("?")[1] ?? "").get("token") ?? "";
   const acceptMutation = trpc.diary.acceptFamilyInvite.useMutation({
-    onSuccess: () => {
+    onSuccess: (result) => {
       toast.success("已加入這本私人家庭成長史。");
-      navigate("/editor");
+      navigate(`/editor?diary=${result.diaryId}`);
     },
     onError: (error) => toast.error(error.message),
   });

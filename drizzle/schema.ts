@@ -219,7 +219,7 @@ export const growthDiaryAuditLogs = mysqlTable(
     id: int("id").autoincrement().primaryKey(),
     diaryId: int("diaryId").notNull().references(() => growthDiaries.id, { onDelete: "cascade" }),
     actorUserId: int("actorUserId").notNull().references(() => users.id, { onDelete: "cascade" }),
-    action: mysqlEnum("action", ["invite_created", "invite_accepted", "member_removed", "comment_created"]).notNull(),
+    action: mysqlEnum("action", ["invite_created", "invite_accepted", "member_role_updated", "member_removed", "comment_created"]).notNull(),
     targetType: varchar("targetType", { length: 32 }).notNull(),
     targetId: int("targetId"),
     metadata: text("metadata"),

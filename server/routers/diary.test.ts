@@ -42,6 +42,7 @@ const diaryDb = vi.hoisted(() => {
     updateDiaryEventMedia: vi.fn(),
     updateDiaryPhaseBoundaries: vi.fn(),
     updateDiarySharing: vi.fn(async () => ({ mode: "public", slug: "story-test-cover", shareToken: null, hasPassword: false, expiresAt: null })),
+    updateDiaryMemberRole: vi.fn(async () => ({ id: 7, role: "editor" })),
     updatePhaseReflection: vi.fn(),
     uploadDiaryEventImage: vi.fn(),
   };
@@ -170,6 +171,22 @@ describe("diary router validation", () => {
     expect(diaryDb.updateDiarySharing).toHaveBeenCalledWith(1, expect.objectContaining({ shareMode: "link", publicCoverTitle: "創作紀事", publicStoryLayout: "editorial" }));
   });
 
+  it("forwards the open family diary id to editor creation, import, and ordering actions", async () => {
+    diaryDb.createDiaryEvent.mockResolvedValue({ id: 8 });
+    diaryDb.importDiaryEvents.mockResolvedValue({ importedCount: 1, eventIds: [8] });
+    diaryDb.reorderDiaryEvents.mockResolvedValue({ eventIds: [8] });
+    const caller = diaryRouter.createCaller(authenticatedContext);
+    const event = { occurredAt: 1_704_067_200_000, datePrecision: "day" as const, eventType: "memory" as const, title: "家庭記事", body: "共同整理的記憶。", color: "#EE623B" as const, tagNames: [] };
+
+    await caller.createEvent({ ...event, diaryId: 42 });
+    await caller.importEvents({ diaryId: 42, events: [event] });
+    await caller.reorderEvents({ diaryId: 42, eventIds: [8] });
+
+    expect(diaryDb.createDiaryEvent).toHaveBeenCalledWith(1, event, 42);
+    expect(diaryDb.importDiaryEvents).toHaveBeenCalledWith(1, [event], 42);
+    expect(diaryDb.reorderDiaryEvents).toHaveBeenCalledWith(1, [8], 42);
+  });
+
   it("keeps a public cover after sharing configuration, upload, and a subsequent diary read", async () => {
     const caller = diaryRouter.createCaller(authenticatedContext);
     await caller.updateSharing({ shareMode: "public", publicCoverTitle: "海岸檔案", publicStoryLayout: "minimal", clearPublicCover: false });
@@ -221,10 +238,12 @@ describe("diary router validation", () => {
     const members = await caller.getFamilyMembers();
     const audit = await caller.getFamilyAudit();
     await caller.removeFamilyMember({ memberId: 7 });
+    await caller.updateFamilyMemberRole({ memberId: 7, role: "editor" });
     expect(members[0]?.email).toBe("family@example.com");
     expect(audit[0]?.action).toBe("invite_created");
     expect(diaryDb.getDiaryMembers).toHaveBeenCalledWith(1);
     expect(diaryDb.getDiaryAuditLogs).toHaveBeenCalledWith(1);
     expect(diaryDb.removeDiaryMember).toHaveBeenCalledWith(1, 7);
+    expect(diaryDb.updateDiaryMemberRole).toHaveBeenCalledWith(1, 7, "editor");
   });
 });
