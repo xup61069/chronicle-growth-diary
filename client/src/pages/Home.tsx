@@ -22,6 +22,8 @@ import {
 import { startLogin } from "@/const";
 import { toast } from "sonner";
 
+export const isMobileMenuDismissKey = (key: string) => key === "Escape";
+
 type TimelineEvent = {
   date: string;
   month: string;
@@ -131,6 +133,10 @@ export default function Home() {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      if (menuOpen) {
+        if (isMobileMenuDismissKey(event.key)) setMenuOpen(false);
+        return;
+      }
       if (event.key === "ArrowLeft") {
         setActiveIndex((current) => Math.max(0, current - 1));
       }
@@ -140,7 +146,7 @@ export default function Home() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [visibleEvents.length]);
+  }, [menuOpen, visibleEvents.length]);
 
   const scrollToTimeline = () => {
     document.querySelector("#timeboard")?.scrollIntoView({ behavior: "smooth" });
@@ -184,25 +190,31 @@ export default function Home() {
           <span>CHRONICLE</span>
         </a>
 
-        <nav className={`desktop-nav ${menuOpen ? "is-open" : ""}`} aria-label="主要導覽">
-          <a href="#how-it-works">如何運作</a>
-          <a href="#stories">故事案例</a>
-          <a href="#plans">方案</a>
+        <nav id="primary-navigation" className={`desktop-nav ${menuOpen ? "is-open" : ""}`} aria-label="主要導覽">
+          <a href="#how-it-works" onClick={() => setMenuOpen(false)}>如何運作</a>
+          <a href="#stories" onClick={() => setMenuOpen(false)}>故事案例</a>
+          <a href="#plans" onClick={() => setMenuOpen(false)}>方案</a>
           <button
             type="button"
             className="nav-login"
-            onClick={startLogin}
+            onClick={() => {
+              setMenuOpen(false);
+              startLogin();
+            }}
           >
             登入
           </button>
-          <a className="nav-cta" href="/editor">
+          <a className="nav-cta" href="/editor" onClick={() => setMenuOpen(false)}>
             開始建立 <ArrowUpRight size={15} />
           </a>
         </nav>
 
         <button
+          type="button"
           className="mobile-menu"
           aria-label={menuOpen ? "關閉選單" : "開啟選單"}
+          aria-controls="primary-navigation"
+          aria-expanded={menuOpen}
           onClick={() => setMenuOpen((open) => !open)}
         >
           {menuOpen ? <X size={21} /> : <Menu size={21} />}

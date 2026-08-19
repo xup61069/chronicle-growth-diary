@@ -140,3 +140,9 @@
 將 DM Serif Display、IBM Plex Mono 與 Noto Sans TC 的 Google Fonts 宣告從 CSS `@import` 移至文件 `<head>`，並新增 `fonts.googleapis.com` 與 `fonts.gstatic.com` 的預連線；既有 `display=swap`、字型家族與權重均維持不變。這避免 CSS import 形成額外的字型樣式表載入相依，且在字型尚未到達時保留可讀 fallback。
 
 新增 `fontLoading.test.ts` 確認預連線、三種設計字型、`display=swap` 與 CSS import 移除。完整 `pnpm check`、44 個測試檔共 120 項 Vitest 與正式建置通過；1280×720 與 375×812 首頁截圖確認展示字、內文與資料微文案均保持可讀。此驗證未觸發登入流程。
+
+## 2026-08-19：行動導覽可及性
+
+首頁行動選單按鈕現提供 `type="button"`、`aria-controls="primary-navigation"` 與即時 `aria-expanded` 狀態；展開選單時按 Escape 會收合，點擊任一導覽連結、登入或「開始建立」也會先收合選單。選單開啟時不會讓左右方向鍵繼續改變下方時間帶焦點。
+
+首頁靜態回歸確認初始收合狀態、控制項關聯與 Escape 判定；新增 `test:e2e:mobile-nav` 以 375×812 Chromium 實際驗證展開、Escape 收合與「故事案例」連結收合。完整 `pnpm check`、44 個測試檔共 121 項 Vitest、正式建置與瀏覽器回歸均通過，且未觸發登入流程。

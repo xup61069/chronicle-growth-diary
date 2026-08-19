@@ -12,6 +12,7 @@
     "test": "vitest run",
     "test:e2e:isolated": "node e2e/isolated-mobile-editor-validation.mjs",
     "test:e2e:login": "node e2e/home-login-redirect.mjs",
+    "test:e2e:mobile-nav": "node e2e/mobile-navigation-accessibility.mjs",
     "db:push": "drizzle-kit generate && drizzle-kit migrate"
   },
   "dependencies": {
