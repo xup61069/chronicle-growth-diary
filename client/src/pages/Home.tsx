@@ -20,9 +20,8 @@ import {
   X,
 } from "lucide-react";
 import { startLogin } from "@/const";
+import { isMobileMenuDismissKey } from "@/lib/homeNavigation";
 import { toast } from "sonner";
-
-export const isMobileMenuDismissKey = (key: string) => key === "Escape";
 
 type TimelineEvent = {
   date: string;

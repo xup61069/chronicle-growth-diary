@@ -1,7 +1,8 @@
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import Home, { isMobileMenuDismissKey } from "./Home";
+import { isMobileMenuDismissKey } from "@/lib/homeNavigation";
+import Home from "./Home";
 
 describe("Home", () => {
   it("defers non-critical story example images without changing their decorative alternative text", () => {
