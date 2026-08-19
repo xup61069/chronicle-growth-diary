@@ -82,6 +82,8 @@ export const growthEvents = mysqlTable(
     mapLatitudeE6: int("mapLatitudeE6"),
     mapLongitudeE6: int("mapLongitudeE6"),
     locationPrivacy: mysqlEnum("locationPrivacy", ["none", "city", "precise"]).notNull().default("none"),
+    soundtrackTitle: varchar("soundtrackTitle", { length: 120 }),
+    soundtrackUrl: varchar("soundtrackUrl", { length: 1024 }),
     isPublic: boolean("isPublic").notNull().default(false),
     timelinePosition: int("timelinePosition").notNull().default(0),
     createdAt: timestamp("createdAt").defaultNow().notNull(),

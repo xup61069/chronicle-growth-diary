@@ -23,6 +23,8 @@ describe("diary editor helpers", () => {
       mapLatitude: "",
       mapLongitude: "",
       locationPrivacy: "none",
+      soundtrackTitle: "",
+      soundtrackUrl: "",
     });
   });
 

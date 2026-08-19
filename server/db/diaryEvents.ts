@@ -32,6 +32,8 @@ type DiaryEventInput = {
   mapLatitudeE6?: number | null;
   mapLongitudeE6?: number | null;
   locationPrivacy?: "none" | "city" | "precise";
+  soundtrackTitle?: string | null;
+  soundtrackUrl?: string | null;
 };
 type WritableDiaryAccess = { diary: { id: number; userId: number } };
 type EventWriteAccess = { id: number; diaryId: number; access: { diary: { id: number; userId: number } } };
@@ -111,6 +113,8 @@ export async function writeEventRevisionSnapshot(db: DbClient, assertEventWriteA
     mapLatitudeE6: event[0].mapLatitudeE6,
     mapLongitudeE6: event[0].mapLongitudeE6,
     locationPrivacy: event[0].locationPrivacy ?? "none",
+    soundtrackTitle: event[0].soundtrackTitle,
+    soundtrackUrl: event[0].soundtrackUrl,
     isPublic: event[0].isPublic,
     timelinePosition: event[0].timelinePosition,
     tagNames: tags.filter((tag) => tag.kind === "general").map((tag) => tag.name),
@@ -162,6 +166,8 @@ export async function restoreDiaryEventRevisionForUser(db: DbClient, assertEvent
     mapLatitudeE6: snapshot.mapLatitudeE6 ?? null,
     mapLongitudeE6: snapshot.mapLongitudeE6 ?? null,
     locationPrivacy: snapshot.locationPrivacy,
+    soundtrackTitle: snapshot.soundtrackTitle?.trim() || null,
+    soundtrackUrl: snapshot.soundtrackUrl?.trim() || null,
     isPublic: snapshot.isPublic,
     timelinePosition: snapshot.timelinePosition,
   }).where(eq(growthEvents.id, eventId));
@@ -192,6 +198,8 @@ export async function createDiaryEventForUser(db: DbClient, getWritableDiary: Ge
     mapLatitudeE6: input.mapLatitudeE6 ?? null,
     mapLongitudeE6: input.mapLongitudeE6 ?? null,
     locationPrivacy: input.locationPrivacy ?? "none",
+    soundtrackTitle: input.soundtrackTitle?.trim() || null,
+    soundtrackUrl: input.soundtrackUrl?.trim() || null,
     timelinePosition: existingEvents.length,
   });
   const created = await db.select().from(growthEvents).where(eq(growthEvents.diaryId, diary.id)).orderBy(desc(growthEvents.id)).limit(1);
@@ -235,6 +243,8 @@ export async function updateDiaryEventForUser(db: DbClient, assertEventWriteAcce
     mapLatitudeE6: input.mapLatitudeE6 ?? null,
     mapLongitudeE6: input.mapLongitudeE6 ?? null,
     locationPrivacy: input.locationPrivacy ?? "none",
+    soundtrackTitle: input.soundtrackTitle?.trim() || null,
+    soundtrackUrl: input.soundtrackUrl?.trim() || null,
   }).where(eq(growthEvents.id, eventId));
   await saveEventTagsForDiaryUser(db, eventId, eventAccess.access.diary.userId, input.tagNames, input.skillNames);
   await writeEventRevisionSnapshot(db, assertEventWriteAccess, userId, eventId, "update");

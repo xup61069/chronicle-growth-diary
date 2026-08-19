@@ -56,6 +56,8 @@ const diaryEventInput = z.object({
   mapLatitudeE6: z.number().int().min(-90_000_000).max(90_000_000).nullable().optional(),
   mapLongitudeE6: z.number().int().min(-180_000_000).max(180_000_000).nullable().optional(),
   locationPrivacy: z.enum(["none", "city", "precise"]).default("none"),
+  soundtrackTitle: z.string().trim().max(120).nullable().optional(),
+  soundtrackUrl: z.string().trim().url("請輸入有效的直接音訊網址。").max(1024).nullable().optional(),
 });
 
 const year = z.number().int().min(1900).max(2200).nullable().optional();

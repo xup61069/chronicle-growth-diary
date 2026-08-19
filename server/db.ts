@@ -68,6 +68,8 @@ export type DiaryEventInput = {
   mapLatitudeE6?: number | null;
   mapLongitudeE6?: number | null;
   locationPrivacy?: "none" | "city" | "precise";
+  soundtrackTitle?: string | null;
+  soundtrackUrl?: string | null;
 };
 
 

@@ -23,6 +23,8 @@ export type EventForm = {
   mapLatitude: string;
   mapLongitude: string;
   locationPrivacy: LocationPrivacy;
+  soundtrackTitle: string;
+  soundtrackUrl: string;
   color: (typeof diaryColors)[number];
   tagNames: string[];
   skillNames: string[];
@@ -49,6 +51,8 @@ export const makeEmptyForm = (): EventForm => ({
   mapLatitude: "",
   mapLongitude: "",
   locationPrivacy: "none",
+  soundtrackTitle: "",
+  soundtrackUrl: "",
   color: "#EE623B",
   tagNames: [],
   skillNames: [],

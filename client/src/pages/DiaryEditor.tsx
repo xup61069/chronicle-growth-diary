@@ -14,6 +14,7 @@ import { createMediaArchive, downloadMediaArchive, readMediaArchive, type Import
 import { createPortableDiaryExport, downloadPortableDiary } from "@/lib/diaryPortable";
 import { parseChronicleImport, type ChronicleImportPreview } from "@/lib/diaryImport";
 import { appendWritingGuide, getLocalWritingGuides } from "@/lib/writingGuide";
+import { getComparisonPair } from "@/lib/beforeAfter";
 import { parseSocialDraftCsv, parseSocialDraftJson, type SocialDraftCandidate } from "@/lib/socialDraftImport";
 import { buildTrackRows, filterEventsBySkill, getTimelineInsights, getTimelineSkills, isTimeCapsuleLocked, milestoneLabels } from "@/lib/multitrackTimeline";
 import { buildPlaceFootprints, buildSpatialFootprints, getBentoSpan, timelineViewOptions, type TimelineViewMode } from "@/lib/timelineViews";
@@ -47,6 +48,7 @@ import {
   Loader2,
   LockKeyhole,
   MapPin,
+  Music,
   PencilLine,
   Plus,
   RefreshCw,
@@ -101,6 +103,7 @@ function DiaryEditorContent() {
   const [phaseFilter, setPhaseFilter] = useState("all");
   const [skillFilter, setSkillFilter] = useState<string | null>(null);
   const [timelineViewMode, setTimelineViewMode] = useState<TimelineViewMode>("timeline");
+  const [comparisonPosition, setComparisonPosition] = useState(50);
   const [searchQuery, setSearchQuery] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -244,6 +247,7 @@ function DiaryEditorContent() {
   const placeFootprints = useMemo(() => buildPlaceFootprints(visibleEvents), [visibleEvents]);
   const spatialFootprints = useMemo(() => buildSpatialFootprints(visibleEvents), [visibleEvents]);
   const selectedEvent = events.find((event) => event.id === (selectedId ?? editingId)) ?? visibleEvents[0] ?? events[0];
+  const comparisonPair = useMemo(() => getComparisonPair(events, selectedEvent), [events, selectedEvent]);
   const revisionsQuery = trpc.diary.getEventRevisions.useQuery(
     { eventId: selectedEvent?.id ?? 0 },
     { enabled: Boolean(selectedEvent && showRevisions), staleTime: 0 },
@@ -402,6 +406,8 @@ function DiaryEditorContent() {
       milestoneWeight: event.milestoneWeight,
       comparisonGroup: event.comparisonGroup ?? "",
       unlocksAt: event.unlocksAt ? formatInputDate(event.unlocksAt) : "",
+      soundtrackTitle: event.soundtrackTitle ?? "",
+      soundtrackUrl: event.soundtrackUrl ?? "",
     });
   };
 
@@ -457,6 +463,8 @@ function DiaryEditorContent() {
       unlocksAt: form.unlocksAt ? new Date(`${form.unlocksAt}T00:00:00`).getTime() : null,
       mapLatitudeE6,
       mapLongitudeE6,
+      soundtrackTitle: form.soundtrackTitle.trim() || null,
+      soundtrackUrl: form.soundtrackUrl.trim() || null,
     };
 
     try {
@@ -1117,6 +1125,12 @@ function DiaryEditorContent() {
               </div>
             </div>
 
+            <section className="form-field soundtrack-field" aria-labelledby="soundtrack-field-title">
+              <span id="soundtrack-field-title"><Music size={14} /> 章節 BGM（選填）</span>
+              <div className="soundtrack-inputs"><input value={form.soundtrackTitle} onChange={(event) => setForm({ ...form, soundtrackTitle: event.target.value })} placeholder="曲名或這段時期的主題" maxLength={120} /><input type="url" value={form.soundtrackUrl} onChange={(event) => setForm({ ...form, soundtrackUrl: event.target.value })} placeholder="直接音訊網址（https://… .mp3）" maxLength={1024} /></div>
+              <small>只支援可由瀏覽器直接播放的音訊網址；閱讀者必須自行按下播放，系統不會因切換事件或滑動頁面而自動播放。</small>
+            </section>
+
             <div className="form-field tags-field">
               <span><Tag size={14} /> 標籤</span>
               <div className="tag-input-row">
@@ -1240,6 +1254,8 @@ function DiaryEditorContent() {
                 <h3>{selectedEvent.title}</h3>
                 <p className="preview-body">{selectedEvent.body || "這段記憶還在等待你寫下細節。"}</p>
                 {selectedEvent.place ? <p className="preview-place"><MapPin size={13} /> {selectedEvent.place}</p> : null}
+                {comparisonPair ? <section className="before-after-comparison" aria-labelledby="comparison-title"><header><span id="comparison-title">BEFORE / AFTER · {comparisonPair.group}</span><small>左右拖曳比較</small></header><div className="comparison-frame"><img src={comparisonPair.before.media[0]!.url} alt={`${comparisonPair.before.title}：Before`} /><img className="comparison-after" style={{ clipPath: `inset(0 ${100 - comparisonPosition}% 0 0)` }} src={comparisonPair.after.media[0]!.url} alt={`${comparisonPair.after.title}：After`} /><i style={{ left: `${comparisonPosition}%` }} aria-hidden="true" /></div><input aria-label={`調整 ${comparisonPair.group} Before 與 After 的比較位置`} type="range" min="0" max="100" value={comparisonPosition} onChange={(event) => setComparisonPosition(Number(event.target.value))} /><footer><span>{new Date(comparisonPair.before.occurredAt).getFullYear()} · {comparisonPair.before.title}</span><span>{new Date(comparisonPair.after.occurredAt).getFullYear()} · {comparisonPair.after.title}</span></footer></section> : null}
+                {selectedEvent.soundtrackUrl ? <section className="event-soundtrack" aria-label="章節背景音樂，需手動播放"><header><span><Music size={13} /> {selectedEvent.soundtrackTitle || "這段時期的主題曲"}</span><small>手動播放</small></header><audio controls preload="metadata" src={selectedEvent.soundtrackUrl}>你的瀏覽器不支援音訊播放。</audio></section> : null}
                 <div className="preview-tags">{selectedEvent.tags.map((tag) => <span key={tag.id}>{tag.name}</span>)}</div>
                 <div className="event-visibility-control"><span>{selectedEvent.isPublic ? <Globe2 size={13} /> : <LockKeyhole size={13} />}{selectedEvent.isPublic ? "允許分享" : "私人事件"}</span>{canEdit ? <button onClick={toggleSelectedEventVisibility} disabled={visibilityMutation.isPending}>{selectedEvent.isPublic ? "改為私人" : "允許分享"}</button> : null}</div>
                 {selectedEvent.media.length ? <section className="media-editor" aria-label={canEdit ? "事件圖片編輯" : "事件圖片"}><header><span><GripVertical size={13} /> {canEdit ? "圖片排序與說明" : "事件圖片"}</span><b>{selectedEvent.media.length.toString().padStart(2, "0")} 張</b></header>{selectedEvent.media.map((media) => <article key={media.id} draggable={canEdit && selectedEvent.media.length > 1} onDragStart={() => canEdit && setDraggedMediaId(media.id)} onDragOver={(event) => canEdit && event.preventDefault()} onDrop={() => canEdit && dropImageAt(media.id)} onDragEnd={() => setDraggedMediaId(null)}><img src={media.url} alt={media.caption ?? selectedEvent.title} /><div>{canEdit ? <><input value={mediaCaptionDrafts[media.id] ?? media.caption ?? ""} onChange={(event) => setMediaCaptionDrafts((current) => ({ ...current, [media.id]: event.target.value }))} placeholder="為這張圖片寫下說明" maxLength={240} /><div><button type="button" onClick={() => saveImageCaption(media.id)} disabled={updateImageMutation.isPending}><Save size={12} /> 儲存說明</button><button type="button" onClick={() => removeImage(media.id)}><Trash2 size={12} /> 移除</button></div></> : <p className="media-caption-readonly">{media.caption ?? "未提供圖片說明"}</p>}</div></article>)}</section> : null}
