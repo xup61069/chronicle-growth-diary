@@ -18,6 +18,7 @@ import { trpc } from "@/lib/trpc";
 import { canEditFamilyDiary, canManageFamilyDiarySettings, describeFamilyAuditAction, type FamilyDiaryAccessRole } from "@/lib/familyCollaboration";
 import "@/styles/family-collaboration.css";
 import "@/styles/diary-profile.css";
+import "@/styles/annual-review.css";
 import {
   Archive,
   ArrowDownUp,
