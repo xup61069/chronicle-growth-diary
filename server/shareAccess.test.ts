@@ -1,9 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { hasShareAccess, hashSharePassword, hashShareToken, isShareExpired, onlyPublicEvents, verifySharePassword } from "./shareAccess";
+import { hasShareAccess, hashSharePassword, hashShareToken, isShareExpired, makeShareSlug, makeShareToken, onlyPublicEvents, verifySharePassword } from "./shareAccess";
 
 describe("growth diary share access", () => {
   const token = "correct-private-share-token";
   const storedTokenHash = hashShareToken(token);
+
+  it("creates non-guessable story identifiers and link tokens", () => {
+    expect(makeShareSlug(42)).toMatch(/^story-42-[a-f0-9]{10}$/);
+    expect(makeShareToken()).toMatch(/^[A-Za-z0-9_-]{32}$/);
+    expect(makeShareToken()).not.toBe(makeShareToken());
+  });
 
   it("keeps private diaries inaccessible through every share request", () => {
     expect(hasShareAccess({ mode: "private", storedTokenHash, providedToken: token })).toBe(false);

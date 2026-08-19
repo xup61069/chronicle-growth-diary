@@ -19,7 +19,7 @@ import {
 import { normalizeTagNames, safeMediaName } from "./diaryHelpers";
 import { deriveLifePhases, getInvalidLifePhaseBoundary } from "./lifePhases";
 import { parseDiaryEventRevisionSnapshot } from "./db/revisions";
-import { hasShareAccess, hashSharePassword, hashShareToken, isShareExpired, verifySharePassword } from "./shareAccess";
+import { hasShareAccess, hashSharePassword, hashShareToken, isShareExpired, makeShareSlug, makeShareToken, verifySharePassword } from "./shareAccess";
 import { invokeLLM } from "./_core/llm";
 import { storagePut } from "./storage";
 
@@ -80,14 +80,6 @@ async function requireDb() {
   const db = await getDb();
   if (!db) throw new Error("資料庫暫時無法連線，請稍後再試。");
   return db;
-}
-
-function makeShareSlug(diaryId: number) {
-  return `story-${diaryId}-${randomBytes(5).toString("hex")}`;
-}
-
-function makeShareToken() {
-  return randomBytes(24).toString("base64url");
 }
 
 export { createLocalUser, deleteAccount, getUserByEmail, getUserByOpenId, upsertUser } from "./db/account";

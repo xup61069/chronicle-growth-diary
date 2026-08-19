@@ -2,6 +2,14 @@ import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypt
 
 export type ShareMode = "private" | "public" | "link";
 
+export function makeShareSlug(diaryId: number) {
+  return `story-${diaryId}-${randomBytes(5).toString("hex")}`;
+}
+
+export function makeShareToken() {
+  return randomBytes(24).toString("base64url");
+}
+
 export function hashShareToken(token: string) {
   return createHash("sha256").update(token).digest("hex");
 }
