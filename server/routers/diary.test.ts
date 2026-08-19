@@ -21,6 +21,8 @@ const diaryDb = vi.hoisted(() => {
     getDiarySnapshot,
     createEventComment: vi.fn(async () => ({ id: 11, eventId: 8, body: "我也記得這一天。" })),
     getDiaryEventRevisions: vi.fn(async () => [{ id: 31, eventId: 8, version: 2, changeType: "update", snapshot: { title: "第二版" }, createdAt: new Date("2026-01-02") }]),
+    getDiaryAuditLogs: vi.fn(async () => [{ id: 1, action: "invite_created", actorName: "Test User", createdAt: new Date() }]),
+    getDiaryMembers: vi.fn(async () => [{ id: 7, userId: 2, role: "commenter", name: "Family", email: "family@example.com", createdAt: new Date() }]),
     getEventComments: vi.fn(async () => [{ id: 11, body: "我也記得這一天。", authorName: "Test User", createdAt: new Date() }]),
     uploadDiaryCoverImage,
     createDiaryEvent: vi.fn(),
@@ -32,6 +34,7 @@ const diaryDb = vi.hoisted(() => {
     getSharedDiary: vi.fn(),
     reorderDiaryEventMedia: vi.fn(),
     reorderDiaryEvents: vi.fn(),
+    removeDiaryMember: vi.fn(async () => ({ id: 7 })),
     restoreDiaryEventRevision: vi.fn(async () => ({ eventId: 8, restoredVersion: 3 })),
     setDiaryEventVisibility: vi.fn(),
     updateDiaryAiPreference: vi.fn(),
@@ -211,5 +214,17 @@ describe("diary router validation", () => {
     await expect(caller.createEventComment({ eventId: 8, body: "  " })).rejects.toThrow();
     expect(diaryDb.createDiaryInvite).not.toHaveBeenCalled();
     expect(diaryDb.createEventComment).not.toHaveBeenCalled();
+  });
+
+  it("reads and removes family members through account-scoped helpers", async () => {
+    const caller = diaryRouter.createCaller(authenticatedContext);
+    const members = await caller.getFamilyMembers();
+    const audit = await caller.getFamilyAudit();
+    await caller.removeFamilyMember({ memberId: 7 });
+    expect(members[0]?.email).toBe("family@example.com");
+    expect(audit[0]?.action).toBe("invite_created");
+    expect(diaryDb.getDiaryMembers).toHaveBeenCalledWith(1);
+    expect(diaryDb.getDiaryAuditLogs).toHaveBeenCalledWith(1);
+    expect(diaryDb.removeDiaryMember).toHaveBeenCalledWith(1, 7);
   });
 });

@@ -150,6 +150,15 @@ function DiaryEditorContent() {
     },
     onError: (error) => toast.error(error.message),
   });
+  const familyMembersQuery = trpc.diary.getFamilyMembers.useQuery();
+  const familyAuditQuery = trpc.diary.getFamilyAudit.useQuery();
+  const removeFamilyMemberMutation = trpc.diary.removeFamilyMember.useMutation({
+    onSuccess: async () => {
+      await Promise.all([utils.diary.getFamilyMembers.invalidate(), utils.diary.getFamilyAudit.invalidate()]);
+      toast.success("已移除家庭成員的日記存取權限。");
+    },
+    onError: (error) => toast.error(error.message),
+  });
 
   type DiaryEvent = NonNullable<typeof data>["events"][number];
   const events: DiaryEvent[] = data?.events ?? [];
@@ -679,6 +688,8 @@ function DiaryEditorContent() {
             <div className="family-collaboration-control">
               <p><ShieldCheck size={14} /> 家庭共寫邀請</p><small>邀請只授予此私人日記的共同編輯或註解權限；連結僅能使用一次，且預設 7 天後失效。</small>
               <div><input type="email" value={familyInviteEmail} onChange={(event) => setFamilyInviteEmail(event.target.value)} placeholder="家人的電子郵件" maxLength={320} /><select value={familyInviteRole} onChange={(event) => setFamilyInviteRole(event.target.value as "editor" | "commenter")}><option value="commenter">可註解</option><option value="editor">可共同編輯</option></select><button type="button" onClick={() => familyInviteMutation.mutate({ email: familyInviteEmail, role: familyInviteRole, expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000 })} disabled={!familyInviteEmail || familyInviteMutation.isPending}>{familyInviteMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Share2 size={14} />} 建立邀請</button></div>
+              {familyMembersQuery.data?.length ? <div className="family-member-list">{familyMembersQuery.data.map((member) => <article key={member.id}><span><b>{member.name ?? member.email ?? "受邀成員"}</b><small>{member.role === "editor" ? "共同編輯" : "可註解"}</small></span><button type="button" onClick={() => removeFamilyMemberMutation.mutate({ memberId: member.id })} disabled={removeFamilyMemberMutation.isPending}>移除</button></article>)}</div> : <p className="family-empty">尚未有已接受邀請的家庭成員。</p>}
+              {familyAuditQuery.data?.length ? <details className="family-audit"><summary>查看最近協作紀錄</summary><div>{familyAuditQuery.data.slice(0, 6).map((log) => <p key={log.id}><b>{log.actorName ?? "成員"}</b> · {log.action === "invite_created" ? "建立邀請" : log.action === "invite_accepted" ? "接受邀請" : log.action === "member_removed" ? "移除成員" : "發表註解"} · {new Date(log.createdAt).toLocaleString("zh-TW")}</p>)}</div></details> : null}
             </div>
             <div className="phase-anchor-fields"><p>人生階段的時間錨點（選填）</p><label>出生年<input type="number" min="1900" max="2200" value={birthYear} onChange={(event) => setBirthYear(event.target.value)} placeholder="例如：1994" /></label><label>開始求學<input type="number" min="1900" max="2200" value={educationStartYear} onChange={(event) => setEducationStartYear(event.target.value)} placeholder="例如：2000" /></label><label>開始職涯<input type="number" min="1900" max="2200" value={careerStartYear} onChange={(event) => setCareerStartYear(event.target.value)} placeholder="例如：2016" /></label></div>
           {shareMode !== "private" ? <div className="sharing-security-fields">

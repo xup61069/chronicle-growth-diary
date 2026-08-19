@@ -654,3 +654,29 @@ export async function getEventComments(userId: number, eventId: number) {
     .from(growthEventComments).innerJoin(users, eq(growthEventComments.authorUserId, users.id))
     .where(eq(growthEventComments.eventId, eventId)).orderBy(asc(growthEventComments.createdAt));
 }
+
+export async function getDiaryMembers(userId: number) {
+  const db = await requireDb();
+  const diary = await getOwnedDiary(userId);
+  return db.select({ id: growthDiaryMembers.id, userId: growthDiaryMembers.userId, role: growthDiaryMembers.role, createdAt: growthDiaryMembers.createdAt, name: users.name, email: users.email })
+    .from(growthDiaryMembers).innerJoin(users, eq(growthDiaryMembers.userId, users.id))
+    .where(eq(growthDiaryMembers.diaryId, diary.id)).orderBy(asc(growthDiaryMembers.createdAt));
+}
+
+export async function removeDiaryMember(userId: number, memberId: number) {
+  const db = await requireDb();
+  const diary = await getOwnedDiary(userId);
+  const member = await db.select().from(growthDiaryMembers).where(and(eq(growthDiaryMembers.id, memberId), eq(growthDiaryMembers.diaryId, diary.id))).limit(1);
+  if (!member[0]) throw new Error("找不到這位家庭成員。");
+  await db.delete(growthDiaryMembers).where(eq(growthDiaryMembers.id, memberId));
+  await writeDiaryAudit(diary.id, userId, "member_removed", "member", memberId, { removedUserId: member[0].userId });
+  return { id: memberId };
+}
+
+export async function getDiaryAuditLogs(userId: number) {
+  const db = await requireDb();
+  const diary = await getOwnedDiary(userId);
+  return db.select({ id: growthDiaryAuditLogs.id, action: growthDiaryAuditLogs.action, targetType: growthDiaryAuditLogs.targetType, targetId: growthDiaryAuditLogs.targetId, metadata: growthDiaryAuditLogs.metadata, createdAt: growthDiaryAuditLogs.createdAt, actorName: users.name })
+    .from(growthDiaryAuditLogs).innerJoin(users, eq(growthDiaryAuditLogs.actorUserId, users.id))
+    .where(eq(growthDiaryAuditLogs.diaryId, diary.id)).orderBy(desc(growthDiaryAuditLogs.createdAt)).limit(50);
+}
