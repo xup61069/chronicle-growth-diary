@@ -8,6 +8,7 @@ import { DiaryLoadState } from "@/components/DiaryLoadState";
 import { annualReviewTemplates, buildAnnualReview, type AnnualReviewTemplate } from "@/lib/annualReview";
 import { consumeTagInputEnter, diaryColors, eventTypes, formatDate, formatInputDate, makeEmptyForm, readImage, toTimestamp, type DatePrecision, type EventForm, type EventType, type PendingImage } from "@/lib/diaryEditor";
 import { filterDiaryEvents, type DiarySortOrder } from "@/lib/diaryFilters";
+import { getDiaryLoadStatus } from "@/lib/diaryLoadState";
 import { exportDiaryAsLongImage, exportDiaryAsPdf } from "@/lib/diaryExport";
 import { createMediaArchive, downloadMediaArchive, readMediaArchive, type ImportedMediaArchive } from "@/lib/diaryMediaArchive";
 import { createPortableDiaryExport, downloadPortableDiary } from "@/lib/diaryPortable";
@@ -737,9 +738,11 @@ function DiaryEditorContent() {
     }
   };
 
-  if (isLoading && !loadTimedOut) return <DiaryLoadState status="loading" />;
+  const loadStatus = getDiaryLoadStatus({ isLoading, hasError: Boolean(error), timedOut: loadTimedOut });
 
-  if (error || loadTimedOut) {
+  if (loadStatus === "loading") return <DiaryLoadState status="loading" />;
+
+  if (loadStatus === "error") {
     return <DiaryLoadState status="error" timedOut={loadTimedOut} onRetry={() => { setLoadTimedOut(false); void refetch(); }} />;
   }
 

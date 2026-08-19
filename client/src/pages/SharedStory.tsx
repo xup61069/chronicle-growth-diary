@@ -1,7 +1,7 @@
 /** Design reminder — a generous public reading surface that reveals only explicitly shared memories. */
 import { trpc } from "@/lib/trpc";
 import { Archive, CalendarDays, LockKeyhole, MapPin, Share2 } from "lucide-react";
-import { FormEvent, useState } from "react";
+import React, { FormEvent, useState } from "react";
 import { useRoute } from "wouter";
 
 function formatDate(timestamp: number, precision: "day" | "month" | "year") {
