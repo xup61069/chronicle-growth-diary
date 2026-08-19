@@ -14,7 +14,7 @@ import { parseChronicleImport, type ChronicleImportPreview } from "@/lib/diaryIm
 import { appendWritingGuide, getLocalWritingGuides } from "@/lib/writingGuide";
 import { parseSocialDraftCsv, parseSocialDraftJson, type SocialDraftCandidate } from "@/lib/socialDraftImport";
 import { trpc } from "@/lib/trpc";
-import { canEditFamilyDiary, describeFamilyAuditAction, type FamilyDiaryAccessRole } from "@/lib/familyCollaboration";
+import { canEditFamilyDiary, canManageFamilyDiarySettings, describeFamilyAuditAction, type FamilyDiaryAccessRole } from "@/lib/familyCollaboration";
 import {
   Archive,
   ArrowDownUp,
@@ -73,7 +73,7 @@ function DiaryEditorContent() {
   const { data, isLoading, error, refetch } = trpc.diary.get.useQuery(diaryQueryInput, { retry: 1, staleTime: 0, refetchOnMount: "always" });
   const accessRole = (data?.accessRole ?? "owner") as FamilyDiaryAccessRole;
   const canEdit = canEditFamilyDiary(accessRole);
-  const isOwner = accessRole === "owner";
+  const isOwner = canManageFamilyDiarySettings(accessRole);
   const [loadTimedOut, setLoadTimedOut] = useState(false);
   const [form, setForm] = useState<EventForm>(makeEmptyForm);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -667,21 +667,21 @@ function DiaryEditorContent() {
               <span>{phase.yearRange ?? "時間待補"}</span><h3>{phase.label}</h3><p>{phase.note}</p><b>{phase.count.toString().padStart(2, "0")} <small>篇記憶</small></b>
               <div className="phase-boundary-editor">
                 <p><GripVertical size={13} /> 拖曳調整時間邊界</p>
-                <label>起於 <strong>{boundaries.start || phase.startYear || "未設定"}</strong><input aria-label={`${phase.label}開始年份`} type="range" min={timelineYearRange.min} max={Math.max(timelineYearRange.min, endYear)} value={boundaries.start || phase.startYear || timelineYearRange.min} onChange={(event) => setPhaseBoundaries((current) => ({ ...current, [phaseKey]: { ...current[phaseKey], start: event.target.value } }))} /></label>
-                <label>止於 <strong>{boundaries.end || phase.endYear || "未設定"}</strong><input aria-label={`${phase.label}結束年份`} type="range" min={Math.min(timelineYearRange.max, startYear)} max={timelineYearRange.max} value={boundaries.end || phase.endYear || timelineYearRange.max} onChange={(event) => setPhaseBoundaries((current) => ({ ...current, [phaseKey]: { ...current[phaseKey], end: event.target.value } }))} /></label>
+                <label>起於 <strong>{boundaries.start || phase.startYear || "未設定"}</strong><input aria-label={`${phase.label}開始年份`} type="range" min={timelineYearRange.min} max={Math.max(timelineYearRange.min, endYear)} value={boundaries.start || phase.startYear || timelineYearRange.min} onChange={(event) => setPhaseBoundaries((current) => ({ ...current, [phaseKey]: { ...current[phaseKey], start: event.target.value } }))} disabled={!isOwner} /></label>
+                <label>止於 <strong>{boundaries.end || phase.endYear || "未設定"}</strong><input aria-label={`${phase.label}結束年份`} type="range" min={Math.min(timelineYearRange.max, startYear)} max={timelineYearRange.max} value={boundaries.end || phase.endYear || timelineYearRange.max} onChange={(event) => setPhaseBoundaries((current) => ({ ...current, [phaseKey]: { ...current[phaseKey], end: event.target.value } }))} disabled={!isOwner} /></label>
               </div>
               <div className="phase-reflection">
                 {reflection ? <>
                   <p><BrainCircuit size={14} /> {reflection.model === "manual-edit" ? "已保留的手動回顧" : "AI 成長回顧"}</p>
-                  {editingReflectionKey === phaseKey ? <div className="reflection-editor"><label>成長回顧<textarea value={reflectionDraft.recap} onChange={(event) => setReflectionDraft((draft) => ({ ...draft, recap: event.target.value }))} rows={4} maxLength={3000} /></label><label>我的反思<textarea value={reflectionDraft.reflection} onChange={(event) => setReflectionDraft((draft) => ({ ...draft, reflection: event.target.value }))} rows={3} maxLength={3000} /></label><div><button type="button" onClick={() => saveReflectionEdit(phaseKey)} disabled={reflectionSaveMutation.isPending}>{reflectionSaveMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} 保存我的調整</button><button type="button" className="reflection-cancel" onClick={() => setEditingReflectionKey(null)}>取消</button></div></div> : <><strong>{reflection.recap}</strong><em>{reflection.reflection}</em></>}
+                  {isOwner && editingReflectionKey === phaseKey ? <div className="reflection-editor"><label>成長回顧<textarea value={reflectionDraft.recap} onChange={(event) => setReflectionDraft((draft) => ({ ...draft, recap: event.target.value }))} rows={4} maxLength={3000} /></label><label>我的反思<textarea value={reflectionDraft.reflection} onChange={(event) => setReflectionDraft((draft) => ({ ...draft, reflection: event.target.value }))} rows={3} maxLength={3000} /></label><div><button type="button" onClick={() => saveReflectionEdit(phaseKey)} disabled={reflectionSaveMutation.isPending}>{reflectionSaveMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} 保存我的調整</button><button type="button" className="reflection-cancel" onClick={() => setEditingReflectionKey(null)}>取消</button></div></div> : <><strong>{reflection.recap}</strong><em>{reflection.reflection}</em></>}
                 </> : <p><BrainCircuit size={14} /> 尚未生成這個階段的成長回顧。</p>}
-                <div className="reflection-actions">{data?.diary.aiEnabled ? <button type="button" onClick={() => generateReflection(phaseKey)} disabled={reflectionMutation.isPending}>{reflectionMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <WandSparkles size={14} />}{reflection ? "重新生成回顧" : "生成成長回顧"}</button> : <span className="ai-disabled-note"><LockKeyhole size={13} /> AI 已關閉</span>}{reflection && editingReflectionKey !== phaseKey ? <button type="button" className="reflection-edit" onClick={() => beginReflectionEdit(phaseKey)}><FilePenLine size={14} /> 手動調整</button> : null}{reflection ? <button type="button" className="reflection-delete" onClick={() => removePhaseReflection(phaseKey)} disabled={deleteReflectionMutation.isPending}><Trash2 size={14} /> 刪除回顧</button> : null}</div>
+                <div className="reflection-actions">{isOwner && data?.diary.aiEnabled ? <button type="button" onClick={() => generateReflection(phaseKey)} disabled={reflectionMutation.isPending}>{reflectionMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <WandSparkles size={14} />}{reflection ? "重新生成回顧" : "生成成長回顧"}</button> : !data?.diary.aiEnabled ? <span className="ai-disabled-note"><LockKeyhole size={13} /> AI 已關閉</span> : null}{isOwner && reflection && editingReflectionKey !== phaseKey ? <button type="button" className="reflection-edit" onClick={() => beginReflectionEdit(phaseKey)}><FilePenLine size={14} /> 手動調整</button> : null}{isOwner && reflection ? <button type="button" className="reflection-delete" onClick={() => removePhaseReflection(phaseKey)} disabled={deleteReflectionMutation.isPending}><Trash2 size={14} /> 刪除回顧</button> : null}</div>
               </div>
             </article>;
           }) : <div className="phase-empty"><BookOpenCheck size={21} /><p>當你寫下更多記憶，童年、求學與職涯會在這裡逐步浮現。</p></div>}
         </div>
-        <div className="ai-privacy-control"><div><p><BrainCircuit size={15} /> AI 回顧資料控制</p><span>{data?.diary.aiEnabled ? "啟用時，生成只會使用你選定階段的事件；你可隨時關閉或刪除已保存文字。" : "AI 已關閉。系統不會針對任何事件發出新的 AI 生成請求。"}</span></div><button type="button" onClick={() => updateAiPreference(!data?.diary.aiEnabled)} disabled={aiPreferenceMutation.isPending}>{aiPreferenceMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : data?.diary.aiEnabled ? <LockKeyhole size={14} /> : <WandSparkles size={14} />}{data?.diary.aiEnabled ? "關閉 AI 回顧" : "啟用 AI 回顧"}</button></div>
-        {data?.lifePhases.length ? <div className="phase-boundary-actions"><span>拖曳完成後，儲存就會重新分配事件所屬的階段。</span><button type="button" onClick={savePhaseBoundaries} disabled={phaseBoundariesMutation.isPending}>{phaseBoundariesMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <GripVertical size={14} />} 儲存階段邊界</button></div> : null}
+        <div className="ai-privacy-control"><div><p><BrainCircuit size={15} /> AI 回顧資料控制</p><span>{data?.diary.aiEnabled ? "啟用時，生成只會使用你選定階段的事件；你可隨時關閉或刪除已保存文字。" : "AI 已關閉。系統不會針對任何事件發出新的 AI 生成請求。"}</span></div>{isOwner ? <button type="button" onClick={() => updateAiPreference(!data?.diary.aiEnabled)} disabled={aiPreferenceMutation.isPending}>{aiPreferenceMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : data?.diary.aiEnabled ? <LockKeyhole size={14} /> : <WandSparkles size={14} />}{data?.diary.aiEnabled ? "關閉 AI 回顧" : "啟用 AI 回顧"}</button> : null}</div>
+        {isOwner && data?.lifePhases.length ? <div className="phase-boundary-actions"><span>拖曳完成後，儲存就會重新分配事件所屬的階段。</span><button type="button" onClick={savePhaseBoundaries} disabled={phaseBoundariesMutation.isPending}>{phaseBoundariesMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <GripVertical size={14} />} 儲存階段邊界</button></div> : null}
         <div className="export-event-records">
           {events.map((event) => <article key={event.id}><span style={{ backgroundColor: event.color }} /><div className="export-record-content">{event.media[0] ? <img src={event.media[0].url} alt={event.media[0].caption ?? event.title} /> : null}<div className="export-record-copy"><b>{formatDate(event.occurredAt, event.datePrecision)} · {event.ageLabel ?? "成長記事"}</b><h3>{event.title}</h3><p>{event.body}</p>{event.place ? <small><MapPin size={12} /> {event.place}</small> : null}<div>{event.tags.map((tag) => <em key={tag.id}>{tag.name}</em>)}</div></div></div></article>)}
         </div>
@@ -770,7 +770,7 @@ function DiaryEditorContent() {
       <div className="editor-workspace">
         <aside id="mobile-workspace-index" role="tabpanel" className={`event-index mobile-workspace-panel ${mobileWorkspacePanel === "index" ? "is-active" : ""}`} aria-label="已整理的成長事件">
           <div className="panel-title"><span>事件索引</span><b>{eventCountLabel}</b></div>
-          <button className="new-event-button" onClick={startNewEvent}><Plus size={16} /> 新增一段記憶</button>
+          {canEdit ? <button className="new-event-button" onClick={startNewEvent}><Plus size={16} /> 新增一段記憶</button> : <p className="commenter-index-note"><LockKeyhole size={13} /> 註解者可選取事件閱讀，並在預覽欄留下補充。</p>}
           <div className="index-filters">
             <label className="index-search"><Search size={13} /><input aria-label="搜尋日記全文" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="搜尋標題、內容、地點或標籤" /></label>
             <label className="index-date-filter"><CalendarRange size={13} /><input aria-label="篩選開始日期" type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} /><span>至</span><input aria-label="篩選結束日期" type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} /></label>
@@ -793,9 +793,9 @@ function DiaryEditorContent() {
               <button
                 key={event.id}
                 type="button"
-                draggable={filterType === "all" && filterTag === "all" && !searchQuery && !dateFrom && !dateTo && sortOrder === "custom"}
+                draggable={canEdit && filterType === "all" && filterTag === "all" && !searchQuery && !dateFrom && !dateTo && sortOrder === "custom"}
                 className={`event-index-card ${selectedEvent?.id === event.id ? "is-selected" : ""}`}
-                onClick={() => editEvent(event)}
+                onClick={() => canEdit ? editEvent(event) : setSelectedId(event.id)}
                 onDragStart={(dragEvent) => { dragEvent.dataTransfer.effectAllowed = "move"; setDraggedEventId(event.id); }}
                 onDragOver={(dragEvent) => dragEvent.preventDefault()}
                 onDrop={() => dropEventAt(event.id)}
@@ -814,10 +814,11 @@ function DiaryEditorContent() {
         <section id="mobile-workspace-compose" role="tabpanel" className={`editor-form-panel mobile-workspace-panel ${mobileWorkspacePanel === "compose" ? "is-active" : ""}`} aria-labelledby="composer-title">
           <div className="form-heading">
             <div><p className="editor-kicker"><span /> {editingId ? "編輯中" : "新的篇章"}</p><h2 id="composer-title">{editingId ? "調整這段記憶" : "記下一個發生過的瞬間"}</h2></div>
-            {editingId ? <button className="quiet-action" onClick={startNewEvent}>放棄編輯</button> : null}
+            {canEdit && editingId ? <button className="quiet-action" onClick={startNewEvent}>放棄編輯</button> : null}
           </div>
 
           <form onSubmit={handleSubmit} className="event-form">
+            {canEdit ? <>
             <label className="form-field form-title">
               <span>這段記憶的標題</span>
               <input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} placeholder="例如：第一次站上舞台" maxLength={180} />
@@ -896,6 +897,7 @@ function DiaryEditorContent() {
             </div>
 
             <div className="form-actions"><span>{editingId ? "修改將立即更新你的私人時間帶。" : "儲存後，這段記憶會出現在左側索引與時間預覽。"}</span><button type="submit" disabled={isSaving}>{isSaving ? <Loader2 size={16} className="animate-spin" /> : <PencilLine size={16} />}{editingId ? "儲存變更" : "存入時間帶"}</button></div>
+            </> : <div className="commenter-form-note"><LockKeyhole size={17} /><div><b>此成長史目前為唯讀</b><p>你可以在右側事件預覽閱讀內容，並透過家庭註解留下補充或提問。</p></div></div>}
           </form>
         </section>
 
@@ -911,18 +913,18 @@ function DiaryEditorContent() {
                 <p className="preview-body">{selectedEvent.body || "這段記憶還在等待你寫下細節。"}</p>
                 {selectedEvent.place ? <p className="preview-place"><MapPin size={13} /> {selectedEvent.place}</p> : null}
                 <div className="preview-tags">{selectedEvent.tags.map((tag) => <span key={tag.id}>{tag.name}</span>)}</div>
-                <div className="event-visibility-control"><span>{selectedEvent.isPublic ? <Globe2 size={13} /> : <LockKeyhole size={13} />}{selectedEvent.isPublic ? "允許分享" : "私人事件"}</span><button onClick={toggleSelectedEventVisibility} disabled={visibilityMutation.isPending}>{selectedEvent.isPublic ? "改為私人" : "允許分享"}</button></div>
-                {selectedEvent.media.length ? <section className="media-editor" aria-label="事件圖片編輯"><header><span><GripVertical size={13} /> 圖片排序與說明</span><b>{selectedEvent.media.length.toString().padStart(2, "0")} 張</b></header>{selectedEvent.media.map((media) => <article key={media.id} draggable={selectedEvent.media.length > 1} onDragStart={() => setDraggedMediaId(media.id)} onDragOver={(event) => event.preventDefault()} onDrop={() => dropImageAt(media.id)} onDragEnd={() => setDraggedMediaId(null)}><img src={media.url} alt={media.caption ?? selectedEvent.title} /><div><input value={mediaCaptionDrafts[media.id] ?? media.caption ?? ""} onChange={(event) => setMediaCaptionDrafts((current) => ({ ...current, [media.id]: event.target.value }))} placeholder="為這張圖片寫下說明" maxLength={240} /><div><button type="button" onClick={() => saveImageCaption(media.id)} disabled={updateImageMutation.isPending}><Save size={12} /> 儲存說明</button><button type="button" onClick={() => removeImage(media.id)}><Trash2 size={12} /> 移除</button></div></div></article>)}</section> : null}
-                <section className="event-revisions" aria-label="事件版本歷程">
+                <div className="event-visibility-control"><span>{selectedEvent.isPublic ? <Globe2 size={13} /> : <LockKeyhole size={13} />}{selectedEvent.isPublic ? "允許分享" : "私人事件"}</span>{canEdit ? <button onClick={toggleSelectedEventVisibility} disabled={visibilityMutation.isPending}>{selectedEvent.isPublic ? "改為私人" : "允許分享"}</button> : null}</div>
+                {selectedEvent.media.length ? <section className="media-editor" aria-label={canEdit ? "事件圖片編輯" : "事件圖片"}><header><span><GripVertical size={13} /> {canEdit ? "圖片排序與說明" : "事件圖片"}</span><b>{selectedEvent.media.length.toString().padStart(2, "0")} 張</b></header>{selectedEvent.media.map((media) => <article key={media.id} draggable={canEdit && selectedEvent.media.length > 1} onDragStart={() => canEdit && setDraggedMediaId(media.id)} onDragOver={(event) => canEdit && event.preventDefault()} onDrop={() => canEdit && dropImageAt(media.id)} onDragEnd={() => setDraggedMediaId(null)}><img src={media.url} alt={media.caption ?? selectedEvent.title} /><div>{canEdit ? <><input value={mediaCaptionDrafts[media.id] ?? media.caption ?? ""} onChange={(event) => setMediaCaptionDrafts((current) => ({ ...current, [media.id]: event.target.value }))} placeholder="為這張圖片寫下說明" maxLength={240} /><div><button type="button" onClick={() => saveImageCaption(media.id)} disabled={updateImageMutation.isPending}><Save size={12} /> 儲存說明</button><button type="button" onClick={() => removeImage(media.id)}><Trash2 size={12} /> 移除</button></div></> : <p className="media-caption-readonly">{media.caption ?? "未提供圖片說明"}</p>}</div></article>)}</section> : null}
+                {canEdit ? <section className="event-revisions" aria-label="事件版本歷程">
                   <button type="button" className="event-revisions-toggle" onClick={() => setShowRevisions((visible) => !visible)}><History size={13} /> {showRevisions ? "收起版本歷程" : "查看版本歷程"}</button>
-                  {showRevisions ? <div className="event-revisions-list">{revisionsQuery.isLoading ? <p><Loader2 size={13} className="animate-spin" /> 載入版本中…</p> : revisionsQuery.error ? <p>無法讀取版本：{revisionsQuery.error.message}</p> : revisionsQuery.data?.length ? revisionsQuery.data.map((revision) => <article key={revision.id}><div><b>第 {revision.version} 版</b><span>{revision.changeType === "create" ? "初始建立" : revision.changeType === "restore" ? "還原版本" : "內容更新"} · {new Date(revision.createdAt).toLocaleString("zh-TW")}</span></div><p>{revision.snapshot.title}</p><button type="button" onClick={() => restoreEventRevision(revision.id, revision.version)} disabled={restoreRevisionMutation.isPending}><RotateCcw size={12} /> 還原此版</button></article>) : <p>這段事件尚未有可顯示的版本。</p>}</div> : null}
-                </section>
+                  {showRevisions ? <div className="event-revisions-list">{revisionsQuery.isLoading ? <p><Loader2 size={13} className="animate-spin" /> 載入版本中…</p> : revisionsQuery.error ? <p>無法讀取版本：{revisionsQuery.error.message}</p> : revisionsQuery.data?.length ? revisionsQuery.data.map((revision) => <article key={revision.id}><div><b>第 {revision.version} 版</b><span>{revision.changeType === "create" ? "初始建立" : revision.changeType === "restore" ? "還原版本" : "內容更新"} · {new Date(revision.createdAt).toLocaleString("zh-TW")}</span></div><p>{revision.snapshot.title}</p>{canEdit ? <button type="button" onClick={() => restoreEventRevision(revision.id, revision.version)} disabled={restoreRevisionMutation.isPending}><RotateCcw size={12} /> 還原此版</button> : null}</article>) : <p>這段事件尚未有可顯示的版本。</p>}</div> : null}
+                </section> : null}
                 <section className="event-comments" aria-label="家庭共寫註解">
                   <header><span><BookOpenCheck size={13} /> 家庭註解</span><small>只有日記擁有者與受邀成員可查看。</small></header>
                   {eventCommentsQuery.isLoading ? <p><Loader2 size={13} className="animate-spin" /> 載入註解中…</p> : eventCommentsQuery.data?.length ? <div className="event-comment-list">{eventCommentsQuery.data.map((comment) => <article key={comment.id}><b>{comment.authorName ?? "受邀成員"}</b><span>{new Date(comment.createdAt).toLocaleString("zh-TW")}</span><p>{comment.body}</p></article>)}</div> : <p>尚未有家庭註解。</p>}
                   <div className="event-comment-compose"><textarea value={commentDraft} onChange={(event) => setCommentDraft(event.target.value)} placeholder="為這段記憶留下補充或提問" maxLength={2000} rows={3} /><button type="button" onClick={() => createCommentMutation.mutate({ eventId: selectedEvent.id, body: commentDraft })} disabled={!commentDraft.trim() || createCommentMutation.isPending}>{createCommentMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />} 發表註解</button></div>
                 </section>
-                <div className="preview-actions"><button onClick={() => editEvent(selectedEvent)}><PencilLine size={14} /> 編輯</button><button className="delete" onClick={() => removeEvent(selectedEvent.id)}><Trash2 size={14} /> 刪除</button></div>
+                {canEdit ? <div className="preview-actions"><button onClick={() => editEvent(selectedEvent)}><PencilLine size={14} /> 編輯</button><button className="delete" onClick={() => removeEvent(selectedEvent.id)}><Trash2 size={14} /> 刪除</button></div> : null}
               </article>
               <div className="preview-ruler" aria-hidden="true"><i /><b>{new Date(selectedEvent.occurredAt).getFullYear()}</b><i /><span>NOW</span></div>
             </>
