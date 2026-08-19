@@ -9,6 +9,7 @@ import { annualReviewTemplates, buildAnnualReview, type AnnualReviewTemplate } f
 import { consumeTagInputEnter, diaryColors, eventTypes, formatDate, formatInputDate, makeEmptyForm, readImage, toTimestamp, type DatePrecision, type EventForm, type EventType, type PendingImage } from "@/lib/diaryEditor";
 import { filterDiaryEvents, type DiarySortOrder } from "@/lib/diaryFilters";
 import { exportDiaryAsLongImage, exportDiaryAsPdf } from "@/lib/diaryExport";
+import { createMediaArchive, downloadMediaArchive, readMediaArchive, type ImportedMediaArchive } from "@/lib/diaryMediaArchive";
 import { createPortableDiaryExport, downloadPortableDiary } from "@/lib/diaryPortable";
 import { parseChronicleImport, type ChronicleImportPreview } from "@/lib/diaryImport";
 import { appendWritingGuide, getLocalWritingGuides } from "@/lib/writingGuide";
@@ -115,9 +116,13 @@ function DiaryEditorContent() {
   const [socialPreview, setSocialPreview] = useState<SocialDraftCandidate[] | null>(null);
   const [showRevisions, setShowRevisions] = useState(false);
   const [accountDeleteConfirmation, setAccountDeleteConfirmation] = useState("");
+  const [mediaArchivePreview, setMediaArchivePreview] = useState<ImportedMediaArchive | null>(null);
+  const [isMediaArchiveExporting, setIsMediaArchiveExporting] = useState(false);
+  const [isMediaArchiveImporting, setIsMediaArchiveImporting] = useState(false);
   const exportRef = useRef<HTMLElement>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
   const socialImportInputRef = useRef<HTMLInputElement>(null);
+  const mediaArchiveInputRef = useRef<HTMLInputElement>(null);
   const tagEnterSubmitGuard = useRef(false);
 
   useEffect(() => {
@@ -588,8 +593,25 @@ function DiaryEditorContent() {
     }
   };
 
+  const exportMediaArchive = async () => {
+    if (!canEdit) return toast.error("你目前只有註解權限，無法建立媒體封存。");
+    if (!events.some((item) => item.media.length)) return toast.info("目前沒有事件圖片可打包。");
+    const baseName = (data?.diary.title ?? "我的成長史").replace(/[^\u4e00-\u9fffa-zA-Z0-9_-]/g, "-") || "chronicle-growth-diary";
+    setIsMediaArchiveExporting(true);
+    try {
+      const archive = await createMediaArchive(events);
+      downloadMediaArchive(archive.blob, baseName);
+      toast.success(`已建立媒體封存：${archive.itemCount} 張圖片。`);
+    } catch (archiveError) {
+      toast.error(archiveError instanceof Error ? archiveError.message : "無法建立媒體封存。");
+    } finally {
+      setIsMediaArchiveExporting(false);
+    }
+  };
+
   const selectImportFile = () => importInputRef.current?.click();
   const selectSocialImportFile = () => socialImportInputRef.current?.click();
+  const selectMediaArchiveFile = () => mediaArchiveInputRef.current?.click();
 
   const handleImportFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -603,6 +625,24 @@ function DiaryEditorContent() {
     }
   };
 
+  const handleMediaArchiveFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    try {
+      const archive = await readMediaArchive(file);
+      if (archive.eventCount !== events.length || archive.items.some((item) => {
+        const target = events[item.eventIndex];
+        return !target || target.title !== item.eventTitle || target.occurredAt !== item.occurredAt;
+      })) {
+        throw new Error("媒體封存與目前日記事件不一致；請先匯入相同的 Chronicle JSON，再選擇對應的媒體封存。");
+      }
+      setMediaArchivePreview(archive);
+    } catch (archiveError) {
+      toast.error(archiveError instanceof Error ? archiveError.message : "無法讀取媒體封存。");
+    }
+  };
+
   const confirmImport = async () => {
     if (!importPreview) return;
     try {
@@ -613,6 +653,26 @@ function DiaryEditorContent() {
       toast.success(`已建立 ${result.importedCount} 段私人記事。媒體請自行重新上傳。`);
     } catch (importError) {
       toast.error(importError instanceof Error ? importError.message : "匯入未完成，沒有保留這批內容。 ");
+    }
+  };
+
+  const confirmMediaArchiveImport = async () => {
+    if (!mediaArchivePreview) return;
+    setIsMediaArchiveImporting(true);
+    try {
+      for (const item of mediaArchivePreview.items) {
+        const target = events[item.eventIndex];
+        if (!target) throw new Error("找不到媒體對應事件，已停止匯入。");
+        const pendingImage = await readImage(item.file);
+        await uploadMutation.mutateAsync({ eventId: target.id, fileName: pendingImage.name, mimeType: pendingImage.type, base64: pendingImage.base64, caption: item.caption ?? undefined });
+      }
+      await utils.diary.get.invalidate();
+      setMediaArchivePreview(null);
+      toast.success(`已安全匯入 ${mediaArchivePreview.items.length} 張事件圖片。`);
+    } catch (archiveError) {
+      toast.error(archiveError instanceof Error ? archiveError.message : "媒體匯入未完成；已完成的圖片會保留。");
+    } finally {
+      setIsMediaArchiveImporting(false);
     }
   };
 
@@ -654,7 +714,7 @@ function DiaryEditorContent() {
       <section className="life-phase-overview" ref={exportRef} aria-labelledby="life-phase-title">
         <div className="phase-heading">
           <div><p className="editor-kicker"><span /> LIFE CHAPTERS / EDITABLE</p><h2 id="life-phase-title">人生階段總覽</h2><p>系統會先依事件時間與錨點編排階段；你也可以拖曳每個階段的起訖時間，讓分段更貼近自己的敘事。</p></div>
-          <div className="export-actions"><span>完整成長史備份</span><input ref={importInputRef} type="file" accept="application/json,.json" onChange={handleImportFile} hidden /><input ref={socialImportInputRef} type="file" accept="application/json,.json,text/csv,.csv" onChange={handleSocialImportFile} hidden /><button onClick={() => exportArchive("pdf")}><FileDown size={15} /> 匯出 PDF</button><button onClick={() => exportArchive("image")}><ImageDown size={15} /> 匯出長圖片</button><button onClick={() => exportArchive("json")}><FileJson size={15} /> 匯出 JSON</button><button onClick={() => exportArchive("markdown")}><FilePenLine size={15} /> 匯出 Markdown</button><button onClick={selectImportFile}><Archive size={15} /> 匯入 JSON</button><button onClick={selectSocialImportFile}><Archive size={15} /> 匯入社群草稿</button></div>
+          <div className="export-actions"><span>完整成長史備份</span><input ref={importInputRef} type="file" accept="application/json,.json" onChange={handleImportFile} hidden /><input ref={socialImportInputRef} type="file" accept="application/json,.json,text/csv,.csv" onChange={handleSocialImportFile} hidden /><input ref={mediaArchiveInputRef} type="file" accept="application/zip,.zip" onChange={handleMediaArchiveFile} hidden /><button onClick={() => exportArchive("pdf")}><FileDown size={15} /> 匯出 PDF</button><button onClick={() => exportArchive("image")}><ImageDown size={15} /> 匯出長圖片</button><button onClick={() => exportArchive("json")}><FileJson size={15} /> 匯出 JSON</button><button onClick={() => exportArchive("markdown")}><FilePenLine size={15} /> 匯出 Markdown</button>{canEdit ? <><button onClick={exportMediaArchive} disabled={isMediaArchiveExporting}>{isMediaArchiveExporting ? <Loader2 size={15} className="animate-spin" /> : <Archive size={15} />} 匯出媒體 ZIP</button><button onClick={selectMediaArchiveFile}><Archive size={15} /> 匯入媒體 ZIP</button><button onClick={selectImportFile}><Archive size={15} /> 匯入 JSON</button><button onClick={selectSocialImportFile}><Archive size={15} /> 匯入社群草稿</button></> : null}</div>
         </div>
         <div className="phase-grid">
           {data?.lifePhases.length ? data.lifePhases.map((phase) => {
@@ -693,6 +753,7 @@ function DiaryEditorContent() {
         <div className="import-warning"><Archive size={15} /> {importPreview.warnings[0]}</div>
         <div className="import-actions"><button type="button" onClick={() => setImportPreview(null)} disabled={importMutation.isPending}>取消</button><button type="button" onClick={confirmImport} disabled={importMutation.isPending}>{importMutation.isPending ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />} 確認建立 {importPreview.events.length} 段事件</button></div>
       </section> : null}
+      {mediaArchivePreview ? <section className="import-studio" aria-labelledby="media-import-title"><div><p className="editor-kicker"><span /> MEDIA ARCHIVE / VERIFIED</p><h2 id="media-import-title">確認要還原的事件圖片</h2><p>已驗證媒體封存的 manifest、事件標題與發生時間。這次將把 {mediaArchivePreview.items.length} 張圖片加回目前相符的事件；不會接受外部 URL、儲存金鑰、分享設定或帳號資料。</p></div><div className="import-warning"><Archive size={15} /> 只接受 JPG、PNG、WebP、GIF；單張最大 4MB，封存與解壓後總量皆受 25MB 上限保護。</div><div className="import-actions"><button type="button" onClick={() => setMediaArchivePreview(null)} disabled={isMediaArchiveImporting}>取消</button><button type="button" onClick={confirmMediaArchiveImport} disabled={isMediaArchiveImporting}>{isMediaArchiveImporting ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />} 匯入 {mediaArchivePreview.items.length} 張圖片</button></div></section> : null}
       {socialPreview ? <section className="import-studio" aria-labelledby="social-import-title"><div><p className="editor-kicker"><span /> SOCIAL DRAFT / LOCAL ONLY</p><h2 id="social-import-title">先檢視，再帶進成長史</h2><p>已在此裝置解析 {socialPreview.length} 則候選；系統已依來源 ID 去重。確認前不會寫入日記，也不會連接社群帳號。</p></div><div className="import-preview-list">{socialPreview.slice(0, 5).map((candidate) => <article key={candidate.sourceId}><span>{formatDate(candidate.occurredAt, "day")}</span><b>{candidate.title}</b><small>{candidate.isSignificant ? "重大事件候選" : "一般候選"}</small></article>)}</div><div className="import-warning"><Archive size={15} /> 確認後一律建立為私人事件，並標記「社群匯入」。請先檢視原始內容。</div><div className="import-actions"><button type="button" onClick={() => setSocialPreview(null)} disabled={importMutation.isPending}>取消</button><button type="button" onClick={confirmSocialImport} disabled={importMutation.isPending}>{importMutation.isPending ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />} 確認建立 {socialPreview.length} 段事件</button></div></section> : null}
 
       <section className="annual-review-studio" aria-labelledby="annual-review-title">
