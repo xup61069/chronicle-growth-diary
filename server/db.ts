@@ -17,6 +17,7 @@ import {
   users,
 } from "../drizzle/schema";
 import { normalizeTagNames, safeMediaName } from "./diaryHelpers";
+import { getEnrichedDiaryEvents } from "./db/diaryRead";
 import { deriveLifePhases, getInvalidLifePhaseBoundary } from "./lifePhases";
 import { parseDiaryEventRevisionSnapshot } from "./db/revisions";
 import { hasShareAccess, hashSharePassword, hashShareToken, isShareExpired, makeShareSlug, makeShareToken, verifySharePassword } from "./shareAccess";
@@ -144,27 +145,6 @@ async function saveEventTags(eventId: number, userId: number, rawTagNames: strin
   if (tagIds.length) await db.insert(growthEventTags).values(tagIds.map((tagId) => ({ eventId, tagId })));
 }
 
-async function getEnrichedDiaryEvents(diaryId: number, isPublicOnly = false) {
-  const db = await requireDb();
-  const where = isPublicOnly
-    ? and(eq(growthEvents.diaryId, diaryId), eq(growthEvents.isPublic, true))
-    : eq(growthEvents.diaryId, diaryId);
-  const events = await db.select().from(growthEvents).where(where).orderBy(asc(growthEvents.timelinePosition), asc(growthEvents.occurredAt), asc(growthEvents.id));
-  const eventIds = events.map((event) => event.id);
-  const taggedRows = eventIds.length
-    ? await db.select({ eventId: growthEventTags.eventId, id: growthTags.id, name: growthTags.name, color: growthTags.color })
-      .from(growthEventTags).innerJoin(growthTags, eq(growthEventTags.tagId, growthTags.id)).where(inArray(growthEventTags.eventId, eventIds))
-    : [];
-  const mediaRows = eventIds.length
-    ? await db.select().from(growthEventMedia).where(inArray(growthEventMedia.eventId, eventIds)).orderBy(asc(growthEventMedia.sortOrder), asc(growthEventMedia.id))
-    : [];
-  return events.map((event) => ({
-    ...event,
-    tags: taggedRows.filter((tag) => tag.eventId === event.id).map(({ eventId: _eventId, ...tag }) => tag),
-    media: mediaRows.filter((media) => media.eventId === event.id),
-  }));
-}
-
 function makeLifePhaseSnapshot(diary: typeof growthDiaries.$inferSelect, events: Awaited<ReturnType<typeof getEnrichedDiaryEvents>>) {
   return deriveLifePhases(events, {
     birthYear: diary.birthYear,
@@ -184,7 +164,7 @@ export async function getDiarySnapshot(userId: number, requestedDiaryId?: number
   const diary = access?.diary ?? await getOrCreateDiary(userId);
   const accessRole: DiaryAccessRole = access?.role ?? "owner";
   const tags = await db.select().from(growthTags).where(eq(growthTags.userId, diary.userId)).orderBy(asc(growthTags.name));
-  const events = await getEnrichedDiaryEvents(diary.id);
+  const events = await getEnrichedDiaryEvents(db, diary.id);
   const reflections = await db.select().from(growthPhaseReflections).where(eq(growthPhaseReflections.diaryId, diary.id));
   const annualReflections = reflections
     .filter((reflection) => /^annual-\d{4}$/.test(reflection.phaseKey))
@@ -368,7 +348,7 @@ export async function generatePhaseReflection(userId: number, phaseKey: "childho
   const db = await requireDb();
   const diary = await getOrCreateDiary(userId);
   assertAiEnabled(diary.aiEnabled);
-  const events = await getEnrichedDiaryEvents(diary.id);
+  const events = await getEnrichedDiaryEvents(db, diary.id);
   const phase = makeLifePhaseSnapshot(diary, events).find((item) => item.key === phaseKey);
   if (!phase?.events.length) throw new Error("這個人生階段還沒有足夠事件可供回顧。");
   const source = phase.events.slice(0, 30).map((event, index) => [
@@ -399,7 +379,7 @@ export async function generateAnnualReflection(userId: number, year: number) {
   const db = await requireDb();
   const diary = await getOrCreateDiary(userId);
   assertAiEnabled(diary.aiEnabled);
-  const events = (await getEnrichedDiaryEvents(diary.id)).filter((event) => new Date(event.occurredAt).getFullYear() === year);
+  const events = (await getEnrichedDiaryEvents(db, diary.id)).filter((event) => new Date(event.occurredAt).getFullYear() === year);
   if (!events.length) throw new Error("這一年還沒有事件可供回顧。請先寫下至少一段記憶。");
 
   const source = events.slice(0, 40).map((event, index) => [
@@ -517,7 +497,7 @@ export async function getSharedDiary(slug: string, token?: string | null, passwo
   if (!hasShareAccess({ mode: diary.shareMode, storedTokenHash: diary.shareTokenHash, providedToken: token })) return { status: "locked" as const };
   if (diary.sharePasswordHash && !password) return { status: "password_required" as const };
   if (diary.sharePasswordHash && !verifySharePassword(password ?? "", diary.sharePasswordHash)) return { status: "password_invalid" as const };
-  const events = await getEnrichedDiaryEvents(diary.id, true);
+  const events = await getEnrichedDiaryEvents(db, diary.id, true);
   await db.update(growthDiaries).set({ shareAccessCount: sql`${growthDiaries.shareAccessCount} + 1`, lastSharedAt: new Date() }).where(eq(growthDiaries.id, diary.id));
   await db.insert(growthShareAccessLogs).values({ diaryId: diary.id, channel: diary.shareMode === "link" ? "link" : "public" });
   return {
