@@ -58,6 +58,7 @@ const diaryEventInput = z.object({
   locationPrivacy: z.enum(["none", "city", "precise"]).default("none"),
   soundtrackTitle: z.string().trim().max(120).nullable().optional(),
   soundtrackUrl: z.string().trim().url("請輸入有效的直接音訊網址。").max(1024).nullable().optional(),
+  shareScope: z.enum(["private", "public", "link"]).default("private"),
 });
 
 const year = z.number().int().min(1900).max(2200).nullable().optional();
@@ -84,7 +85,7 @@ export const diaryRouter = router({
   acceptFamilyInvite: protectedProcedure.input(z.object({ token: z.string().trim().min(16).max(128) })).mutation(({ ctx, input }) => acceptDiaryInvite(ctx.user.id, ctx.user.email, input.token)),
   restoreEventRevision: protectedProcedure.input(z.object({ eventId: z.number().int().positive(), revisionId: z.number().int().positive() })).mutation(({ ctx, input }) => restoreDiaryEventRevision(ctx.user.id, input.eventId, input.revisionId)),
   deleteEvent: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ ctx, input }) => deleteDiaryEvent(ctx.user.id, input.id)),
-  setEventVisibility: protectedProcedure.input(z.object({ id: z.number().int().positive(), isPublic: z.boolean() })).mutation(({ ctx, input }) => setDiaryEventVisibility(ctx.user.id, input.id, input.isPublic)),
+  setEventVisibility: protectedProcedure.input(z.object({ id: z.number().int().positive(), shareScope: z.enum(["private", "public", "link"]) })).mutation(({ ctx, input }) => setDiaryEventVisibility(ctx.user.id, input.id, input.shareScope)),
   reorderEvents: protectedProcedure.input(z.object({ diaryId: z.number().int().positive().optional(), eventIds: z.array(z.number().int().positive()).max(500) })).mutation(({ ctx, input }) => input.diaryId ? reorderDiaryEvents(ctx.user.id, input.eventIds, input.diaryId) : reorderDiaryEvents(ctx.user.id, input.eventIds)),
   updatePhaseBoundaries: protectedProcedure.input(z.object({
     childhoodStartYear: year,

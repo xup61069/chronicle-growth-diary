@@ -127,7 +127,7 @@ export async function readSharedDiary(db: DbClient, slug: string, token?: string
   if (diary.sharePasswordHash && !password) return { status: "password_required" as const };
   if (diary.sharePasswordHash && !verifySharePassword(password ?? "", diary.sharePasswordHash)) return { status: "password_invalid" as const };
 
-  const events = await getEnrichedDiaryEvents(db, diary.id, true);
+  const events = await getEnrichedDiaryEvents(db, diary.id, diary.shareMode === "link" ? "link" : "public");
   await db.update(growthDiaries).set({
     shareAccessCount: sql`${growthDiaries.shareAccessCount} + 1`,
     lastSharedAt: new Date(),

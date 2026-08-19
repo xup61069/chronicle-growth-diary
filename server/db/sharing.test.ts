@@ -9,6 +9,7 @@ vi.mock("./diaryRead", () => ({
 }));
 
 import { persistDiarySharing, readSharedDiary } from "./sharing";
+import { hashShareToken } from "../shareAccess";
 
 function createDb(selectRows: unknown[] = []) {
   const where = vi.fn().mockResolvedValue(undefined);
@@ -94,7 +95,7 @@ describe("sharing data access", () => {
       status: "ok",
       diary: { publicCoverTitle: "從這裡開始", publicStoryLayout: "editorial" },
     });
-    expect(mocks.getEnrichedDiaryEvents).toHaveBeenCalledWith(db, 7, true);
+    expect(mocks.getEnrichedDiaryEvents).toHaveBeenCalledWith(db, 7, "public");
     expect(set).toHaveBeenCalledWith(expect.objectContaining({ lastSharedAt: expect.any(Date) }));
     expect(values).toHaveBeenCalledWith({ diaryId: 7, channel: "public" });
   });
@@ -128,5 +129,14 @@ describe("sharing data access", () => {
     const result = await readSharedDiary(db, "story-growth-file");
 
     expect(result).toMatchObject({ status: "ok", events: [{ id: 9, title: "時空膠囊鎖定中", body: "這段記憶將在指定日期解鎖。", ageLabel: null, place: null, media: [], tags: [], skills: [], phaseKeywords: [], comparisonGroup: null, soundtrackTitle: null, soundtrackUrl: null, isTimeCapsuleLocked: true, mapLatitudeE6: null, mapLongitudeE6: null }] });
+  });
+
+  it("uses the broader link scope only when the diary itself is shared by a private link", async () => {
+    const { db } = createDb([{ ...sharedDiary, shareMode: "link", shareTokenHash: hashShareToken("valid-token") }]);
+    mocks.getEnrichedDiaryEvents.mockResolvedValueOnce([]);
+
+    await readSharedDiary(db, "story-growth-file", "valid-token");
+
+    expect(mocks.getEnrichedDiaryEvents).toHaveBeenCalledWith(db, 7, "link");
   });
 });

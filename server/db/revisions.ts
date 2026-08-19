@@ -18,6 +18,7 @@ export type DiaryEventRevisionSnapshot = {
   locationPrivacy: "none" | "city" | "precise";
   soundtrackTitle?: string | null;
   soundtrackUrl?: string | null;
+  shareScope: "private" | "public" | "link";
   isPublic: boolean;
   timelinePosition: number;
   tagNames: string[];
@@ -42,7 +43,7 @@ export function parseDiaryEventRevisionSnapshot(snapshot: string): DiaryEventRev
   }
   const value = parsed as Record<string, unknown>;
   return {
-    ...(value as Omit<DiaryEventRevisionSnapshot, "track" | "milestoneType" | "milestoneWeight" | "comparisonGroup" | "unlocksAt" | "phaseKeywords" | "mapLatitudeE6" | "mapLongitudeE6" | "locationPrivacy" | "soundtrackTitle" | "soundtrackUrl" | "skillNames">),
+    ...(value as Omit<DiaryEventRevisionSnapshot, "track" | "milestoneType" | "milestoneWeight" | "comparisonGroup" | "unlocksAt" | "phaseKeywords" | "mapLatitudeE6" | "mapLongitudeE6" | "locationPrivacy" | "soundtrackTitle" | "soundtrackUrl" | "shareScope" | "skillNames">),
     track: value.track === "career" || value.track === "skills" || value.track === "hardware" ? value.track : "life",
     milestoneType: value.milestoneType === "highlight" || value.milestoneType === "turning_point" || value.milestoneType === "gear_workflow" || value.milestoneType === "reflection" ? value.milestoneType : "standard",
     milestoneWeight: typeof value.milestoneWeight === "number" && value.milestoneWeight >= 1 && value.milestoneWeight <= 5 ? value.milestoneWeight : 1,
@@ -54,6 +55,7 @@ export function parseDiaryEventRevisionSnapshot(snapshot: string): DiaryEventRev
     locationPrivacy: value.locationPrivacy === "city" || value.locationPrivacy === "precise" ? value.locationPrivacy : "none",
     soundtrackTitle: typeof value.soundtrackTitle === "string" ? value.soundtrackTitle : null,
     soundtrackUrl: typeof value.soundtrackUrl === "string" ? value.soundtrackUrl : null,
+    shareScope: value.shareScope === "public" || value.shareScope === "link" ? value.shareScope : value.isPublic === true ? "public" : "private",
     skillNames: Array.isArray(value.skillNames) ? value.skillNames.filter((name): name is string => typeof name === "string") : [],
   };
 }

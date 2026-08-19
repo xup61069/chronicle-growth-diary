@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, or } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import { growthEventMedia, growthEvents, growthEventTags, growthTags } from "../../drizzle/schema";
 
@@ -14,10 +14,12 @@ function parsePhaseKeywords(rawKeywords: string | null) {
   }
 }
 
-export async function getEnrichedDiaryEvents(db: MySql2Database<Record<string, unknown>>, diaryId: number, isPublicOnly = false) {
-  const where = isPublicOnly
-    ? and(eq(growthEvents.diaryId, diaryId), eq(growthEvents.isPublic, true))
-    : eq(growthEvents.diaryId, diaryId);
+export async function getEnrichedDiaryEvents(db: MySql2Database<Record<string, unknown>>, diaryId: number, scope: "all" | "public" | "link" = "all") {
+  const where = scope === "public"
+    ? and(eq(growthEvents.diaryId, diaryId), or(eq(growthEvents.shareScope, "public"), eq(growthEvents.isPublic, true)))
+    : scope === "link"
+      ? and(eq(growthEvents.diaryId, diaryId), or(eq(growthEvents.shareScope, "public"), eq(growthEvents.shareScope, "link"), eq(growthEvents.isPublic, true)))
+      : eq(growthEvents.diaryId, diaryId);
   const events = await db.select().from(growthEvents).where(where).orderBy(asc(growthEvents.timelinePosition), asc(growthEvents.occurredAt), asc(growthEvents.id));
   const eventIds = events.map((event) => event.id);
   const taggedRows = eventIds.length

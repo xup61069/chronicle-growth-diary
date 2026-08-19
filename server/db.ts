@@ -70,6 +70,7 @@ export type DiaryEventInput = {
   locationPrivacy?: "none" | "city" | "precise";
   soundtrackTitle?: string | null;
   soundtrackUrl?: string | null;
+  shareScope?: "private" | "public" | "link";
 };
 
 
@@ -174,9 +175,9 @@ export async function deleteDiaryEvent(userId: number, eventId: number) {
   return deleteDiaryEventForUser(db, assertEventWriteAccess, userId, eventId);
 }
 
-export async function setDiaryEventVisibility(userId: number, eventId: number, isPublic: boolean) {
+export async function setDiaryEventVisibility(userId: number, eventId: number, shareScope: "private" | "public" | "link") {
   const db = await requireDb();
-  return setDiaryEventVisibilityForUser(db, assertEventWriteAccess, userId, eventId, isPublic);
+  return setDiaryEventVisibilityForUser(db, assertEventWriteAccess, userId, eventId, shareScope);
 }
 
 export async function reorderDiaryEvents(userId: number, eventIds: number[], requestedDiaryId?: number) {

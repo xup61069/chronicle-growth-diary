@@ -18,6 +18,8 @@ import { getComparisonPair } from "@/lib/beforeAfter";
 import { formatCapsuleCountdown, getLifeProgress, getTimeCapsuleStatus } from "@/lib/lifeProgress";
 import { getVisualExportRecord } from "@/lib/visualExport";
 import { createChronicleFrontmatter, downloadChronicleFrontmatter, parseChronicleFrontmatter } from "@/lib/diaryFrontmatter";
+import { downloadMilestoneCard } from "@/lib/socialMilestoneCard";
+import { buildAnnualShareCardData, downloadAnnualShareCard } from "@/lib/annualSocialCard";
 import { parseSocialDraftCsv, parseSocialDraftJson, type SocialDraftCandidate } from "@/lib/socialDraftImport";
 import { buildTrackRows, filterEventsBySkill, getTimelineInsights, getTimelineSkills, isTimeCapsuleLocked, milestoneLabels } from "@/lib/multitrackTimeline";
 import { buildPlaceFootprints, buildSpatialFootprints, getBentoSpan, timelineViewOptions, type TimelineViewMode } from "@/lib/timelineViews";
@@ -273,6 +275,8 @@ function DiaryEditorContent() {
   const availableYears = useMemo(() => Array.from(new Set(events.map((event) => new Date(event.occurredAt).getFullYear()))).sort((left, right) => right - left), [events]);
   const annualReview = useMemo(() => buildAnnualReview(events, Number(annualYear || availableYears[0] || new Date().getFullYear()), annualTemplate), [annualTemplate, annualYear, availableYears, events]);
   const activeAnnualYear = Number(annualYear || availableYears[0] || new Date().getFullYear());
+  const annualPublicReview = useMemo(() => buildAnnualReview(events.filter((event) => event.shareScope === "public"), activeAnnualYear, annualTemplate), [activeAnnualYear, annualTemplate, events]);
+  const annualShareCard = useMemo(() => buildAnnualShareCardData(events, activeAnnualYear, annualPublicReview.lead), [activeAnnualYear, annualPublicReview.lead, events]);
   const annualAiReflection = data?.annualReflections.find((reflection) => reflection.year === activeAnnualYear);
   const writingGuides = useMemo(() => getLocalWritingGuides(form.eventType), [form.eventType]);
 
@@ -414,6 +418,7 @@ function DiaryEditorContent() {
       unlocksAt: event.unlocksAt ? formatInputDate(event.unlocksAt) : "",
       soundtrackTitle: event.soundtrackTitle ?? "",
       soundtrackUrl: event.soundtrackUrl ?? "",
+      shareScope: event.shareScope,
     });
   };
 
@@ -591,7 +596,7 @@ function DiaryEditorContent() {
     if (!selectedEvent) return;
     if (!canEdit) return toast.error("你目前只有註解權限，無法修改事件可見度。");
     try {
-      await visibilityMutation.mutateAsync({ id: selectedEvent.id, isPublic: !selectedEvent.isPublic });
+      await visibilityMutation.mutateAsync({ id: selectedEvent.id, shareScope: selectedEvent.shareScope === "public" ? "private" : "public" });
       await utils.diary.get.invalidate();
       toast.success(selectedEvent.isPublic ? "這段記憶已改為私人。" : "這段記憶已允許出現在分享頁面。" );
     } catch (visibilityError) {
@@ -913,7 +918,7 @@ function DiaryEditorContent() {
       <section className="annual-review-studio" aria-labelledby="annual-review-title">
         <div className="annual-review-heading"><p className="editor-kicker"><span /> YEAR IN REVIEW</p><h2 id="annual-review-title">把一年，整理成下一段故事的起點。</h2><p>從已經寫下的事件建立年度回顧。模板只重組你的日記內容，不會虛構新的經歷。</p></div>
         <div className="annual-review-controls"><label>回顧年份<select value={annualYear || String(availableYears[0] ?? new Date().getFullYear())} onChange={(event) => setAnnualYear(event.target.value)}>{(availableYears.length ? availableYears : [new Date().getFullYear()]).map((year) => <option value={year} key={year}>{year} 年</option>)}</select></label><div>{annualReviewTemplates.map((template) => <button type="button" key={template.key} className={annualTemplate === template.key ? "active" : ""} onClick={() => setAnnualTemplate(template.key)}><b>{template.label}</b><small>{template.description}</small></button>)}</div></div>
-        <article className={`annual-review-card annual-${annualTemplate}`}><div><p>{annualReview.title}</p><b>{annualReview.count.toString().padStart(2, "0")} <small>段日記</small></b></div><h3>{annualReview.lead}</h3><div className="annual-review-highlights">{annualReview.highlights.map((highlight) => <article key={highlight.id}><span>{highlight.label}</span><h4>{highlight.title}</h4><p>{highlight.body}</p></article>)}</div>{annualReview.tags.length ? <div className="annual-review-tags">{annualReview.tags.map((tag) => <span key={tag}>#{tag}</span>)}</div> : null}<blockquote>{annualReview.prompt}</blockquote>{isOwner ? <div className="annual-ai-reflection"><p><BrainCircuit size={14} /> AI 年度回顧</p>{annualAiReflection ? <><strong>{annualAiReflection.recap}</strong><em>{annualAiReflection.reflection}</em><div><button type="button" onClick={() => annualReflectionMutation.mutate({ year: activeAnnualYear })} disabled={annualReflectionMutation.isPending || !data?.diary.aiEnabled}>{annualReflectionMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <WandSparkles size={14} />} 重新生成</button><button type="button" className="annual-ai-delete" onClick={() => deleteAnnualReflectionMutation.mutate({ year: activeAnnualYear })} disabled={deleteAnnualReflectionMutation.isPending}><Trash2 size={14} /> 刪除</button></div></> : <><span>{data?.diary.aiEnabled ? "只會使用此年度的事件內容生成文字；不會傳送其他年份、分享設定或帳號資料。" : "AI 已關閉。請先在上方資料控制區重新啟用。"}</span><button type="button" onClick={() => annualReflectionMutation.mutate({ year: activeAnnualYear })} disabled={!data?.diary.aiEnabled || annualReflectionMutation.isPending || annualReview.count === 0}>{annualReflectionMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <WandSparkles size={14} />} 生成 AI 年度回顧</button></>}</div> : null}</article>
+        <article className={`annual-review-card annual-${annualTemplate}`}><div><p>{annualReview.title}</p><b>{annualReview.count.toString().padStart(2, "0")} <small>段日記</small></b></div><h3>{annualReview.lead}</h3><div className="annual-review-highlights">{annualReview.highlights.map((highlight) => <article key={highlight.id}><span>{highlight.label}</span><h4>{highlight.title}</h4><p>{highlight.body}</p></article>)}</div>{annualReview.tags.length ? <div className="annual-review-tags">{annualReview.tags.map((tag) => <span key={tag}>#{tag}</span>)}</div> : null}<blockquote>{annualReview.prompt}</blockquote>{isOwner ? <><section className="social-card-actions annual-social-card-actions" aria-label="年度總結社群卡"><div><span>YEAR SHARE CARD / PUBLIC ONLY</span><small>本卡只統計 {annualShareCard.count} 段公開事件；私人與連結限定內容不會納入。</small></div><div><button type="button" onClick={() => downloadAnnualShareCard(annualShareCard, "square")}>下載年度 1:1</button><button type="button" onClick={() => downloadAnnualShareCard(annualShareCard, "portrait")}>下載年度 9:16</button></div></section><div className="annual-ai-reflection"><p><BrainCircuit size={14} /> AI 年度回顧</p>{annualAiReflection ? <><strong>{annualAiReflection.recap}</strong><em>{annualAiReflection.reflection}</em><div><button type="button" onClick={() => annualReflectionMutation.mutate({ year: activeAnnualYear })} disabled={annualReflectionMutation.isPending || !data?.diary.aiEnabled}>{annualReflectionMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <WandSparkles size={14} />} 重新生成</button><button type="button" className="annual-ai-delete" onClick={() => deleteAnnualReflectionMutation.mutate({ year: activeAnnualYear })} disabled={deleteAnnualReflectionMutation.isPending}><Trash2 size={14} /> 刪除</button></div></> : <><span>{data?.diary.aiEnabled ? "只會使用此年度的事件內容生成文字；不會傳送其他年份、分享設定或帳號資料。" : "AI 已關閉。請先在上方資料控制區重新啟用。"}</span><button type="button" onClick={() => annualReflectionMutation.mutate({ year: activeAnnualYear })} disabled={!data?.diary.aiEnabled || annualReflectionMutation.isPending || annualReview.count === 0}>{annualReflectionMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <WandSparkles size={14} />} 生成 AI 年度回顧</button></>}</div></> : null}</article>
       </section>
 
       {isOwner ? <>
@@ -1146,6 +1151,16 @@ function DiaryEditorContent() {
               <small>只支援可由瀏覽器直接播放的音訊網址；閱讀者必須自行按下播放，系統不會因切換事件或滑動頁面而自動播放。</small>
             </section>
 
+            <label className="form-field event-share-scope-field">
+              <span><Globe2 size={14} /> 事件分享範圍</span>
+              <select value={form.shareScope} onChange={(event) => setForm({ ...form, shareScope: event.target.value as EventForm["shareScope"] })}>
+                <option value="private">完全私人</option>
+                <option value="link">僅持有密碼／私密連結者</option>
+                <option value="public">公開故事可閱</option>
+              </select>
+              <small>公開故事只會讀取「公開故事可閱」事件；私密連結或密碼分享可額外讀取「僅持有連結者」事件。</small>
+            </label>
+
             <div className="form-field tags-field">
               <span><Tag size={14} /> 標籤</span>
               <div className="tag-input-row">
@@ -1272,8 +1287,9 @@ function DiaryEditorContent() {
                 {selectedEvent.place ? <p className="preview-place"><MapPin size={13} /> {selectedEvent.place}</p> : null}
                 {comparisonPair ? <section className="before-after-comparison" aria-labelledby="comparison-title"><header><span id="comparison-title">BEFORE / AFTER · {comparisonPair.group}</span><small>左右拖曳比較</small></header><div className="comparison-frame"><img src={comparisonPair.before.media[0]!.url} alt={`${comparisonPair.before.title}：Before`} /><img className="comparison-after" style={{ clipPath: `inset(0 ${100 - comparisonPosition}% 0 0)` }} src={comparisonPair.after.media[0]!.url} alt={`${comparisonPair.after.title}：After`} /><i style={{ left: `${comparisonPosition}%` }} aria-hidden="true" /></div><input aria-label={`調整 ${comparisonPair.group} Before 與 After 的比較位置`} type="range" min="0" max="100" value={comparisonPosition} onChange={(event) => setComparisonPosition(Number(event.target.value))} /><footer><span>{new Date(comparisonPair.before.occurredAt).getFullYear()} · {comparisonPair.before.title}</span><span>{new Date(comparisonPair.after.occurredAt).getFullYear()} · {comparisonPair.after.title}</span></footer></section> : null}
                 {selectedEvent.soundtrackUrl ? <section className="event-soundtrack" aria-label="章節背景音樂，需手動播放"><header><span><Music size={13} /> {selectedEvent.soundtrackTitle || "這段時期的主題曲"}</span><small>手動播放</small></header><audio controls preload="metadata" src={selectedEvent.soundtrackUrl}>你的瀏覽器不支援音訊播放。</audio></section> : null}
+                {canEdit && (selectedEvent.milestoneType !== "standard" || selectedEvent.milestoneWeight >= 3) ? <section className="social-card-actions" aria-label="里程碑社群卡"><div><span>SHARE CARD / SVG</span><small>使用這筆真實事件資料輸出向量圖；不會自動發布到社群。</small></div><div><button type="button" onClick={() => downloadMilestoneCard(selectedEvent, "square")}>下載 1:1</button><button type="button" onClick={() => downloadMilestoneCard(selectedEvent, "portrait")}>下載 9:16</button></div></section> : null}
                 <div className="preview-tags">{selectedEvent.tags.map((tag) => <span key={tag.id}>{tag.name}</span>)}</div>
-                <div className="event-visibility-control"><span>{selectedEvent.isPublic ? <Globe2 size={13} /> : <LockKeyhole size={13} />}{selectedEvent.isPublic ? "允許分享" : "私人事件"}</span>{canEdit ? <button onClick={toggleSelectedEventVisibility} disabled={visibilityMutation.isPending}>{selectedEvent.isPublic ? "改為私人" : "允許分享"}</button> : null}</div>
+                <div className="event-visibility-control"><span>{selectedEvent.shareScope === "public" ? <Globe2 size={13} /> : <LockKeyhole size={13} />}{selectedEvent.shareScope === "public" ? "公開故事可閱" : selectedEvent.shareScope === "link" ? "僅私密連結／密碼分享可閱" : "完全私人"}</span>{canEdit ? <select aria-label="更新事件分享範圍" value={selectedEvent.shareScope} onChange={async (event) => { try { await visibilityMutation.mutateAsync({ id: selectedEvent.id, shareScope: event.target.value as "private" | "public" | "link" }); await utils.diary.get.invalidate(); toast.success("事件分享範圍已更新。"); } catch (visibilityError) { toast.error(visibilityError instanceof Error ? visibilityError.message : "無法更新事件分享範圍。"); } }} disabled={visibilityMutation.isPending}><option value="private">私人</option><option value="link">連結／密碼</option><option value="public">公開</option></select> : null}</div>
                 {selectedEvent.media.length ? <section className="media-editor" aria-label={canEdit ? "事件圖片編輯" : "事件圖片"}><header><span><GripVertical size={13} /> {canEdit ? "圖片排序與說明" : "事件圖片"}</span><b>{selectedEvent.media.length.toString().padStart(2, "0")} 張</b></header>{selectedEvent.media.map((media) => <article key={media.id} draggable={canEdit && selectedEvent.media.length > 1} onDragStart={() => canEdit && setDraggedMediaId(media.id)} onDragOver={(event) => canEdit && event.preventDefault()} onDrop={() => canEdit && dropImageAt(media.id)} onDragEnd={() => setDraggedMediaId(null)}><img src={media.url} alt={media.caption ?? selectedEvent.title} /><div>{canEdit ? <><input value={mediaCaptionDrafts[media.id] ?? media.caption ?? ""} onChange={(event) => setMediaCaptionDrafts((current) => ({ ...current, [media.id]: event.target.value }))} placeholder="為這張圖片寫下說明" maxLength={240} /><div><button type="button" onClick={() => saveImageCaption(media.id)} disabled={updateImageMutation.isPending}><Save size={12} /> 儲存說明</button><button type="button" onClick={() => removeImage(media.id)}><Trash2 size={12} /> 移除</button></div></> : <p className="media-caption-readonly">{media.caption ?? "未提供圖片說明"}</p>}</div></article>)}</section> : null}
                 {canEdit ? <section className="event-revisions" aria-label="事件版本歷程">
                   <button type="button" className="event-revisions-toggle" onClick={() => setShowRevisions((visible) => !visible)}><History size={13} /> {showRevisions ? "收起版本歷程" : "查看版本歷程"}</button>

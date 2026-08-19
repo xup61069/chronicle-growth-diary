@@ -34,6 +34,7 @@ type DiaryEventInput = {
   locationPrivacy?: "none" | "city" | "precise";
   soundtrackTitle?: string | null;
   soundtrackUrl?: string | null;
+  shareScope?: "private" | "public" | "link";
 };
 type WritableDiaryAccess = { diary: { id: number; userId: number } };
 type EventWriteAccess = { id: number; diaryId: number; access: { diary: { id: number; userId: number } } };
@@ -115,6 +116,7 @@ export async function writeEventRevisionSnapshot(db: DbClient, assertEventWriteA
     locationPrivacy: event[0].locationPrivacy ?? "none",
     soundtrackTitle: event[0].soundtrackTitle,
     soundtrackUrl: event[0].soundtrackUrl,
+    shareScope: event[0].shareScope,
     isPublic: event[0].isPublic,
     timelinePosition: event[0].timelinePosition,
     tagNames: tags.filter((tag) => tag.kind === "general").map((tag) => tag.name),
@@ -168,7 +170,8 @@ export async function restoreDiaryEventRevisionForUser(db: DbClient, assertEvent
     locationPrivacy: snapshot.locationPrivacy,
     soundtrackTitle: snapshot.soundtrackTitle?.trim() || null,
     soundtrackUrl: snapshot.soundtrackUrl?.trim() || null,
-    isPublic: snapshot.isPublic,
+    shareScope: snapshot.shareScope,
+    isPublic: snapshot.shareScope === "public",
     timelinePosition: snapshot.timelinePosition,
   }).where(eq(growthEvents.id, eventId));
   await saveEventTagsForDiaryUser(db, eventId, eventAccess.access.diary.userId, snapshot.tagNames, snapshot.skillNames);
@@ -200,6 +203,8 @@ export async function createDiaryEventForUser(db: DbClient, getWritableDiary: Ge
     locationPrivacy: input.locationPrivacy ?? "none",
     soundtrackTitle: input.soundtrackTitle?.trim() || null,
     soundtrackUrl: input.soundtrackUrl?.trim() || null,
+    shareScope: input.shareScope ?? "private",
+    isPublic: input.shareScope === "public",
     timelinePosition: existingEvents.length,
   });
   const created = await db.select().from(growthEvents).where(eq(growthEvents.diaryId, diary.id)).orderBy(desc(growthEvents.id)).limit(1);
@@ -245,6 +250,8 @@ export async function updateDiaryEventForUser(db: DbClient, assertEventWriteAcce
     locationPrivacy: input.locationPrivacy ?? "none",
     soundtrackTitle: input.soundtrackTitle?.trim() || null,
     soundtrackUrl: input.soundtrackUrl?.trim() || null,
+    shareScope: input.shareScope ?? "private",
+    isPublic: input.shareScope === "public",
   }).where(eq(growthEvents.id, eventId));
   await saveEventTagsForDiaryUser(db, eventId, eventAccess.access.diary.userId, input.tagNames, input.skillNames);
   await writeEventRevisionSnapshot(db, assertEventWriteAccess, userId, eventId, "update");
@@ -259,10 +266,10 @@ export async function deleteDiaryEventForUser(db: DbClient, assertEventWriteAcce
   return { id: eventId };
 }
 
-export async function setDiaryEventVisibilityForUser(db: DbClient, assertEventWriteAccess: AssertEventWriteAccess, userId: number, eventId: number, isPublic: boolean) {
+export async function setDiaryEventVisibilityForUser(db: DbClient, assertEventWriteAccess: AssertEventWriteAccess, userId: number, eventId: number, shareScope: "private" | "public" | "link") {
   await assertEventWriteAccess(eventId, userId);
-  await db.update(growthEvents).set({ isPublic }).where(eq(growthEvents.id, eventId));
-  return { id: eventId, isPublic };
+  await db.update(growthEvents).set({ shareScope, isPublic: shareScope === "public" }).where(eq(growthEvents.id, eventId));
+  return { id: eventId, shareScope, isPublic: shareScope === "public" };
 }
 
 export async function reorderDiaryEventsForUser(db: DbClient, getWritableDiary: GetWritableDiary, userId: number, eventIds: number[], requestedDiaryId?: number) {

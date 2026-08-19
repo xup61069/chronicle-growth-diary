@@ -25,6 +25,7 @@ describe("diary editor helpers", () => {
       locationPrivacy: "none",
       soundtrackTitle: "",
       soundtrackUrl: "",
+      shareScope: "private",
     });
   });
 

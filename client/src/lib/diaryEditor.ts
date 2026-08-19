@@ -25,6 +25,7 @@ export type EventForm = {
   locationPrivacy: LocationPrivacy;
   soundtrackTitle: string;
   soundtrackUrl: string;
+  shareScope: "private" | "public" | "link";
   color: (typeof diaryColors)[number];
   tagNames: string[];
   skillNames: string[];
@@ -53,6 +54,7 @@ export const makeEmptyForm = (): EventForm => ({
   locationPrivacy: "none",
   soundtrackTitle: "",
   soundtrackUrl: "",
+  shareScope: "private",
   color: "#EE623B",
   tagNames: [],
   skillNames: [],

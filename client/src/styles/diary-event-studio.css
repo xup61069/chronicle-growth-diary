@@ -213,6 +213,13 @@
 .before-after-comparison footer { display: flex; justify-content: space-between; gap: 12px; color: var(--ink-soft); font: 500 8px/1.3 "IBM Plex Mono", monospace; }
 .before-after-comparison footer span:last-child { text-align: right; }
 .event-soundtrack audio { display: block; width: 100%; height: 30px; }
+.social-card-actions { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 14px; padding: 12px; border: 1px solid rgba(20,38,58,.22); background: #f5f0e6; }
+.social-card-actions > div:first-child { display: grid; gap: 3px; }
+.social-card-actions span { color: var(--ink); font: 500 9px "IBM Plex Mono", monospace; letter-spacing: .1em; }
+.social-card-actions small { color: var(--ink-soft); font-size: 10px; line-height: 1.5; }
+.social-card-actions > div:last-child { display: flex; flex-wrap: wrap; gap: 7px; }
+.social-card-actions button { border: 1px solid var(--ink); background: transparent; color: var(--ink); padding: 6px 8px; font: 500 10px "IBM Plex Mono", monospace; }
+.social-card-actions button:hover { background: var(--ink); color: var(--paper); }
 .life-progress-ring { display: grid; grid-template-columns: 138px minmax(0, 1fr); align-items: center; gap: 20px; margin: 18px 0; padding: 18px; border: 1px solid rgba(20,38,58,.24); background: #172c43; color: #fffdf8; }
 .life-progress-ring .editor-kicker { color: rgba(255,253,248,.68); }
 .life-progress-ring .editor-kicker span { background: var(--cinnabar); }
@@ -255,6 +262,7 @@
   .bento-event-grid { grid-auto-rows: 102px; }
   .private-coordinates > div { grid-template-columns: 1fr; }
   .soundtrack-inputs { grid-template-columns: 1fr; }
+  .social-card-actions { align-items: flex-start; flex-direction: column; }
   .life-progress-ring { grid-template-columns: 1fr; justify-items: start; gap: 14px; }
   .spatial-footprint-map { min-height: 150px; }
   .spatial-footprint-node span { max-width: 66px; }

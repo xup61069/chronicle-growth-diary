@@ -84,6 +84,7 @@ export const growthEvents = mysqlTable(
     locationPrivacy: mysqlEnum("locationPrivacy", ["none", "city", "precise"]).notNull().default("none"),
     soundtrackTitle: varchar("soundtrackTitle", { length: 120 }),
     soundtrackUrl: varchar("soundtrackUrl", { length: 1024 }),
+    shareScope: mysqlEnum("shareScope", ["private", "public", "link"]).notNull().default("private"),
     isPublic: boolean("isPublic").notNull().default(false),
     timelinePosition: int("timelinePosition").notNull().default(0),
     createdAt: timestamp("createdAt").defaultNow().notNull(),

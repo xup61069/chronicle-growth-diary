@@ -1,0 +1,1 @@
+ALTER TABLE `growth_events` ADD `shareScope` enum('private','public','link') DEFAULT 'private' NOT NULL;
