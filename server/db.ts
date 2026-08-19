@@ -1,20 +1,15 @@
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   growthDiaries,
   growthDiaryMembers,
-  growthEventMedia,
-  growthEventRevisions,
   growthEvents,
-  growthEventTags,
   growthPhaseReflections,
   growthShareAccessLogs,
   growthTags,
 } from "../drizzle/schema";
-import { normalizeTagNames } from "./diaryHelpers";
 import { getEnrichedDiaryEvents } from "./db/diaryRead";
-import { deriveLifePhases, getInvalidLifePhaseBoundary } from "./lifePhases";
-import { parseDiaryEventRevisionSnapshot } from "./db/revisions";
+import { deriveLifePhases } from "./lifePhases";
 import {
   acceptDiaryInviteForUser,
   createDiaryInviteForDiary,
@@ -32,6 +27,16 @@ export type { DiarySharingInput } from "./db/sharing";
 import type { DiarySharingInput } from "./db/sharing";
 import { updateDiaryPhaseBoundariesForDiary, updateDiaryProfileForDiary } from "./db/diarySettings";
 import { deleteDiaryEventMediaForUser, reorderDiaryEventMediaForUser, updateDiaryEventMediaForUser, uploadDiaryCoverMedia, uploadDiaryEventMedia } from "./db/diaryMedia";
+import {
+  createDiaryEventForUser,
+  deleteDiaryEventForUser,
+  getDiaryEventRevisionsForUser,
+  importDiaryEventsForUser,
+  reorderDiaryEventsForUser,
+  restoreDiaryEventRevisionForUser,
+  setDiaryEventVisibilityForUser,
+  updateDiaryEventForUser,
+} from "./db/diaryEvents";
 export type { DiaryPhaseBoundariesInput, DiaryProfileInput } from "./db/diarySettings";
 import type { DiaryPhaseBoundariesInput, DiaryProfileInput } from "./db/diarySettings";
 import {
@@ -122,25 +127,6 @@ async function assertEventWriteAccess(eventId: number, userId: number) {
   return { ...event[0], access };
 }
 
-async function saveEventTags(eventId: number, userId: number, rawTagNames: string[]) {
-  const db = await requireDb();
-  const tagNames = normalizeTagNames(rawTagNames);
-  await db.delete(growthEventTags).where(eq(growthEventTags.eventId, eventId));
-  if (tagNames.length === 0) return;
-  const tagIds: number[] = [];
-  for (const name of tagNames) {
-    const existing = await db.select().from(growthTags).where(and(eq(growthTags.userId, userId), eq(growthTags.name, name))).limit(1);
-    if (existing[0]) {
-      tagIds.push(existing[0].id);
-      continue;
-    }
-    await db.insert(growthTags).values({ userId, name });
-    const created = await db.select().from(growthTags).where(and(eq(growthTags.userId, userId), eq(growthTags.name, name))).limit(1);
-    if (created[0]) tagIds.push(created[0].id);
-  }
-  if (tagIds.length) await db.insert(growthEventTags).values(tagIds.map((tagId) => ({ eventId, tagId })));
-}
-
 function makeLifePhaseSnapshot(diary: typeof growthDiaries.$inferSelect, events: Awaited<ReturnType<typeof getEnrichedDiaryEvents>>) {
   return deriveLifePhases(events, {
     birthYear: diary.birthYear,
@@ -187,144 +173,44 @@ export async function getDiarySnapshot(userId: number, requestedDiaryId?: number
   };
 }
 
-type EventRevisionChangeType = "create" | "update" | "restore";
-
-async function writeEventRevision(userId: number, eventId: number, changeType: EventRevisionChangeType) {
-  const db = await requireDb();
-  await assertEventWriteAccess(eventId, userId);
-  const event = await db.select().from(growthEvents).where(eq(growthEvents.id, eventId)).limit(1);
-  if (!event[0]) throw new Error("找不到這筆成長事件。");
-  const tags = await db.select({ name: growthTags.name })
-    .from(growthEventTags)
-    .innerJoin(growthTags, eq(growthEventTags.tagId, growthTags.id))
-    .where(eq(growthEventTags.eventId, eventId))
-    .orderBy(asc(growthTags.name));
-  const latest = await db.select({ version: growthEventRevisions.version })
-    .from(growthEventRevisions)
-    .where(eq(growthEventRevisions.eventId, eventId))
-    .orderBy(desc(growthEventRevisions.version))
-    .limit(1);
-  const snapshot = JSON.stringify({
-    occurredAt: event[0].occurredAt,
-    datePrecision: event[0].datePrecision,
-    eventType: event[0].eventType,
-    title: event[0].title,
-    body: event[0].body,
-    ageLabel: event[0].ageLabel,
-    place: event[0].place,
-    color: event[0].color,
-    isPublic: event[0].isPublic,
-    timelinePosition: event[0].timelinePosition,
-    tagNames: tags.map((tag) => tag.name),
-  });
-  const version = (latest[0]?.version ?? 0) + 1;
-  await db.insert(growthEventRevisions).values({ eventId, version, changeType, snapshot });
-  return { eventId, version, changeType, snapshot };
-}
-
 export async function getDiaryEventRevisions(userId: number, eventId: number) {
   const db = await requireDb();
-  await assertEventWriteAccess(eventId, userId);
-  const revisions = await db.select().from(growthEventRevisions)
-    .where(eq(growthEventRevisions.eventId, eventId))
-    .orderBy(desc(growthEventRevisions.version));
-  return revisions.map((revision) => ({
-    id: revision.id,
-    eventId: revision.eventId,
-    version: revision.version,
-    changeType: revision.changeType,
-    snapshot: parseDiaryEventRevisionSnapshot(revision.snapshot),
-    createdAt: revision.createdAt,
-  }));
+  return getDiaryEventRevisionsForUser(db, assertEventWriteAccess, userId, eventId);
 }
 
 export async function restoreDiaryEventRevision(userId: number, eventId: number, revisionId: number) {
   const db = await requireDb();
-  const eventAccess = await assertEventWriteAccess(eventId, userId);
-  const revision = await db.select().from(growthEventRevisions)
-    .where(and(eq(growthEventRevisions.id, revisionId), eq(growthEventRevisions.eventId, eventId)))
-    .limit(1);
-  if (!revision[0]) throw new Error("找不到可還原的事件版本。");
-  const snapshot = parseDiaryEventRevisionSnapshot(revision[0].snapshot);
-  await db.update(growthEvents).set({
-    occurredAt: snapshot.occurredAt,
-    datePrecision: snapshot.datePrecision,
-    eventType: snapshot.eventType,
-    title: snapshot.title.trim(),
-    body: snapshot.body.trim(),
-    ageLabel: snapshot.ageLabel?.trim() || null,
-    place: snapshot.place?.trim() || null,
-    color: snapshot.color,
-    isPublic: snapshot.isPublic,
-    timelinePosition: snapshot.timelinePosition,
-  }).where(eq(growthEvents.id, eventId));
-  await saveEventTags(eventId, eventAccess.access.diary.userId, snapshot.tagNames);
-  const restored = await writeEventRevision(userId, eventId, "restore");
-  return { eventId, restoredVersion: restored.version };
+  return restoreDiaryEventRevisionForUser(db, assertEventWriteAccess, userId, eventId, revisionId);
 }
 
 export async function createDiaryEvent(userId: number, input: DiaryEventInput, requestedDiaryId?: number) {
   const db = await requireDb();
-  const { diary } = await getWritableDiary(userId, requestedDiaryId);
-  const existingEvents = await db.select({ id: growthEvents.id }).from(growthEvents).where(eq(growthEvents.diaryId, diary.id));
-  await db.insert(growthEvents).values({ diaryId: diary.id, occurredAt: input.occurredAt, datePrecision: input.datePrecision, eventType: input.eventType, title: input.title.trim(), body: input.body.trim(), ageLabel: input.ageLabel?.trim() || null, place: input.place?.trim() || null, color: input.color, timelinePosition: existingEvents.length });
-  const created = await db.select().from(growthEvents).where(eq(growthEvents.diaryId, diary.id)).orderBy(desc(growthEvents.id)).limit(1);
-  if (!created[0]) throw new Error("無法儲存這筆成長事件。");
-  await saveEventTags(created[0].id, diary.userId, input.tagNames);
-  await writeEventRevision(userId, created[0].id, "create");
-  return { id: created[0].id };
+  return createDiaryEventForUser(db, getWritableDiary, assertEventWriteAccess, userId, input, requestedDiaryId);
 }
 
 export async function importDiaryEvents(userId: number, inputs: DiaryEventInput[], requestedDiaryId?: number) {
-  const createdIds: number[] = [];
-  try {
-    for (const input of inputs) {
-      const created = await createDiaryEvent(userId, { ...input, tagNames: input.tagNames.slice(0, 8) }, requestedDiaryId);
-      createdIds.push(created.id);
-    }
-    return { importedCount: createdIds.length, eventIds: createdIds };
-  } catch (error) {
-    await Promise.all(createdIds.map((eventId) => deleteDiaryEvent(userId, eventId)));
-    throw new Error("匯入未完成，這次建立的事件已清除，請檢查備份檔後再試。", { cause: error });
-  }
+  const db = await requireDb();
+  return importDiaryEventsForUser(db, createDiaryEvent, deleteDiaryEvent, userId, inputs, requestedDiaryId);
 }
 
 export async function updateDiaryEvent(userId: number, eventId: number, input: DiaryEventInput) {
   const db = await requireDb();
-  const eventAccess = await assertEventWriteAccess(eventId, userId);
-  await db.update(growthEvents).set({ occurredAt: input.occurredAt, datePrecision: input.datePrecision, eventType: input.eventType, title: input.title.trim(), body: input.body.trim(), ageLabel: input.ageLabel?.trim() || null, place: input.place?.trim() || null, color: input.color }).where(eq(growthEvents.id, eventId));
-  await saveEventTags(eventId, eventAccess.access.diary.userId, input.tagNames);
-  await writeEventRevision(userId, eventId, "update");
-  return { id: eventId };
+  return updateDiaryEventForUser(db, assertEventWriteAccess, userId, eventId, input);
 }
 
 export async function deleteDiaryEvent(userId: number, eventId: number) {
   const db = await requireDb();
-  await assertEventWriteAccess(eventId, userId);
-  await db.delete(growthEventTags).where(eq(growthEventTags.eventId, eventId));
-  await db.delete(growthEventMedia).where(eq(growthEventMedia.eventId, eventId));
-  await db.delete(growthEvents).where(eq(growthEvents.id, eventId));
-  return { id: eventId };
+  return deleteDiaryEventForUser(db, assertEventWriteAccess, userId, eventId);
 }
 
 export async function setDiaryEventVisibility(userId: number, eventId: number, isPublic: boolean) {
   const db = await requireDb();
-  await assertEventWriteAccess(eventId, userId);
-  await db.update(growthEvents).set({ isPublic }).where(eq(growthEvents.id, eventId));
-  return { id: eventId, isPublic };
+  return setDiaryEventVisibilityForUser(db, assertEventWriteAccess, userId, eventId, isPublic);
 }
 
 export async function reorderDiaryEvents(userId: number, eventIds: number[], requestedDiaryId?: number) {
   const db = await requireDb();
-  const { diary } = await getWritableDiary(userId, requestedDiaryId);
-  const ownedEvents = await db.select({ id: growthEvents.id }).from(growthEvents).where(eq(growthEvents.diaryId, diary.id));
-  if (ownedEvents.length !== eventIds.length || new Set(eventIds).size !== eventIds.length || ownedEvents.some((event) => !eventIds.includes(event.id))) {
-    throw new Error("事件排序內容不完整，請重新整理後再試。");
-  }
-  for (let timelinePosition = 0; timelinePosition < eventIds.length; timelinePosition += 1) {
-    await db.update(growthEvents).set({ timelinePosition }).where(eq(growthEvents.id, eventIds[timelinePosition]!));
-  }
-  return { eventIds };
+  return reorderDiaryEventsForUser(db, getWritableDiary, userId, eventIds, requestedDiaryId);
 }
 
 export async function updateDiaryPhaseBoundaries(userId: number, input: DiaryPhaseBoundariesInput) {
