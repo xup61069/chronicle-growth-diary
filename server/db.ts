@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { randomBytes } from "node:crypto";
 import {
@@ -20,7 +20,10 @@ import { normalizeTagNames, safeMediaName } from "./diaryHelpers";
 import { getEnrichedDiaryEvents } from "./db/diaryRead";
 import { deriveLifePhases, getInvalidLifePhaseBoundary } from "./lifePhases";
 import { parseDiaryEventRevisionSnapshot } from "./db/revisions";
-import { hasShareAccess, hashSharePassword, hashShareToken, isShareExpired, makeShareSlug, makeShareToken, verifySharePassword } from "./shareAccess";
+import { hashShareToken } from "./shareAccess";
+import { persistDiarySharing, readSharedDiary } from "./db/sharing";
+export type { DiarySharingInput } from "./db/sharing";
+import type { DiarySharingInput } from "./db/sharing";
 import { invokeLLM } from "./_core/llm";
 import { storagePut } from "./storage";
 
@@ -39,24 +42,6 @@ export type DiaryEventInput = {
 };
 
 export type DiaryMemberRole = "editor" | "commenter";
-
-export type DiarySharingInput = {
-  shareMode: "private" | "public" | "link";
-  birthYear?: number | null;
-  educationStartYear?: number | null;
-  careerStartYear?: number | null;
-  childhoodStartYear?: number | null;
-  childhoodEndYear?: number | null;
-  educationEndYear?: number | null;
-  careerEndYear?: number | null;
-  sharePassword?: string | null;
-  clearSharePassword?: boolean;
-  shareExpiresAt?: number | null;
-  regenerateLink?: boolean;
-  publicCoverTitle?: string | null;
-  publicStoryLayout?: "editorial" | "gallery" | "minimal";
-  clearPublicCover?: boolean;
-};
 
 export type DiaryPhaseBoundariesInput = Pick<DiarySharingInput, "childhoodStartYear" | "childhoodEndYear" | "educationStartYear" | "educationEndYear" | "careerStartYear" | "careerEndYear">;
 
@@ -449,63 +434,12 @@ export async function deleteAnnualReflection(userId: number, year: number) {
 export async function updateDiarySharing(userId: number, input: DiarySharingInput) {
   const db = await requireDb();
   const diary = await getOrCreateDiary(userId);
-  const invalidBoundary = getInvalidLifePhaseBoundary({
-    ...diary,
-    ...Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined)),
-  });
-  if (invalidBoundary) throw new Error(`${invalidBoundary.label}階段的結束年份不能早於開始年份。`);
-  const shareSlug = diary.shareSlug ?? makeShareSlug(diary.id);
-  let shareToken: string | undefined;
-  let shareTokenHash = diary.shareTokenHash;
-
-  if (input.shareMode === "link" && (!shareTokenHash || input.regenerateLink)) {
-    shareToken = makeShareToken();
-    shareTokenHash = hashShareToken(shareToken);
-  }
-  if (input.shareMode !== "link") shareTokenHash = null;
-  const sharePasswordHash = input.clearSharePassword ? null : input.sharePassword ? hashSharePassword(input.sharePassword) : diary.sharePasswordHash;
-  const shareExpiresAt = input.shareExpiresAt === undefined ? diary.shareExpiresAt : input.shareExpiresAt;
-  const publicCoverTitle = input.publicCoverTitle === undefined ? diary.publicCoverTitle : input.publicCoverTitle?.trim() || null;
-
-  await db.update(growthDiaries).set({
-    shareMode: input.shareMode,
-    shareSlug,
-    shareTokenHash,
-    sharePasswordHash: input.shareMode === "private" ? null : sharePasswordHash,
-    shareExpiresAt: input.shareMode === "private" ? null : shareExpiresAt,
-    birthYear: input.birthYear ?? null,
-    educationStartYear: input.educationStartYear ?? null,
-    careerStartYear: input.careerStartYear ?? null,
-    childhoodStartYear: input.childhoodStartYear ?? null,
-    childhoodEndYear: input.childhoodEndYear ?? null,
-    educationEndYear: input.educationEndYear ?? null,
-    careerEndYear: input.careerEndYear ?? null,
-    publicCoverStorageKey: input.clearPublicCover ? null : diary.publicCoverStorageKey,
-    publicCoverUrl: input.clearPublicCover ? null : diary.publicCoverUrl,
-    publicCoverTitle,
-    publicStoryLayout: input.publicStoryLayout ?? diary.publicStoryLayout,
-  }).where(eq(growthDiaries.id, diary.id));
-  return { mode: input.shareMode, slug: shareSlug, shareToken, hasPassword: Boolean(input.shareMode !== "private" && sharePasswordHash), expiresAt: input.shareMode === "private" ? null : shareExpiresAt };
+  return persistDiarySharing(db, diary, input);
 }
 
 export async function getSharedDiary(slug: string, token?: string | null, password?: string | null) {
   const db = await requireDb();
-  const matching = await db.select().from(growthDiaries).where(eq(growthDiaries.shareSlug, slug)).limit(1);
-  const diary = matching[0];
-  if (!diary) return { status: "not_found" as const };
-  if (isShareExpired(diary.shareExpiresAt)) return { status: "expired" as const };
-  if (!hasShareAccess({ mode: diary.shareMode, storedTokenHash: diary.shareTokenHash, providedToken: token })) return { status: "locked" as const };
-  if (diary.sharePasswordHash && !password) return { status: "password_required" as const };
-  if (diary.sharePasswordHash && !verifySharePassword(password ?? "", diary.sharePasswordHash)) return { status: "password_invalid" as const };
-  const events = await getEnrichedDiaryEvents(db, diary.id, true);
-  await db.update(growthDiaries).set({ shareAccessCount: sql`${growthDiaries.shareAccessCount} + 1`, lastSharedAt: new Date() }).where(eq(growthDiaries.id, diary.id));
-  await db.insert(growthShareAccessLogs).values({ diaryId: diary.id, channel: diary.shareMode === "link" ? "link" : "public" });
-  return {
-    status: "ok" as const,
-    diary: { title: diary.title, subtitle: diary.subtitle, shareMode: diary.shareMode, publicCoverUrl: diary.publicCoverUrl, publicCoverTitle: diary.publicCoverTitle, publicStoryLayout: diary.publicStoryLayout },
-    events,
-    lifePhases: makeLifePhaseSnapshot(diary, events),
-  };
+  return readSharedDiary(db, slug, token, password);
 }
 
 export async function uploadDiaryEventImage(input: { userId: number; eventId: number; fileName: string; mimeType: string; base64: string; caption?: string; }) {
