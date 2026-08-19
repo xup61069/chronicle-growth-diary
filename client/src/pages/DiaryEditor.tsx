@@ -17,6 +17,7 @@ import { parseSocialDraftCsv, parseSocialDraftJson, type SocialDraftCandidate } 
 import { trpc } from "@/lib/trpc";
 import { canEditFamilyDiary, canManageFamilyDiarySettings, describeFamilyAuditAction, type FamilyDiaryAccessRole } from "@/lib/familyCollaboration";
 import "@/styles/family-collaboration.css";
+import "@/styles/diary-profile.css";
 import {
   Archive,
   ArrowDownUp,
@@ -104,6 +105,8 @@ function DiaryEditorContent() {
   const [publicStoryLayout, setPublicStoryLayout] = useState<PublicStoryLayout>("editorial");
   const [pendingCover, setPendingCover] = useState<PendingImage | null>(null);
   const [clearPublicCover, setClearPublicCover] = useState(false);
+  const [profileTitle, setProfileTitle] = useState("");
+  const [profileSubtitle, setProfileSubtitle] = useState("");
   const [annualYear, setAnnualYear] = useState("");
   const [annualTemplate, setAnnualTemplate] = useState<AnnualReviewTemplate>("narrative");
   const [phaseBoundaries, setPhaseBoundaries] = useState<PhaseBoundaries>({ childhood: { start: "", end: "" }, education: { start: "", end: "" }, career: { start: "", end: "" } });
@@ -150,6 +153,13 @@ function DiaryEditorContent() {
   const reflectionMutation = trpc.diary.generatePhaseReflection.useMutation();
   const reflectionSaveMutation = trpc.diary.updatePhaseReflection.useMutation();
   const aiPreferenceMutation = trpc.diary.updateAiPreference.useMutation();
+  const profileMutation = trpc.diary.updateProfile.useMutation({
+    onSuccess: async () => {
+      await utils.diary.get.invalidate();
+      toast.success("已更新這本成長史的側寫。");
+    },
+    onError: (error) => toast.error(error.message),
+  });
   const deleteReflectionMutation = trpc.diary.deletePhaseReflection.useMutation();
   const importMutation = trpc.diary.importEvents.useMutation();
   const restoreRevisionMutation = trpc.diary.restoreEventRevision.useMutation();
@@ -226,6 +236,8 @@ function DiaryEditorContent() {
     setPublicStoryLayout(data.diary.publicStoryLayout);
     setClearPublicCover(false);
     setPendingCover(null);
+    setProfileTitle(data.diary.title);
+    setProfileSubtitle(data.diary.subtitle ?? "");
     setAnnualYear((current) => current || String(availableYears[0] ?? new Date().getFullYear()));
     setPhaseBoundaries({
       childhood: { start: data.diary.childhoodStartYear?.toString() ?? data.diary.birthYear?.toString() ?? "", end: data.diary.childhoodEndYear?.toString() ?? "" },
@@ -257,6 +269,12 @@ function DiaryEditorContent() {
 
   const applyWritingGuide = (template: string) => {
     setForm((current) => ({ ...current, body: appendWritingGuide(current.body, template) }));
+  };
+
+  const saveDiaryProfile = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!isOwner) return;
+    profileMutation.mutate({ title: profileTitle, subtitle: profileSubtitle || null });
   };
 
   const startNewEvent = () => {
@@ -711,6 +729,8 @@ function DiaryEditorContent() {
     <div className="diary-editor">
       <DiaryEditorHeader title={data?.diary.title ?? "我的成長史"} eventCountLabel={eventCountLabel} mediaCount={hasMedia} />
       {!isOwner ? <section className="family-access-notice" aria-label="家庭共寫權限"><ShieldCheck size={17} /><div><b>{accessRole === "editor" ? "共同編輯權限" : "註解權限"}</b><p>{accessRole === "editor" ? "你可新增、編輯、排序事件與圖片，也可與家人以註解交流；分享、AI、階段設定與成員管理仍只由日記擁有者控制。" : "你可閱讀事件並新增註解；日記內容、圖片、排序、分享與帳號設定均維持由日記擁有者管理。"}</p></div></section> : null}
+
+      {isOwner ? <section className="diary-profile-studio" aria-labelledby="diary-profile-title"><div><p className="editor-kicker"><span /> PERSONAL ARCHIVE / OWNER ONLY</p><h2 id="diary-profile-title">為這本成長史留下側寫</h2><p>以標題和短句定義這段人生的閱讀方式。側寫預設只留在私人日記中；此處不蒐集聯絡方式、完整出生日期或其他敏感個資。</p></div><form className="diary-profile-form" onSubmit={saveDiaryProfile}><label>成長史標題<input value={profileTitle} onChange={(event) => setProfileTitle(event.target.value)} maxLength={160} required /></label><label>副標題（選填）<textarea value={profileSubtitle} onChange={(event) => setProfileSubtitle(event.target.value)} maxLength={240} placeholder="例如：把重要轉折、學習與日常心緒慢慢編成一條時間帶。" /></label><footer><span>{profileSubtitle.length}/240 · 僅日記擁有者可修改</span><button type="submit" disabled={profileMutation.isPending}>{profileMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} 保存側寫</button></footer></form></section> : null}
 
       <section className="life-phase-overview" ref={exportRef} aria-labelledby="life-phase-title">
         <div className="phase-heading">

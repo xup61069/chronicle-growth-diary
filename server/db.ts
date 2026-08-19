@@ -59,6 +59,11 @@ export type DiarySharingInput = {
 
 export type DiaryPhaseBoundariesInput = Pick<DiarySharingInput, "childhoodStartYear" | "childhoodEndYear" | "educationStartYear" | "educationEndYear" | "careerStartYear" | "careerEndYear">;
 
+export type DiaryProfileInput = {
+  title: string;
+  subtitle?: string | null;
+};
+
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
@@ -408,6 +413,16 @@ export async function updateDiaryAiPreference(userId: number, aiEnabled: boolean
   const diary = await getOrCreateDiary(userId);
   await db.update(growthDiaries).set({ aiEnabled }).where(eq(growthDiaries.id, diary.id));
   return { aiEnabled };
+}
+
+/** Updates only owner-controlled narrative metadata; contact and identity details are intentionally not collected. */
+export async function updateDiaryProfile(userId: number, input: DiaryProfileInput) {
+  const db = await requireDb();
+  const diary = await getOrCreateDiary(userId);
+  const title = input.title.trim();
+  const subtitle = input.subtitle?.trim() || null;
+  await db.update(growthDiaries).set({ title, subtitle }).where(eq(growthDiaries.id, diary.id));
+  return { title, subtitle };
 }
 
 export async function deletePhaseReflection(userId: number, phaseKey: "childhood" | "education" | "career") {

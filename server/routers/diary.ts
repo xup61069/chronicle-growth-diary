@@ -24,6 +24,7 @@ import {
   updateDiaryEvent,
   updateDiaryEventMedia,
   updateDiaryPhaseBoundaries,
+  updateDiaryProfile,
   updateDiarySharing,
   updateDiaryMemberRole,
   updatePhaseReflection,
@@ -82,6 +83,10 @@ export const diaryRouter = router({
   generatePhaseReflection: protectedProcedure.input(z.object({ phaseKey: z.enum(["childhood", "education", "career"]) })).mutation(({ ctx, input }) => generatePhaseReflection(ctx.user.id, input.phaseKey)),
   updatePhaseReflection: protectedProcedure.input(z.object({ phaseKey: z.enum(["childhood", "education", "career"]), recap: z.string().trim().min(1).max(3000), reflection: z.string().trim().min(1).max(3000) })).mutation(({ ctx, input }) => updatePhaseReflection(ctx.user.id, input)),
   updateAiPreference: protectedProcedure.input(z.object({ aiEnabled: z.boolean() })).mutation(({ ctx, input }) => updateDiaryAiPreference(ctx.user.id, input.aiEnabled)),
+  updateProfile: protectedProcedure.input(z.object({
+    title: z.string().trim().min(1, "請為這本成長史保留一個標題。").max(160),
+    subtitle: z.string().trim().max(240).nullable().optional(),
+  })).mutation(({ ctx, input }) => updateDiaryProfile(ctx.user.id, input)),
   deletePhaseReflection: protectedProcedure.input(z.object({ phaseKey: z.enum(["childhood", "education", "career"]) })).mutation(({ ctx, input }) => deletePhaseReflection(ctx.user.id, input.phaseKey)),
   updateSharing: protectedProcedure.input(z.object({
     shareMode: z.enum(["private", "public", "link"]),

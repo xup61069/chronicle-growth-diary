@@ -41,6 +41,7 @@ const diaryDb = vi.hoisted(() => {
     updateDiaryEvent: vi.fn(),
     updateDiaryEventMedia: vi.fn(),
     updateDiaryPhaseBoundaries: vi.fn(),
+    updateDiaryProfile: vi.fn(async () => ({ title: "閱讀中的成長史", subtitle: "把轉折留在時間帶上。" })),
     updateDiarySharing: vi.fn(async () => ({ mode: "public", slug: "story-test-cover", shareToken: null, hasPassword: false, expiresAt: null })),
     updateDiaryMemberRole: vi.fn(async () => ({ id: 7, role: "editor" })),
     updatePhaseReflection: vi.fn(),
@@ -123,6 +124,14 @@ describe("diary router validation", () => {
     })).rejects.toThrow("只支援 JPG、PNG、WebP 或 GIF 圖片");
 
     expect(diaryDb.uploadDiaryEventImage).not.toHaveBeenCalled();
+  });
+
+  it("只接受受限的日記標題與副標題以更新個人成長側寫", async () => {
+    const caller = diaryRouter.createCaller(authenticatedContext);
+    await expect(caller.updateProfile({ title: "  閱讀中的成長史  ", subtitle: "把轉折留在時間帶上。" })).resolves.toMatchObject({ title: "閱讀中的成長史" });
+    expect(diaryDb.updateDiaryProfile).toHaveBeenCalledWith(1, { title: "閱讀中的成長史", subtitle: "把轉折留在時間帶上。" });
+    await expect(caller.updateProfile({ title: "", subtitle: "" })).rejects.toThrow("請為這本成長史保留一個標題");
+    await expect(caller.updateProfile({ title: "有效標題", subtitle: "x".repeat(241) })).rejects.toThrow();
   });
 
   it("preserves diary snapshot read errors so the client recovery state can respond", async () => {
