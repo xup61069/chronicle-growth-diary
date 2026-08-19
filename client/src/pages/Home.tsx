@@ -19,6 +19,7 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
+import { startLogin } from "@/const";
 import { toast } from "sonner";
 
 type TimelineEvent = {
@@ -188,8 +189,9 @@ export default function Home() {
           <a href="#stories">故事案例</a>
           <a href="#plans">方案</a>
           <button
+            type="button"
             className="nav-login"
-            onClick={() => toast.info("登入功能可於後續串接會員系統。")}
+            onClick={startLogin}
           >
             登入
           </button>

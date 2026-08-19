@@ -116,3 +116,9 @@
 ## 2026-08-19：主開發站正式 OAuth 工作階段再次確認
 
 在不觸發登入、不修改帳號資料的被動檢查下，主開發站 `/editor` 仍顯示「開啟你的成長檔案」與「登入並開始編輯」未登入入口，表示此瀏覽器沒有可供 API 使用的 OAuth session cookie。因此，無法在不違反使用者先前跳過登入受限驗證的決定下，完成主開發站／正式 OAuth 的 `diary.get` 成功載入實證；此待辦將繼續保留，隔離 local-auth 證據不會替代它。
+
+## 2026-08-19：首頁登入按鈕修復
+
+問題根因是首頁導覽列的「登入」按鈕仍保留模板時期的提示訊息，只顯示「登入功能可於後續串接會員系統」，沒有呼叫 OAuth 導向。已改為直接從使用者點擊事件呼叫既有 `startLogin`，維持一次性 nonce cookie、`state`、`appId`、`redirectUri` 和 `type=signIn` 的既有安全合約。
+
+新增 `client/src/const.test.ts`，驗證登入導向會寫入短效 nonce cookie 並建立正確登入 URL；新增 `test:e2e:login`。主開發站的隔離 Chromium 回歸已實際點擊首頁「登入」，並確認導向 `https://manus.im/app-auth`，包含 `appId`、callback、`state` 與 `signIn` 參數。完整 `pnpm check`、41 個測試檔共 117 項 Vitest 和正式建置均通過。
