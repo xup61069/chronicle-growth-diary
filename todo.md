@@ -104,7 +104,8 @@
 - [x] 將人生階段與年度 AI 回顧的資料最小化、模型呼叫、保存、手動更新、啟用偏好與刪除抽離至 `server/db/aiReflections.ts`，驗證 AI 關閉時不讀取事件或呼叫模型，且年度回顧僅傳送指定年份事件。
 - [x] 將家庭共寫的 email 綁定邀請、接受、註解、成員角色與稽核紀錄抽離至 `server/db/familyCollaboration.ts`，並驗證 email 不符時不寫入成員或稽核資料。
 - [ ] 抽離 `server/db.ts` 剩餘的日記快照、事件 CRUD／匯入／排序、媒體與封面上傳、階段邊界與側寫函式，讓其僅保留最小相容協調層。
-- [ ] 盤點並移出仍留在 `client/src/index.css` 的 `DiaryEditor` 專屬版面、mobile workspace 與 sharing studio 等樣式，補成頁面級可維護樣式模組後再重新驗證重構父項。
+- [x] 抽離人生階段邊界與日記側寫設定至 `server/db/diarySettings.ts`，維持部分邊界更新與擁有者側寫的既有 tRPC 契約。
+- [x] 盤點並移出仍留在 `client/src/index.css` 的 `DiaryEditor` 專屬版面、mobile workspace 與 sharing studio 等樣式，補成頁面級可維護樣式模組後再重新驗證重構父項。
 - [x] 將帳號刪除與事件版本歷程樣式抽離至 `client/src/styles/account-revisions.css`，保留既有桌面與窄螢幕配置規則。
 - [x] 實作媒體檔安全打包匯出與受控匯入：以 Chronicle ZIP manifest 打包事件圖片位元組、檔名／MIME／說明與事件指紋；匯入前驗證格式、路徑、圖片類型、單檔與總量限制，僅還原至標題與發生時間相符的事件。
 - [x] 在事件編輯器提供不送出日記內容、可直接套用的寫作引導：依事件類型提供本機模板，附加而不覆寫草稿，且不呼叫外部 AI 或傳送日記內容。

@@ -30,6 +30,9 @@ import type { DiaryMemberRole } from "./db/familyCollaboration";
 import { persistDiarySharing, readSharedDiary } from "./db/sharing";
 export type { DiarySharingInput } from "./db/sharing";
 import type { DiarySharingInput } from "./db/sharing";
+import { updateDiaryPhaseBoundariesForDiary, updateDiaryProfileForDiary } from "./db/diarySettings";
+export type { DiaryPhaseBoundariesInput, DiaryProfileInput } from "./db/diarySettings";
+import type { DiaryPhaseBoundariesInput, DiaryProfileInput } from "./db/diarySettings";
 import {
   deleteAnnualReflectionForDiary,
   deletePhaseReflectionForDiary,
@@ -57,12 +60,6 @@ export type DiaryEventInput = {
 };
 
 
-export type DiaryPhaseBoundariesInput = Pick<DiarySharingInput, "childhoodStartYear" | "childhoodEndYear" | "educationStartYear" | "educationEndYear" | "careerStartYear" | "careerEndYear">;
-
-export type DiaryProfileInput = {
-  title: string;
-  subtitle?: string | null;
-};
 
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
@@ -333,10 +330,7 @@ export async function reorderDiaryEvents(userId: number, eventIds: number[], req
 export async function updateDiaryPhaseBoundaries(userId: number, input: DiaryPhaseBoundariesInput) {
   const db = await requireDb();
   const diary = await getOrCreateDiary(userId);
-  const invalidBoundary = getInvalidLifePhaseBoundary({ ...diary, ...input });
-  if (invalidBoundary) throw new Error(`${invalidBoundary.label}階段的結束年份不能早於開始年份。`);
-  await db.update(growthDiaries).set(input).where(eq(growthDiaries.id, diary.id));
-  return input;
+  return updateDiaryPhaseBoundariesForDiary(db, diary, input);
 }
 
 export async function generatePhaseReflection(userId: number, phaseKey: ReflectionPhaseKey) {
@@ -367,10 +361,7 @@ export async function updateDiaryAiPreference(userId: number, aiEnabled: boolean
 export async function updateDiaryProfile(userId: number, input: DiaryProfileInput) {
   const db = await requireDb();
   const diary = await getOrCreateDiary(userId);
-  const title = input.title.trim();
-  const subtitle = input.subtitle?.trim() || null;
-  await db.update(growthDiaries).set({ title, subtitle }).where(eq(growthDiaries.id, diary.id));
-  return { title, subtitle };
+  return updateDiaryProfileForDiary(db, diary.id, input);
 }
 
 export async function deletePhaseReflection(userId: number, phaseKey: ReflectionPhaseKey) {

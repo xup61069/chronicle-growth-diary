@@ -21,6 +21,7 @@ import "@/styles/family-collaboration.css";
 import "@/styles/diary-profile.css";
 import "@/styles/annual-review.css";
 import "@/styles/account-revisions.css";
+import "@/styles/diary-workspace.css";
 import {
   Archive,
   ArrowDownUp,
