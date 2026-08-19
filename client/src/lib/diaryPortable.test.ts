@@ -26,4 +26,18 @@ describe("portable diary export", () => {
     expect(markdown).toContain("[image.jpg](https://example.test/image.jpg)：一張照片");
     expect(markdown).not.toContain("secret-object-key");
   });
+
+  it("masks a future time capsule in both portable JSON and Markdown exports", () => {
+    const futureUnlock = Date.UTC(2027, 0, 1);
+    const portable = createPortableDiaryExport({
+      ...source,
+      events: [{ ...source.events[0], title: "未來的秘密", body: "不能先備份的內容", place: "私人地點", tags: [{ name: "秘密" }], media: [{ url: "https://example.test/private.jpg", fileName: "private.jpg", mimeType: "image/jpeg" }], unlocksAt: futureUnlock }],
+    }, "2026-01-01T00:00:00.000Z", Date.UTC(2026, 0, 1));
+    const markdown = portableDiaryToMarkdown(portable);
+
+    expect(portable.events[0]).toMatchObject({ title: "時空膠囊鎖定中", isTimeCapsuleLocked: true, unlocksAt: "2027-01-01T00:00:00.000Z", tags: [], media: [] });
+    expect(JSON.stringify(portable)).not.toContain("不能先備份的內容");
+    expect(markdown).toContain("時空膠囊：鎖定至");
+    expect(markdown).not.toContain("private.jpg");
+  });
 });

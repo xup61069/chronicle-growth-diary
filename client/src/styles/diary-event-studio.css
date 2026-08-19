@@ -213,6 +213,28 @@
 .before-after-comparison footer { display: flex; justify-content: space-between; gap: 12px; color: var(--ink-soft); font: 500 8px/1.3 "IBM Plex Mono", monospace; }
 .before-after-comparison footer span:last-child { text-align: right; }
 .event-soundtrack audio { display: block; width: 100%; height: 30px; }
+.life-progress-ring { display: grid; grid-template-columns: 138px minmax(0, 1fr); align-items: center; gap: 20px; margin: 18px 0; padding: 18px; border: 1px solid rgba(20,38,58,.24); background: #172c43; color: #fffdf8; }
+.life-progress-ring .editor-kicker { color: rgba(255,253,248,.68); }
+.life-progress-ring .editor-kicker span { background: var(--cinnabar); }
+.life-progress-ring h2 { margin: 3px 0 7px; font-family: "DM Serif Display", serif; font-size: clamp(24px, 3vw, 38px); font-weight: 400; }
+.life-progress-ring p:not(.editor-kicker) { max-width: 650px; margin: 0; color: rgba(255,253,248,.76); font-size: 12px; line-height: 1.7; }
+.life-progress-gauge { position: relative; width: 120px; height: 120px; display: grid; place-items: center; }
+.life-progress-gauge svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
+.life-progress-gauge circle { fill: none; stroke: rgba(255,253,248,.16); stroke-width: 8; }
+.life-progress-gauge .life-progress-value { stroke: var(--cinnabar); stroke-dasharray: 302; stroke-dashoffset: calc(302 - (302 * var(--life-progress, 0) / 100)); stroke-linecap: square; }
+.life-progress-gauge b, .life-progress-gauge span { position: relative; font: 500 21px "IBM Plex Mono", monospace; }
+.life-progress-gauge.is-unset { border: 1px dashed rgba(255,253,248,.48); border-radius: 50%; color: rgba(255,253,248,.65); }
+.preview-card.is-capsule-locked > :not(.capsule-lock-notice) { display: none; }
+.capsule-lock-notice { display: grid; justify-items: center; gap: 7px; padding: 34px 18px; text-align: center; color: var(--ink); }
+.capsule-lock-notice svg { color: var(--cinnabar); }
+.capsule-lock-notice p { margin: 0; color: var(--ink-soft); font: 500 9px "IBM Plex Mono", monospace; letter-spacing: .1em; }
+.capsule-lock-notice h3 { margin: 0; font-family: "DM Serif Display", serif; font-size: 25px; font-weight: 400; }
+.capsule-lock-notice strong { color: var(--cinnabar); font: 500 15px "IBM Plex Mono", monospace; }
+.capsule-lock-notice span { color: var(--ink-soft); font-size: 10px; }
+.export-capsule-locked { display: grid; justify-items: start; gap: 6px; min-height: 96px; align-content: center; padding: 18px; background: repeating-linear-gradient(-45deg, #f5f0e6 0, #f5f0e6 10px, #eee7da 10px, #eee7da 11px); color: var(--ink); }
+.export-capsule-locked svg { color: var(--cinnabar); }
+.export-capsule-locked b { font: 500 12px "IBM Plex Mono", monospace; }
+.export-capsule-locked p { margin: 0; color: var(--ink-soft); font-size: 10px; }
 .footprint-route { position: relative; margin-top: 14px; padding-left: 22px; }
 .footprint-route::before { content: ""; position: absolute; top: 9px; bottom: 9px; left: 7px; border-left: 1px dashed rgba(20,38,58,.42); }
 .footprint-stop { position: relative; display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 8px; margin-top: 10px; }
@@ -233,6 +255,7 @@
   .bento-event-grid { grid-auto-rows: 102px; }
   .private-coordinates > div { grid-template-columns: 1fr; }
   .soundtrack-inputs { grid-template-columns: 1fr; }
+  .life-progress-ring { grid-template-columns: 1fr; justify-items: start; gap: 14px; }
   .spatial-footprint-map { min-height: 150px; }
   .spatial-footprint-node span { max-width: 66px; }
 }

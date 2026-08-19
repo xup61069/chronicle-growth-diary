@@ -118,4 +118,15 @@ describe("sharing data access", () => {
       ],
     });
   });
+
+  it("masks every private field of an unexpired time capsule before returning shared events", async () => {
+    const { db } = createDb([sharedDiary]);
+    mocks.getEnrichedDiaryEvents.mockResolvedValueOnce([
+      { id: 9, occurredAt: Date.UTC(2026, 0, 1), title: "給未來的我", body: "不能提早讀到的內容", ageLabel: "30 歲", place: "私人地點", media: [{ url: "https://example.test/private.jpg" }], tags: [{ name: "私人" }], skills: [{ name: "秘密技能" }], phaseKeywords: ["尚未公開"], comparisonGroup: "秘密演進", soundtrackTitle: "秘密音樂", soundtrackUrl: "https://example.test/private.mp3", unlocksAt: Date.now() + 86_400_000, locationPrivacy: "city", mapLatitudeE6: 25_033_000, mapLongitudeE6: 121_565_000 },
+    ]);
+
+    const result = await readSharedDiary(db, "story-growth-file");
+
+    expect(result).toMatchObject({ status: "ok", events: [{ id: 9, title: "時空膠囊鎖定中", body: "這段記憶將在指定日期解鎖。", ageLabel: null, place: null, media: [], tags: [], skills: [], phaseKeywords: [], comparisonGroup: null, soundtrackTitle: null, soundtrackUrl: null, isTimeCapsuleLocked: true, mapLatitudeE6: null, mapLongitudeE6: null }] });
+  });
 });

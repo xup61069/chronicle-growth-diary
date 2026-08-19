@@ -1,5 +1,6 @@
 /** Design reminder — a generous public reading surface that reveals only explicitly shared memories. */
 import { trpc } from "@/lib/trpc";
+import { formatCapsuleCountdown, getTimeCapsuleStatus } from "@/lib/lifeProgress";
 import { Archive, CalendarDays, LockKeyhole, MapPin, Share2 } from "lucide-react";
 import React, { FormEvent, useState } from "react";
 import { useRoute } from "wouter";
@@ -59,7 +60,8 @@ export default function SharedStory() {
         {data.events.length === 0 ? <div className="shared-empty"><Archive size={22} /><p>這個故事尚未選擇任何公開事件。</p></div> : data.events.map((event) => (
           <article className="shared-event" key={event.id}>
             <div className="shared-event-date"><i style={{ backgroundColor: event.color }} /><span>{formatDate(event.occurredAt, event.datePrecision)}</span></div>
-            <div className="shared-event-card">
+            <div className={`shared-event-card ${event.isTimeCapsuleLocked ? "shared-capsule-locked" : ""}`}>
+              {event.isTimeCapsuleLocked ? <section className="shared-capsule-notice"><LockKeyhole size={21} /><p>TIME CAPSULE / SEALED</p><h2>這段記憶仍在等待解鎖。</h2><strong>{formatCapsuleCountdown(getTimeCapsuleStatus(event.unlocksAt).daysRemaining)}</strong><span>預計於 {new Date(event.unlocksAt!).toLocaleDateString("zh-TW", { year: "numeric", month: "long", day: "numeric" })} 開啟</span></section> : null}
               {event.media.length ? <div className={`shared-event-media media-count-${Math.min(event.media.length, 4)}`}>{event.media.map((media) => <figure key={media.id}><img src={media.url} alt={media.caption ?? event.title} />{media.caption ? <figcaption>{media.caption}</figcaption> : null}</figure>)}</div> : null}
               <p className="shared-event-type">{event.eventType} {event.ageLabel ? `/ ${event.ageLabel}` : ""}</p>
               <h2>{event.title}</h2>

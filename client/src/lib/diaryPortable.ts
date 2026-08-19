@@ -14,6 +14,7 @@ type PortableEventSource = {
   isPublic: boolean;
   timelinePosition?: number;
   phaseKeywords?: string[];
+  unlocksAt?: number | null;
   tags: PortableTagSource[];
   media: PortableMediaSource[];
 };
@@ -42,8 +43,10 @@ export type ChroniclePortableExport = {
   version: typeof CHRONICLE_EXPORT_VERSION;
   exportedAt: string;
   diary: PortableDiarySource["diary"];
-  events: Array<Omit<PortableEventSource, "occurredAt" | "tags" | "media"> & {
+  events: Array<Omit<PortableEventSource, "occurredAt" | "tags" | "media" | "unlocksAt"> & {
     occurredAt: string;
+    unlocksAt: string | null;
+    isTimeCapsuleLocked: boolean;
     tags: Array<{ name: string; color: string | null }>;
     media: Array<{ url: string; fileName: string; mimeType: string; caption: string | null; sortOrder: number }>;
   }>;
@@ -62,7 +65,7 @@ function formatEventDate(occurredAt: string, precision: "day" | "month" | "year"
   return date.toISOString().slice(0, 10);
 }
 
-export function createPortableDiaryExport(source: PortableDiarySource, exportedAt = new Date().toISOString()): ChroniclePortableExport {
+export function createPortableDiaryExport(source: PortableDiarySource, exportedAt = new Date().toISOString(), now = Date.now()): ChroniclePortableExport {
   return {
     format: "chronicle-growth-diary",
     version: CHRONICLE_EXPORT_VERSION,
@@ -81,23 +84,28 @@ export function createPortableDiaryExport(source: PortableDiarySource, exportedA
       publicCoverTitle: source.diary.publicCoverTitle ?? null,
       publicStoryLayout: source.diary.publicStoryLayout ?? "editorial",
     },
-    events: source.events.map((event) => ({
+    events: source.events.map((event) => {
+      const isTimeCapsuleLocked = Boolean(event.unlocksAt && event.unlocksAt > now);
+      return {
       occurredAt: new Date(event.occurredAt).toISOString(),
       datePrecision: event.datePrecision,
       eventType: event.eventType,
-      title: event.title,
-      body: event.body,
-      ageLabel: event.ageLabel ?? null,
-      place: event.place ?? null,
+      title: isTimeCapsuleLocked ? "時空膠囊鎖定中" : event.title,
+      body: isTimeCapsuleLocked ? "這段記憶將在指定日期解鎖。" : event.body,
+      ageLabel: isTimeCapsuleLocked ? null : event.ageLabel ?? null,
+      place: isTimeCapsuleLocked ? null : event.place ?? null,
       color: event.color,
       isPublic: event.isPublic,
       timelinePosition: event.timelinePosition ?? 0,
-      phaseKeywords: event.phaseKeywords ?? [],
-      tags: event.tags.map((tag) => ({ name: tag.name, color: tag.color ?? null })),
-      media: event.media.map((media) => ({ url: media.url, fileName: media.fileName, mimeType: media.mimeType, caption: media.caption ?? null, sortOrder: media.sortOrder ?? 0 })),
-    })),
+      unlocksAt: event.unlocksAt ? new Date(event.unlocksAt).toISOString() : null,
+      isTimeCapsuleLocked,
+      phaseKeywords: isTimeCapsuleLocked ? [] : event.phaseKeywords ?? [],
+      tags: isTimeCapsuleLocked ? [] : event.tags.map((tag) => ({ name: tag.name, color: tag.color ?? null })),
+      media: isTimeCapsuleLocked ? [] : event.media.map((media) => ({ url: media.url, fileName: media.fileName, mimeType: media.mimeType, caption: media.caption ?? null, sortOrder: media.sortOrder ?? 0 })),
+    };
+    }),
     reflections: source.reflections.map((reflection) => ({ phaseKey: reflection.phaseKey, recap: reflection.recap, reflection: reflection.reflection, model: reflection.model ?? "unknown" })),
-    notes: ["媒體項目僅包含可存取 URL 與描述，不包含原始檔案位元組或儲存金鑰。", "分享憑證、分享密碼雜湊、工作階段與存取紀錄不會匯出。"],
+    notes: ["媒體項目僅包含可存取 URL 與描述，不包含原始檔案位元組或儲存金鑰。", "分享憑證、分享密碼雜湊、工作階段與存取紀錄不會匯出。", "未解鎖的時空膠囊預設遮罩正文、媒體、標籤與地點；匯出只保留解鎖日期與鎖定提示。"],
   };
 }
 
@@ -110,6 +118,7 @@ export function portableDiaryToMarkdown(portable: ChroniclePortableExport) {
     lines.push(`- 類型：${event.eventType}`);
     if (event.ageLabel) lines.push(`- 年紀／階段：${event.ageLabel}`);
     if (event.place) lines.push(`- 地點：${event.place}`);
+    if (event.unlocksAt) lines.push(`- 時空膠囊：${event.isTimeCapsuleLocked ? "鎖定至 " : "已於 "}${new Date(event.unlocksAt).toLocaleDateString("zh-TW")} 解鎖`);
     if (event.phaseKeywords?.length) lines.push(`- 階段關鍵字：${event.phaseKeywords.map((keyword) => `#${keyword}`).join(" ")}`);
     if (event.tags.length) lines.push(`- 標籤：${event.tags.map((tag) => `#${tag.name}`).join(" ")}`);
     lines.push("", event.body || "（未填寫內容）", "");

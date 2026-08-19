@@ -345,6 +345,13 @@ a { color: inherit; text-decoration: none; }
 .shared-event-date { display: flex; align-items: center; gap: 10px; padding-top: 13px; color: var(--ink-soft); font: 500 10px "IBM Plex Mono", monospace; }
 .shared-event-date i { flex: none; width: 11px; height: 11px; border: 3px solid var(--paper); outline: 1px solid var(--ink); border-radius: 50%; }
 .shared-event-card { padding: 21px; background: #fffdf8; border: 1px solid rgba(20,38,58,.28); box-shadow: 8px 8px 0 rgba(20,38,58,.08); }
+.shared-event-card.shared-capsule-locked { display: grid; min-height: 220px; place-items: center; background: repeating-linear-gradient(-45deg, #f5f0e6 0, #f5f0e6 10px, #eee7da 10px, #eee7da 11px); }
+.shared-capsule-notice { display: grid; justify-items: center; gap: 8px; max-width: 340px; padding: 24px; text-align: center; color: var(--ink); }
+.shared-capsule-notice svg { color: var(--cinnabar); }
+.shared-capsule-notice p { margin: 0; color: var(--ink-soft); font: 500 9px "IBM Plex Mono", monospace; letter-spacing: .12em; }
+.shared-capsule-notice h2 { margin: 0; font-family: "DM Serif Display", serif; font-size: 27px; font-weight: 400; }
+.shared-capsule-notice strong { color: var(--cinnabar); font: 500 14px "IBM Plex Mono", monospace; }
+.shared-capsule-notice span { color: var(--ink-soft); font-size: 11px; }
 .shared-event-card > img { display: block; width: calc(100% + 42px); height: 260px; margin: -21px -21px 19px; object-fit: cover; }
 .shared-event-type { color: var(--cinnabar); margin: 0; font: 500 10px "IBM Plex Mono", monospace; }
 .shared-event-card h2 { margin: 9px 0; font: 400 38px/1.02 "DM Serif Display", serif; letter-spacing: -.03em; }

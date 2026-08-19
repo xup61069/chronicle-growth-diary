@@ -15,6 +15,8 @@ import { createPortableDiaryExport, downloadPortableDiary } from "@/lib/diaryPor
 import { parseChronicleImport, type ChronicleImportPreview } from "@/lib/diaryImport";
 import { appendWritingGuide, getLocalWritingGuides } from "@/lib/writingGuide";
 import { getComparisonPair } from "@/lib/beforeAfter";
+import { formatCapsuleCountdown, getLifeProgress, getTimeCapsuleStatus } from "@/lib/lifeProgress";
+import { getVisualExportRecord } from "@/lib/visualExport";
 import { parseSocialDraftCsv, parseSocialDraftJson, type SocialDraftCandidate } from "@/lib/socialDraftImport";
 import { buildTrackRows, filterEventsBySkill, getTimelineInsights, getTimelineSkills, isTimeCapsuleLocked, milestoneLabels } from "@/lib/multitrackTimeline";
 import { buildPlaceFootprints, buildSpatialFootprints, getBentoSpan, timelineViewOptions, type TimelineViewMode } from "@/lib/timelineViews";
@@ -248,6 +250,9 @@ function DiaryEditorContent() {
   const spatialFootprints = useMemo(() => buildSpatialFootprints(visibleEvents), [visibleEvents]);
   const selectedEvent = events.find((event) => event.id === (selectedId ?? editingId)) ?? visibleEvents[0] ?? events[0];
   const comparisonPair = useMemo(() => getComparisonPair(events, selectedEvent), [events, selectedEvent]);
+  const selectedCapsuleStatus = useMemo(() => getTimeCapsuleStatus(selectedEvent?.unlocksAt), [selectedEvent?.unlocksAt]);
+  const lifeProgress = useMemo(() => getLifeProgress(data?.diary.birthYear), [data?.diary.birthYear]);
+  const visualExportRecords = useMemo(() => events.map((event) => getVisualExportRecord(event)), [events]);
   const revisionsQuery = trpc.diary.getEventRevisions.useQuery(
     { eventId: selectedEvent?.id ?? 0 },
     { enabled: Boolean(selectedEvent && showRevisions), staleTime: 0 },
@@ -850,10 +855,12 @@ function DiaryEditorContent() {
 
       {isOwner ? <section className="diary-profile-studio" aria-labelledby="diary-profile-title"><div><p className="editor-kicker"><span /> PERSONAL ARCHIVE / OWNER ONLY</p><h2 id="diary-profile-title">為這本成長史留下側寫</h2><p>以標題和短句定義這段人生的閱讀方式。側寫預設只留在私人日記中；此處不蒐集聯絡方式、完整出生日期或其他敏感個資。</p></div><form className="diary-profile-form" onSubmit={saveDiaryProfile}><label>成長史標題<input value={profileTitle} onChange={(event) => setProfileTitle(event.target.value)} maxLength={160} required /></label><label>副標題（選填）<textarea value={profileSubtitle} onChange={(event) => setProfileSubtitle(event.target.value)} maxLength={240} placeholder="例如：把重要轉折、學習與日常心緒慢慢編成一條時間帶。" /></label><footer><span>{profileSubtitle.length}/240 · 僅日記擁有者可修改</span><button type="submit" disabled={profileMutation.isPending}>{profileMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} 保存側寫</button></footer></form></section> : null}
 
+      {isOwner ? <section className="life-progress-ring" aria-labelledby="life-progress-title">{lifeProgress ? <><div className="life-progress-gauge" style={{ "--life-progress": lifeProgress.percentage } as React.CSSProperties}><svg viewBox="0 0 120 120" aria-hidden="true"><circle cx="60" cy="60" r="48" /><circle className="life-progress-value" cx="60" cy="60" r="48" /></svg><b>{lifeProgress.percentage}%</b></div><div><p className="editor-kicker"><span /> LIFE PROGRESS / PRIVATE</p><h2 id="life-progress-title">把今天，留給下一個章節。</h2><p>以年份推算的私人人生進度視覺；目前約 {lifeProgress.age} 歲，採 {lifeProgress.horizonYears} 年作為閱讀刻度。這不是壽命預測，也不會出現在公開故事。</p></div></> : <><div className="life-progress-gauge is-unset"><span>—</span></div><div><p className="editor-kicker"><span /> LIFE PROGRESS / OPTIONAL</p><h2 id="life-progress-title">人生進度環尚未啟用</h2><p>如需使用，請在分享設定中選擇性提供出生年份。系統只使用年份建立私人閱讀刻度，不要求完整出生日期。</p></div></>}</section> : null}
+
       <section className="life-phase-overview" ref={exportRef} aria-labelledby="life-phase-title">
         <div className="phase-heading">
           <div><p className="editor-kicker"><span /> LIFE CHAPTERS / EDITABLE</p><h2 id="life-phase-title">人生階段總覽</h2><p>系統會先依事件時間與錨點編排階段；你也可以拖曳每個階段的起訖時間，讓分段更貼近自己的敘事。</p></div>
-          <div className="export-actions"><span>完整成長史備份</span><input ref={importInputRef} type="file" accept="application/json,.json" onChange={handleImportFile} hidden /><input ref={socialImportInputRef} type="file" accept="application/json,.json,text/csv,.csv" onChange={handleSocialImportFile} hidden /><input ref={mediaArchiveInputRef} type="file" accept="application/zip,.zip" onChange={handleMediaArchiveFile} hidden /><button onClick={() => exportArchive("pdf")}><FileDown size={15} /> 匯出 PDF</button><button onClick={() => exportArchive("image")}><ImageDown size={15} /> 匯出長圖片</button><button onClick={() => exportArchive("json")}><FileJson size={15} /> 匯出 JSON</button><button onClick={() => exportArchive("markdown")}><FilePenLine size={15} /> 匯出 Markdown</button>{canEdit ? <><button onClick={exportMediaArchive} disabled={isMediaArchiveExporting}>{isMediaArchiveExporting ? <Loader2 size={15} className="animate-spin" /> : <Archive size={15} />} 匯出媒體 ZIP</button><button onClick={selectMediaArchiveFile}><Archive size={15} /> 匯入媒體 ZIP</button><button onClick={selectImportFile}><Archive size={15} /> 匯入 JSON</button><button onClick={selectSocialImportFile}><Archive size={15} /> 匯入社群草稿</button></> : null}</div>
+          <div className="export-actions"><span>完整成長史備份<small>未解鎖時空膠囊在 PDF／長圖中會自動遮罩</small></span><input ref={importInputRef} type="file" accept="application/json,.json" onChange={handleImportFile} hidden /><input ref={socialImportInputRef} type="file" accept="application/json,.json,text/csv,.csv" onChange={handleSocialImportFile} hidden /><input ref={mediaArchiveInputRef} type="file" accept="application/zip,.zip" onChange={handleMediaArchiveFile} hidden /><button onClick={() => exportArchive("pdf")}><FileDown size={15} /> 匯出 PDF</button><button onClick={() => exportArchive("image")}><ImageDown size={15} /> 匯出長圖片</button><button onClick={() => exportArchive("json")}><FileJson size={15} /> 匯出 JSON</button><button onClick={() => exportArchive("markdown")}><FilePenLine size={15} /> 匯出 Markdown</button>{canEdit ? <><button onClick={exportMediaArchive} disabled={isMediaArchiveExporting}>{isMediaArchiveExporting ? <Loader2 size={15} className="animate-spin" /> : <Archive size={15} />} 匯出媒體 ZIP</button><button onClick={selectMediaArchiveFile}><Archive size={15} /> 匯入媒體 ZIP</button><button onClick={selectImportFile}><Archive size={15} /> 匯入 JSON</button><button onClick={selectSocialImportFile}><Archive size={15} /> 匯入社群草稿</button></> : null}</div>
         </div>
         <div className="phase-grid">
           {data?.lifePhases.length ? data.lifePhases.map((phase) => {
@@ -882,7 +889,9 @@ function DiaryEditorContent() {
         <div className="ai-privacy-control"><div><p><BrainCircuit size={15} /> AI 回顧資料控制</p><span>{data?.diary.aiEnabled ? "啟用時，生成只會使用你選定階段的事件；你可隨時關閉或刪除已保存文字。" : "AI 已關閉。系統不會針對任何事件發出新的 AI 生成請求。"}</span></div>{isOwner ? <button type="button" onClick={() => updateAiPreference(!data?.diary.aiEnabled)} disabled={aiPreferenceMutation.isPending}>{aiPreferenceMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : data?.diary.aiEnabled ? <LockKeyhole size={14} /> : <WandSparkles size={14} />}{data?.diary.aiEnabled ? "關閉 AI 回顧" : "啟用 AI 回顧"}</button> : null}</div>
         {isOwner && data?.lifePhases.length ? <div className="phase-boundary-actions"><span>拖曳完成後，儲存就會重新分配事件所屬的階段。</span><button type="button" onClick={savePhaseBoundaries} disabled={phaseBoundariesMutation.isPending}>{phaseBoundariesMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <GripVertical size={14} />} 儲存階段邊界</button></div> : null}
         <div className="export-event-records">
-          {events.map((event) => <article key={event.id}><span style={{ backgroundColor: event.color }} /><div className="export-record-content">{event.media[0] ? <img src={event.media[0].url} alt={event.media[0].caption ?? event.title} /> : null}<div className="export-record-copy"><b>{formatDate(event.occurredAt, event.datePrecision)} · {event.ageLabel ?? "成長記事"}</b><h3>{event.title}</h3><p>{event.body}</p>{event.place ? <small><MapPin size={12} /> {event.place}</small> : null}<div>{event.tags.map((tag) => <em key={tag.id}>{tag.name}</em>)}</div></div></div></article>)}
+          {visualExportRecords.map((event) => {
+            return <article key={event.id}><span style={{ backgroundColor: event.color }} />{event.isTimeCapsuleLocked ? <div className="export-capsule-locked"><LockKeyhole size={16} /><b>時空膠囊鎖定中</b><p>{formatCapsuleCountdown(event.capsule.daysRemaining)} · 解鎖日：{new Date(event.capsule.unlocksAt!).toLocaleDateString("zh-TW")}</p></div> : <div className="export-record-content">{event.media[0] ? <img src={event.media[0].url} alt={event.media[0].caption ?? event.title} /> : null}<div className="export-record-copy"><b>{formatDate(event.occurredAt, event.datePrecision)} · {event.ageLabel ?? "成長記事"}</b><h3>{event.title}</h3><p>{event.body}</p>{event.place ? <small><MapPin size={12} /> {event.place}</small> : null}<div>{event.tags.map((tag) => <em key={tag.id}>{tag.name}</em>)}</div></div></div>}</article>;
+          })}
         </div>
       </section>
 
@@ -1248,7 +1257,8 @@ function DiaryEditorContent() {
           {selectedEvent ? (
             <>
               <div className="preview-date"><span>{formatDate(selectedEvent.occurredAt, selectedEvent.datePrecision)}</span><i style={{ backgroundColor: selectedEvent.color }} /></div>
-              <article className="preview-card">
+              <article className={`preview-card ${selectedCapsuleStatus.isLocked ? "is-capsule-locked" : ""}`}>
+                {selectedCapsuleStatus.isLocked ? <section className="capsule-lock-notice" aria-label="時空膠囊鎖定中"><LockKeyhole size={23} /><p>TIME CAPSULE / SEALED</p><h3>這段記憶正在等待未來的你。</h3><strong>{formatCapsuleCountdown(selectedCapsuleStatus.daysRemaining)}</strong><span>解鎖日：{new Date(selectedCapsuleStatus.unlocksAt!).toLocaleDateString("zh-TW", { year: "numeric", month: "long", day: "numeric" })}</span></section> : null}
                 {selectedEvent.media[0] ? <div className="preview-image"><img src={selectedEvent.media[0].url} alt={selectedEvent.media[0].caption ?? selectedEvent.title} /></div> : null}
                 <p className="preview-type">{eventTypes.find((type) => type.value === selectedEvent.eventType)?.label} {selectedEvent.ageLabel ? `/ ${selectedEvent.ageLabel}` : ""}</p>
                 <h3>{selectedEvent.title}</h3>

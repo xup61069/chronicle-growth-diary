@@ -16,6 +16,25 @@ import {
 type DbClient = MySql2Database<Record<string, unknown>>;
 type Diary = typeof growthDiaries.$inferSelect;
 
+function maskLockedSharedCapsule<T extends { unlocksAt?: number | null; title: string; body: string; ageLabel?: string | null; place?: string | null; media: unknown[]; tags: unknown[]; skills: unknown[]; phaseKeywords?: string[]; comparisonGroup?: string | null; soundtrackTitle?: string | null; soundtrackUrl?: string | null }>(event: T, now = Date.now()) {
+  if (!event.unlocksAt || event.unlocksAt <= now) return { ...event, isTimeCapsuleLocked: false };
+  return {
+    ...event,
+    title: "時空膠囊鎖定中",
+    body: "這段記憶將在指定日期解鎖。",
+    ageLabel: null,
+    place: null,
+    media: [],
+    tags: [],
+    skills: [],
+    phaseKeywords: [],
+    comparisonGroup: null,
+    soundtrackTitle: null,
+    soundtrackUrl: null,
+    isTimeCapsuleLocked: true,
+  };
+}
+
 export type DiarySharingInput = {
   shareMode: "private" | "public" | "link";
   birthYear?: number | null;
@@ -118,12 +137,15 @@ export async function readSharedDiary(db: DbClient, slug: string, token?: string
     channel: diary.shareMode === "link" ? "link" : "public",
   });
 
-  const sharedEvents = events.map((event) => ({
-    ...event,
-    place: event.locationPrivacy === "city" ? event.place : null,
-    mapLatitudeE6: null,
-    mapLongitudeE6: null,
-  }));
+  const sharedEvents = events.map((event) => {
+    const sharedEvent = maskLockedSharedCapsule(event);
+    return {
+      ...sharedEvent,
+      place: sharedEvent.isTimeCapsuleLocked ? null : event.locationPrivacy === "city" ? event.place : null,
+      mapLatitudeE6: null,
+      mapLongitudeE6: null,
+    };
+  });
 
   return {
     status: "ok" as const,
