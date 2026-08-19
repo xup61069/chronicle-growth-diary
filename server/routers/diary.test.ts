@@ -28,7 +28,9 @@ const diaryDb = vi.hoisted(() => {
     createDiaryEvent: vi.fn(),
     deleteDiaryEvent: vi.fn(),
     deleteDiaryEventMedia: vi.fn(),
+    deleteAnnualReflection: vi.fn(async () => ({ year: 2025 })),
     deletePhaseReflection: vi.fn(),
+    generateAnnualReflection: vi.fn(async () => ({ year: 2025, recap: "年度回顧", reflection: "來年提問", model: "claude-haiku-4-5" })),
     generatePhaseReflection: vi.fn(),
     importDiaryEvents: vi.fn(),
     getSharedDiary: vi.fn(),
@@ -132,6 +134,15 @@ describe("diary router validation", () => {
     expect(diaryDb.updateDiaryProfile).toHaveBeenCalledWith(1, { title: "閱讀中的成長史", subtitle: "把轉折留在時間帶上。" });
     await expect(caller.updateProfile({ title: "", subtitle: "" })).rejects.toThrow("請為這本成長史保留一個標題");
     await expect(caller.updateProfile({ title: "有效標題", subtitle: "x".repeat(241) })).rejects.toThrow();
+  });
+
+  it("將年度 AI 回顧限制為合理年份並透過受保護 helper 生成與刪除", async () => {
+    const caller = diaryRouter.createCaller(authenticatedContext);
+    await expect(caller.generateAnnualReflection({ year: 2025 })).resolves.toMatchObject({ year: 2025, recap: "年度回顧" });
+    await expect(caller.deleteAnnualReflection({ year: 2025 })).resolves.toEqual({ year: 2025 });
+    expect(diaryDb.generateAnnualReflection).toHaveBeenCalledWith(1, 2025);
+    expect(diaryDb.deleteAnnualReflection).toHaveBeenCalledWith(1, 2025);
+    await expect(caller.generateAnnualReflection({ year: 1800 })).rejects.toThrow();
   });
 
   it("preserves diary snapshot read errors so the client recovery state can respond", async () => {

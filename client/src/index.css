@@ -586,6 +586,15 @@ a { color: inherit; text-decoration: none; }
 .annual-review-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 13px; }
 .annual-review-tags span { padding: 4px 6px; color: var(--ink-soft); background: #eee9dc; font-size: 9px; }
 .annual-review-card blockquote { margin: 17px 0 0; padding: 11px 13px; border-left: 3px solid var(--cinnabar); color: var(--ink-soft); background: #f1ece1; font-size: 12px; line-height: 1.65; }
+.annual-ai-reflection { margin-top: 19px; padding-top: 15px; border-top: 1px solid rgba(20,38,58,.2); }
+.annual-ai-reflection > p { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--ink); font: 600 10px "IBM Plex Mono", monospace; letter-spacing: .05em; }
+.annual-ai-reflection > p svg { color: var(--cinnabar); }
+.annual-ai-reflection > span, .annual-ai-reflection > strong, .annual-ai-reflection > em { display: block; margin-top: 9px; color: var(--ink-soft); font-size: 12px; line-height: 1.7; font-style: normal; }
+.annual-ai-reflection > strong { color: var(--ink); font-weight: 500; }
+.annual-ai-reflection > div { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 11px; }
+.annual-ai-reflection button { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--ink); background: var(--ink); color: #fff; padding: 7px 9px; font-size: 10px; }
+.annual-ai-reflection button:hover:not(:disabled) { border-color: var(--cinnabar); background: var(--cinnabar); }
+.annual-ai-reflection .annual-ai-delete { color: var(--cinnabar); border-color: rgba(238,98,59,.55); background: transparent; }
 .public-story-settings { margin-top: 17px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,.28); }
 .public-story-settings > p { display: flex; align-items: center; gap: 6px; margin: 0 0 11px; color: #fff; font: 500 10px "IBM Plex Mono", monospace; }
 .public-story-settings > label:not(.cover-dropzone):not(.share-checkbox) { display: block; margin-top: 10px; color: #c9d3d7; font-size: 10px; }

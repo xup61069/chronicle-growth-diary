@@ -194,6 +194,9 @@ export async function getDiarySnapshot(userId: number, requestedDiaryId?: number
   const tags = await db.select().from(growthTags).where(eq(growthTags.userId, diary.userId)).orderBy(asc(growthTags.name));
   const events = await getEnrichedDiaryEvents(diary.id);
   const reflections = await db.select().from(growthPhaseReflections).where(eq(growthPhaseReflections.diaryId, diary.id));
+  const annualReflections = reflections
+    .filter((reflection) => /^annual-\d{4}$/.test(reflection.phaseKey))
+    .map((reflection) => ({ ...reflection, year: Number(reflection.phaseKey.slice("annual-".length)) }));
   const accessLogs = await db.select().from(growthShareAccessLogs).where(eq(growthShareAccessLogs.diaryId, diary.id)).orderBy(desc(growthShareAccessLogs.accessedAt)).limit(6);
   return {
     diary,
@@ -211,7 +214,8 @@ export async function getDiarySnapshot(userId: number, requestedDiaryId?: number
       lastSharedAt: diary.lastSharedAt,
       recentAccesses: accessLogs,
     },
-    reflections,
+    reflections: reflections.filter((reflection) => !/^annual-\d{4}$/.test(reflection.phaseKey)),
+    annualReflections,
   };
 }
 
@@ -399,6 +403,37 @@ export async function generatePhaseReflection(userId: number, phaseKey: "childho
   return { phaseKey, recap, reflection, model: result.model || "claude-haiku-4-5" };
 }
 
+export async function generateAnnualReflection(userId: number, year: number) {
+  const db = await requireDb();
+  const diary = await getOrCreateDiary(userId);
+  assertAiEnabled(diary.aiEnabled);
+  const events = (await getEnrichedDiaryEvents(diary.id)).filter((event) => new Date(event.occurredAt).getFullYear() === year);
+  if (!events.length) throw new Error("這一年還沒有事件可供回顧。請先寫下至少一段記憶。");
+
+  const source = events.slice(0, 40).map((event, index) => [
+    `${index + 1}. ${event.title}`,
+    event.body.slice(0, 550),
+    event.tags.length ? `標籤：${event.tags.map((tag) => tag.name).join("、")}` : "",
+  ].filter(Boolean).join("\n")).join("\n\n");
+  const result = await invokeLLM({
+    model: "claude-haiku-4-5",
+    maxTokens: 1200,
+    messages: [
+      { role: "system", content: "你是溫和、精準的個人成長檔案編輯。只能依據提供的年度事件寫作，不要診斷、推測敏感背景或下結論。以繁體中文輸出具體、尊重使用者主體性的文字。" },
+      { role: "user", content: `請根據 ${year} 年的事件，產生兩部分：一段 140–240 字的年度回顧，以及一段 80–160 字、以開放問題與覺察為主的來年提問。請嚴格依照以下格式輸出，除了兩個標記與內容外不要加入任何文字：\n===RECAP===\n回顧文字\n===REFLECTION===\n提問文字\n\n僅限本年度事件資料：\n${source}` },
+    ],
+  });
+  const content = result.choices[0]?.message.content;
+  const match = typeof content === "string" ? content.match(/===RECAP===\s*([\s\S]*?)\s*===REFLECTION===\s*([\s\S]*)/i) : null;
+  const fallbackRecap = typeof content === "string" ? content.trim() : "";
+  const recap = match?.[1]?.trim() || fallbackRecap;
+  const reflection = match?.[2]?.trim() || (fallbackRecap ? "回看這一年時，哪些選擇、關係或感受值得帶進下一段時間？" : "");
+  if (!recap || !reflection) throw new Error("AI 年度回顧格式不完整，請稍後再試。");
+  const phaseKey = `annual-${year}`;
+  await db.insert(growthPhaseReflections).values({ diaryId: diary.id, phaseKey, recap, reflection, model: result.model || "claude-haiku-4-5" }).onDuplicateKeyUpdate({ set: { recap, reflection, model: result.model || "claude-haiku-4-5" } });
+  return { year, recap, reflection, model: result.model || "claude-haiku-4-5" };
+}
+
 export async function updatePhaseReflection(userId: number, input: { phaseKey: "childhood" | "education" | "career"; recap: string; reflection: string }) {
   const db = await requireDb();
   const diary = await getOrCreateDiary(userId);
@@ -430,6 +465,13 @@ export async function deletePhaseReflection(userId: number, phaseKey: "childhood
   const diary = await getOrCreateDiary(userId);
   await db.delete(growthPhaseReflections).where(and(eq(growthPhaseReflections.diaryId, diary.id), eq(growthPhaseReflections.phaseKey, phaseKey)));
   return { phaseKey };
+}
+
+export async function deleteAnnualReflection(userId: number, year: number) {
+  const db = await requireDb();
+  const diary = await getOrCreateDiary(userId);
+  await db.delete(growthPhaseReflections).where(and(eq(growthPhaseReflections.diaryId, diary.id), eq(growthPhaseReflections.phaseKey, `annual-${year}`)));
+  return { year };
 }
 
 export async function updateDiarySharing(userId: number, input: DiarySharingInput) {

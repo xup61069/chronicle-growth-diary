@@ -153,6 +153,20 @@ function DiaryEditorContent() {
   const reflectionMutation = trpc.diary.generatePhaseReflection.useMutation();
   const reflectionSaveMutation = trpc.diary.updatePhaseReflection.useMutation();
   const aiPreferenceMutation = trpc.diary.updateAiPreference.useMutation();
+  const annualReflectionMutation = trpc.diary.generateAnnualReflection.useMutation({
+    onSuccess: async () => {
+      await utils.diary.get.invalidate();
+      toast.success("已保存 AI 年度回顧。你可隨時刪除這段文字。");
+    },
+    onError: (error) => toast.error(error.message),
+  });
+  const deleteAnnualReflectionMutation = trpc.diary.deleteAnnualReflection.useMutation({
+    onSuccess: async () => {
+      await utils.diary.get.invalidate();
+      toast.success("已刪除 AI 年度回顧。原始事件不會受到影響。");
+    },
+    onError: (error) => toast.error(error.message),
+  });
   const profileMutation = trpc.diary.updateProfile.useMutation({
     onSuccess: async () => {
       await utils.diary.get.invalidate();
@@ -222,6 +236,8 @@ function DiaryEditorContent() {
   const reflectionsByPhase = useMemo(() => new Map((data?.reflections ?? []).map((reflection) => [reflection.phaseKey, reflection])), [data?.reflections]);
   const availableYears = useMemo(() => Array.from(new Set(events.map((event) => new Date(event.occurredAt).getFullYear()))).sort((left, right) => right - left), [events]);
   const annualReview = useMemo(() => buildAnnualReview(events, Number(annualYear || availableYears[0] || new Date().getFullYear()), annualTemplate), [annualTemplate, annualYear, availableYears, events]);
+  const activeAnnualYear = Number(annualYear || availableYears[0] || new Date().getFullYear());
+  const annualAiReflection = data?.annualReflections.find((reflection) => reflection.year === activeAnnualYear);
   const writingGuides = useMemo(() => getLocalWritingGuides(form.eventType), [form.eventType]);
 
   useEffect(() => {
@@ -780,7 +796,7 @@ function DiaryEditorContent() {
       <section className="annual-review-studio" aria-labelledby="annual-review-title">
         <div className="annual-review-heading"><p className="editor-kicker"><span /> YEAR IN REVIEW</p><h2 id="annual-review-title">把一年，整理成下一段故事的起點。</h2><p>從已經寫下的事件建立年度回顧。模板只重組你的日記內容，不會虛構新的經歷。</p></div>
         <div className="annual-review-controls"><label>回顧年份<select value={annualYear || String(availableYears[0] ?? new Date().getFullYear())} onChange={(event) => setAnnualYear(event.target.value)}>{(availableYears.length ? availableYears : [new Date().getFullYear()]).map((year) => <option value={year} key={year}>{year} 年</option>)}</select></label><div>{annualReviewTemplates.map((template) => <button type="button" key={template.key} className={annualTemplate === template.key ? "active" : ""} onClick={() => setAnnualTemplate(template.key)}><b>{template.label}</b><small>{template.description}</small></button>)}</div></div>
-        <article className={`annual-review-card annual-${annualTemplate}`}><div><p>{annualReview.title}</p><b>{annualReview.count.toString().padStart(2, "0")} <small>段日記</small></b></div><h3>{annualReview.lead}</h3><div className="annual-review-highlights">{annualReview.highlights.map((highlight) => <article key={highlight.id}><span>{highlight.label}</span><h4>{highlight.title}</h4><p>{highlight.body}</p></article>)}</div>{annualReview.tags.length ? <div className="annual-review-tags">{annualReview.tags.map((tag) => <span key={tag}>#{tag}</span>)}</div> : null}<blockquote>{annualReview.prompt}</blockquote></article>
+        <article className={`annual-review-card annual-${annualTemplate}`}><div><p>{annualReview.title}</p><b>{annualReview.count.toString().padStart(2, "0")} <small>段日記</small></b></div><h3>{annualReview.lead}</h3><div className="annual-review-highlights">{annualReview.highlights.map((highlight) => <article key={highlight.id}><span>{highlight.label}</span><h4>{highlight.title}</h4><p>{highlight.body}</p></article>)}</div>{annualReview.tags.length ? <div className="annual-review-tags">{annualReview.tags.map((tag) => <span key={tag}>#{tag}</span>)}</div> : null}<blockquote>{annualReview.prompt}</blockquote>{isOwner ? <div className="annual-ai-reflection"><p><BrainCircuit size={14} /> AI 年度回顧</p>{annualAiReflection ? <><strong>{annualAiReflection.recap}</strong><em>{annualAiReflection.reflection}</em><div><button type="button" onClick={() => annualReflectionMutation.mutate({ year: activeAnnualYear })} disabled={annualReflectionMutation.isPending || !data?.diary.aiEnabled}>{annualReflectionMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <WandSparkles size={14} />} 重新生成</button><button type="button" className="annual-ai-delete" onClick={() => deleteAnnualReflectionMutation.mutate({ year: activeAnnualYear })} disabled={deleteAnnualReflectionMutation.isPending}><Trash2 size={14} /> 刪除</button></div></> : <><span>{data?.diary.aiEnabled ? "只會使用此年度的事件內容生成文字；不會傳送其他年份、分享設定或帳號資料。" : "AI 已關閉。請先在上方資料控制區重新啟用。"}</span><button type="button" onClick={() => annualReflectionMutation.mutate({ year: activeAnnualYear })} disabled={!data?.diary.aiEnabled || annualReflectionMutation.isPending || annualReview.count === 0}>{annualReflectionMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <WandSparkles size={14} />} 生成 AI 年度回顧</button></>}</div> : null}</article>
       </section>
 
       {isOwner ? <>
