@@ -169,6 +169,65 @@ export const growthShareAccessLogs = mysqlTable(
   (table) => [index("growth_share_access_diary_idx").on(table.diaryId, table.accessedAt)],
 );
 
+/** Accepted collaborators scoped to one private diary. */
+export const growthDiaryMembers = mysqlTable(
+  "growth_diary_members",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    diaryId: int("diaryId").notNull().references(() => growthDiaries.id, { onDelete: "cascade" }),
+    userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+    role: mysqlEnum("role", ["editor", "commenter"]).notNull().default("commenter"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (table) => [uniqueIndex("growth_diary_members_diary_user_idx").on(table.diaryId, table.userId)],
+);
+
+/** Hashed, expiring invitations; the plaintext token is never persisted. */
+export const growthDiaryInvites = mysqlTable(
+  "growth_diary_invites",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    diaryId: int("diaryId").notNull().references(() => growthDiaries.id, { onDelete: "cascade" }),
+    invitedByUserId: int("invitedByUserId").notNull().references(() => users.id, { onDelete: "cascade" }),
+    invitedEmail: varchar("invitedEmail", { length: 320 }).notNull(),
+    role: mysqlEnum("role", ["editor", "commenter"]).notNull().default("commenter"),
+    tokenHash: varchar("tokenHash", { length: 128 }).notNull().unique(),
+    expiresAt: bigint("expiresAt", { mode: "number" }).notNull(),
+    acceptedAt: timestamp("acceptedAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (table) => [index("growth_diary_invites_diary_idx").on(table.diaryId)],
+);
+
+/** Private collaborator discussion attached to a single timeline event. */
+export const growthEventComments = mysqlTable(
+  "growth_event_comments",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    eventId: int("eventId").notNull().references(() => growthEvents.id, { onDelete: "cascade" }),
+    authorUserId: int("authorUserId").notNull().references(() => users.id, { onDelete: "cascade" }),
+    body: text("body").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (table) => [index("growth_event_comments_event_idx").on(table.eventId, table.createdAt)],
+);
+
+/** Append-only accountability record for family collaboration actions. */
+export const growthDiaryAuditLogs = mysqlTable(
+  "growth_diary_audit_logs",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    diaryId: int("diaryId").notNull().references(() => growthDiaries.id, { onDelete: "cascade" }),
+    actorUserId: int("actorUserId").notNull().references(() => users.id, { onDelete: "cascade" }),
+    action: mysqlEnum("action", ["invite_created", "invite_accepted", "member_removed", "comment_created"]).notNull(),
+    targetType: varchar("targetType", { length: 32 }).notNull(),
+    targetId: int("targetId"),
+    metadata: text("metadata"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (table) => [index("growth_diary_audit_diary_idx").on(table.diaryId, table.createdAt)],
+);
+
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 export type GrowthDiary = typeof growthDiaries.$inferSelect;
@@ -177,3 +236,7 @@ export type GrowthTag = typeof growthTags.$inferSelect;
 export type GrowthEventMedia = typeof growthEventMedia.$inferSelect;
 export type GrowthEventRevision = typeof growthEventRevisions.$inferSelect;
 export type GrowthPhaseReflection = typeof growthPhaseReflections.$inferSelect;
+export type GrowthDiaryMember = typeof growthDiaryMembers.$inferSelect;
+export type GrowthDiaryInvite = typeof growthDiaryInvites.$inferSelect;
+export type GrowthEventComment = typeof growthEventComments.$inferSelect;
+export type GrowthDiaryAuditLog = typeof growthDiaryAuditLogs.$inferSelect;

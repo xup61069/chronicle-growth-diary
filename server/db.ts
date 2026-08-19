@@ -3,6 +3,10 @@ import { drizzle } from "drizzle-orm/mysql2";
 import { randomBytes } from "node:crypto";
 import {
   growthDiaries,
+  growthDiaryAuditLogs,
+  growthDiaryInvites,
+  growthDiaryMembers,
+  growthEventComments,
   growthEventMedia,
   growthEventRevisions,
   growthEvents,
@@ -34,6 +38,8 @@ export type DiaryEventInput = {
   color: string;
   tagNames: string[];
 };
+
+export type DiaryMemberRole = "editor" | "commenter";
 
 export type DiarySharingInput = {
   shareMode: "private" | "public" | "link";
@@ -584,4 +590,67 @@ export async function uploadDiaryCoverImage(input: { userId: number; fileName: s
   const stored = await storagePut(`growth-diary/${input.userId}/cover/${Date.now()}-${fileName}`, bytes, input.mimeType);
   await db.update(growthDiaries).set({ publicCoverStorageKey: stored.key, publicCoverUrl: stored.url }).where(eq(growthDiaries.id, diary.id));
   return stored;
+}
+
+async function getOwnedDiary(userId: number) {
+  const db = await requireDb();
+  const diary = await db.select().from(growthDiaries).where(eq(growthDiaries.userId, userId)).limit(1);
+  if (!diary[0]) throw new Error("找不到你的成長史。");
+  return diary[0];
+}
+
+async function writeDiaryAudit(diaryId: number, actorUserId: number, action: "invite_created" | "invite_accepted" | "member_removed" | "comment_created", targetType: string, targetId?: number, metadata?: Record<string, unknown>) {
+  const db = await requireDb();
+  await db.insert(growthDiaryAuditLogs).values({ diaryId, actorUserId, action, targetType, targetId: targetId ?? null, metadata: metadata ? JSON.stringify(metadata) : null });
+}
+
+async function getDiaryAccess(userId: number, eventId: number) {
+  const db = await requireDb();
+  const event = await db.select({ diaryId: growthEvents.diaryId }).from(growthEvents).where(eq(growthEvents.id, eventId)).limit(1);
+  if (!event[0]) throw new Error("找不到這筆成長事件。");
+  const owner = await db.select({ id: growthDiaries.id }).from(growthDiaries).where(and(eq(growthDiaries.id, event[0].diaryId), eq(growthDiaries.userId, userId))).limit(1);
+  if (owner[0]) return { diaryId: event[0].diaryId, role: "owner" as const };
+  const member = await db.select().from(growthDiaryMembers).where(and(eq(growthDiaryMembers.diaryId, event[0].diaryId), eq(growthDiaryMembers.userId, userId))).limit(1);
+  if (!member[0]) throw new Error("你沒有檢視或註解這段成長史的權限。");
+  return { diaryId: event[0].diaryId, role: member[0].role };
+}
+
+export async function createDiaryInvite(userId: number, input: { email: string; role: DiaryMemberRole; expiresAt: number }) {
+  const db = await requireDb();
+  const diary = await getOwnedDiary(userId);
+  const token = randomBytes(24).toString("base64url");
+  await db.insert(growthDiaryInvites).values({ diaryId: diary.id, invitedByUserId: userId, invitedEmail: input.email.trim().toLowerCase(), role: input.role, tokenHash: hashShareToken(token), expiresAt: input.expiresAt });
+  const invite = await db.select().from(growthDiaryInvites).where(eq(growthDiaryInvites.tokenHash, hashShareToken(token))).limit(1);
+  if (!invite[0]) throw new Error("無法建立家庭邀請。");
+  await writeDiaryAudit(diary.id, userId, "invite_created", "invite", invite[0].id, { role: input.role });
+  return { id: invite[0].id, token, expiresAt: input.expiresAt, role: input.role };
+}
+
+export async function acceptDiaryInvite(userId: number, email: string | null | undefined, token: string) {
+  const db = await requireDb();
+  const invite = await db.select().from(growthDiaryInvites).where(eq(growthDiaryInvites.tokenHash, hashShareToken(token))).limit(1);
+  if (!invite[0] || invite[0].acceptedAt || invite[0].expiresAt <= Date.now()) throw new Error("這個家庭邀請不存在、已使用或已過期。");
+  if (!email || invite[0].invitedEmail !== email.trim().toLowerCase()) throw new Error("這個家庭邀請不屬於目前帳號。");
+  await db.insert(growthDiaryMembers).values({ diaryId: invite[0].diaryId, userId, role: invite[0].role }).onDuplicateKeyUpdate({ set: { role: invite[0].role } });
+  await db.update(growthDiaryInvites).set({ acceptedAt: new Date() }).where(eq(growthDiaryInvites.id, invite[0].id));
+  await writeDiaryAudit(invite[0].diaryId, userId, "invite_accepted", "invite", invite[0].id, { role: invite[0].role });
+  return { diaryId: invite[0].diaryId, role: invite[0].role };
+}
+
+export async function createEventComment(userId: number, eventId: number, body: string) {
+  const db = await requireDb();
+  const access = await getDiaryAccess(userId, eventId);
+  await db.insert(growthEventComments).values({ eventId, authorUserId: userId, body: body.trim() });
+  const comment = await db.select().from(growthEventComments).where(eq(growthEventComments.eventId, eventId)).orderBy(desc(growthEventComments.id)).limit(1);
+  if (!comment[0]) throw new Error("無法新增註解。");
+  await writeDiaryAudit(access.diaryId, userId, "comment_created", "comment", comment[0].id, { eventId });
+  return comment[0];
+}
+
+export async function getEventComments(userId: number, eventId: number) {
+  const db = await requireDb();
+  await getDiaryAccess(userId, eventId);
+  return db.select({ id: growthEventComments.id, body: growthEventComments.body, createdAt: growthEventComments.createdAt, authorName: users.name })
+    .from(growthEventComments).innerJoin(users, eq(growthEventComments.authorUserId, users.id))
+    .where(eq(growthEventComments.eventId, eventId)).orderBy(asc(growthEventComments.createdAt));
 }

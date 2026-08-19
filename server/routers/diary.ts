@@ -1,11 +1,15 @@
 import { z } from "zod";
 import {
+  acceptDiaryInvite,
+  createDiaryInvite,
   createDiaryEvent,
+  createEventComment,
   deleteDiaryEvent,
   deleteDiaryEventMedia,
   deletePhaseReflection,
   generatePhaseReflection,
   getDiaryEventRevisions,
+  getEventComments,
   getDiarySnapshot,
   importDiaryEvents,
   getSharedDiary,
@@ -48,6 +52,10 @@ export const diaryRouter = router({
     return updateDiaryEvent(ctx.user.id, id, event);
   }),
   getEventRevisions: protectedProcedure.input(z.object({ eventId: z.number().int().positive() })).query(({ ctx, input }) => getDiaryEventRevisions(ctx.user.id, input.eventId)),
+  getEventComments: protectedProcedure.input(z.object({ eventId: z.number().int().positive() })).query(({ ctx, input }) => getEventComments(ctx.user.id, input.eventId)),
+  createEventComment: protectedProcedure.input(z.object({ eventId: z.number().int().positive(), body: z.string().trim().min(1).max(2000) })).mutation(({ ctx, input }) => createEventComment(ctx.user.id, input.eventId, input.body)),
+  createFamilyInvite: protectedProcedure.input(z.object({ email: z.string().trim().email().max(320), role: z.enum(["editor", "commenter"]), expiresAt: z.number().int().min(Date.now() + 60_000).max(4102444800000) })).mutation(({ ctx, input }) => createDiaryInvite(ctx.user.id, input)),
+  acceptFamilyInvite: protectedProcedure.input(z.object({ token: z.string().trim().min(16).max(128) })).mutation(({ ctx, input }) => acceptDiaryInvite(ctx.user.id, ctx.user.email, input.token)),
   restoreEventRevision: protectedProcedure.input(z.object({ eventId: z.number().int().positive(), revisionId: z.number().int().positive() })).mutation(({ ctx, input }) => restoreDiaryEventRevision(ctx.user.id, input.eventId, input.revisionId)),
   deleteEvent: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ ctx, input }) => deleteDiaryEvent(ctx.user.id, input.id)),
   setEventVisibility: protectedProcedure.input(z.object({ id: z.number().int().positive(), isPublic: z.boolean() })).mutation(({ ctx, input }) => setDiaryEventVisibility(ctx.user.id, input.id, input.isPublic)),

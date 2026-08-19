@@ -68,6 +68,9 @@ function DiaryEditorContent() {
   const [tagDraft, setTagDraft] = useState("");
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [commentDraft, setCommentDraft] = useState("");
+  const [familyInviteEmail, setFamilyInviteEmail] = useState("");
+  const [familyInviteRole, setFamilyInviteRole] = useState<"editor" | "commenter">("commenter");
   const [filterType, setFilterType] = useState<"all" | EventType>("all");
   const [filterTag, setFilterTag] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -132,6 +135,21 @@ function DiaryEditorContent() {
   const importMutation = trpc.diary.importEvents.useMutation();
   const restoreRevisionMutation = trpc.diary.restoreEventRevision.useMutation();
   const deleteAccountMutation = trpc.auth.deleteAccount.useMutation();
+  const familyInviteMutation = trpc.diary.createFamilyInvite.useMutation({
+    onSuccess: (invite) => {
+      setFamilyInviteEmail("");
+      toast.success(`已建立 ${invite.role === "editor" ? "共同編輯" : "註解"}邀請；請安全地交給指定收件者。`);
+    },
+    onError: (error) => toast.error(error.message),
+  });
+  const eventCommentsQuery = trpc.diary.getEventComments.useQuery({ eventId: selectedId ?? 0 }, { enabled: Boolean(selectedId) });
+  const createCommentMutation = trpc.diary.createEventComment.useMutation({
+    onSuccess: async () => {
+      setCommentDraft("");
+      await utils.diary.getEventComments.invalidate();
+    },
+    onError: (error) => toast.error(error.message),
+  });
 
   type DiaryEvent = NonNullable<typeof data>["events"][number];
   const events: DiaryEvent[] = data?.events ?? [];
@@ -651,14 +669,18 @@ function DiaryEditorContent() {
       <section className="sharing-studio" aria-labelledby="sharing-title">
         <div className="sharing-intro"><p className="editor-kicker"><span /> SHARING CONTROLS</p><h2 id="sharing-title">由你決定，哪些故事可以被看見。</h2><p>每個事件都從私人狀態開始。你可以只公開某些片段，或建立一條只交給特定對象的私密連結。</p><div className="sharing-stat"><ShieldCheck size={16} /><span>目前有 <b>{publicEventCount}</b> 篇事件允許分享</span></div></div>
         <div className="sharing-settings">
-          <div className="share-mode-options">
+            <div className="share-mode-options">
             {([
               ["private", LockKeyhole, "私人", "不建立任何可閱覽連結。"],
               ["public", Globe2, "公開", "任何持有分享網址的人可閱讀公開事件。"],
               ["link", Link2, "私密連結", "必須持有完整秘密網址，才能閱讀公開事件。"],
             ] as const).map(([mode, Icon, label, copy]) => <button type="button" className={shareMode === mode ? "active" : ""} key={mode} onClick={() => { setShareMode(mode); if (mode !== "link") setPrivateToken(null); }}><Icon size={17} /><span><b>{label}</b><small>{copy}</small></span></button>)}
-          </div>
-          <div className="phase-anchor-fields"><p>人生階段的時間錨點（選填）</p><label>出生年<input type="number" min="1900" max="2200" value={birthYear} onChange={(event) => setBirthYear(event.target.value)} placeholder="例如：1994" /></label><label>開始求學<input type="number" min="1900" max="2200" value={educationStartYear} onChange={(event) => setEducationStartYear(event.target.value)} placeholder="例如：2000" /></label><label>開始職涯<input type="number" min="1900" max="2200" value={careerStartYear} onChange={(event) => setCareerStartYear(event.target.value)} placeholder="例如：2016" /></label></div>
+            </div>
+            <div className="family-collaboration-control">
+              <p><ShieldCheck size={14} /> 家庭共寫邀請</p><small>邀請只授予此私人日記的共同編輯或註解權限；連結僅能使用一次，且預設 7 天後失效。</small>
+              <div><input type="email" value={familyInviteEmail} onChange={(event) => setFamilyInviteEmail(event.target.value)} placeholder="家人的電子郵件" maxLength={320} /><select value={familyInviteRole} onChange={(event) => setFamilyInviteRole(event.target.value as "editor" | "commenter")}><option value="commenter">可註解</option><option value="editor">可共同編輯</option></select><button type="button" onClick={() => familyInviteMutation.mutate({ email: familyInviteEmail, role: familyInviteRole, expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000 })} disabled={!familyInviteEmail || familyInviteMutation.isPending}>{familyInviteMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Share2 size={14} />} 建立邀請</button></div>
+            </div>
+            <div className="phase-anchor-fields"><p>人生階段的時間錨點（選填）</p><label>出生年<input type="number" min="1900" max="2200" value={birthYear} onChange={(event) => setBirthYear(event.target.value)} placeholder="例如：1994" /></label><label>開始求學<input type="number" min="1900" max="2200" value={educationStartYear} onChange={(event) => setEducationStartYear(event.target.value)} placeholder="例如：2000" /></label><label>開始職涯<input type="number" min="1900" max="2200" value={careerStartYear} onChange={(event) => setCareerStartYear(event.target.value)} placeholder="例如：2016" /></label></div>
           {shareMode !== "private" ? <div className="sharing-security-fields">
             <p><LockKeyhole size={14} /> 進階分享保護</p>
             <label>設定或更新密碼<input type="password" minLength={8} maxLength={128} value={sharePassword} onChange={(event) => { setSharePassword(event.target.value); setClearSharePassword(false); }} placeholder={data?.sharing.hasPassword ? "已設定密碼；輸入可更新" : "至少 8 個字元（選填）"} /></label>
@@ -854,6 +876,11 @@ function DiaryEditorContent() {
                 <section className="event-revisions" aria-label="事件版本歷程">
                   <button type="button" className="event-revisions-toggle" onClick={() => setShowRevisions((visible) => !visible)}><History size={13} /> {showRevisions ? "收起版本歷程" : "查看版本歷程"}</button>
                   {showRevisions ? <div className="event-revisions-list">{revisionsQuery.isLoading ? <p><Loader2 size={13} className="animate-spin" /> 載入版本中…</p> : revisionsQuery.error ? <p>無法讀取版本：{revisionsQuery.error.message}</p> : revisionsQuery.data?.length ? revisionsQuery.data.map((revision) => <article key={revision.id}><div><b>第 {revision.version} 版</b><span>{revision.changeType === "create" ? "初始建立" : revision.changeType === "restore" ? "還原版本" : "內容更新"} · {new Date(revision.createdAt).toLocaleString("zh-TW")}</span></div><p>{revision.snapshot.title}</p><button type="button" onClick={() => restoreEventRevision(revision.id, revision.version)} disabled={restoreRevisionMutation.isPending}><RotateCcw size={12} /> 還原此版</button></article>) : <p>這段事件尚未有可顯示的版本。</p>}</div> : null}
+                </section>
+                <section className="event-comments" aria-label="家庭共寫註解">
+                  <header><span><BookOpenCheck size={13} /> 家庭註解</span><small>只有日記擁有者與受邀成員可查看。</small></header>
+                  {eventCommentsQuery.isLoading ? <p><Loader2 size={13} className="animate-spin" /> 載入註解中…</p> : eventCommentsQuery.data?.length ? <div className="event-comment-list">{eventCommentsQuery.data.map((comment) => <article key={comment.id}><b>{comment.authorName ?? "受邀成員"}</b><span>{new Date(comment.createdAt).toLocaleString("zh-TW")}</span><p>{comment.body}</p></article>)}</div> : <p>尚未有家庭註解。</p>}
+                  <div className="event-comment-compose"><textarea value={commentDraft} onChange={(event) => setCommentDraft(event.target.value)} placeholder="為這段記憶留下補充或提問" maxLength={2000} rows={3} /><button type="button" onClick={() => createCommentMutation.mutate({ eventId: selectedEvent.id, body: commentDraft })} disabled={!commentDraft.trim() || createCommentMutation.isPending}>{createCommentMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />} 發表註解</button></div>
                 </section>
                 <div className="preview-actions"><button onClick={() => editEvent(selectedEvent)}><PencilLine size={14} /> 編輯</button><button className="delete" onClick={() => removeEvent(selectedEvent.id)}><Trash2 size={14} /> 刪除</button></div>
               </article>

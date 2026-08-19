@@ -637,6 +637,21 @@ a { color: inherit; text-decoration: none; }
 .event-revisions-list article p { grid-column: 1 / -1; margin: 0; color: var(--ink); font-size: 13px; }
 .event-revisions-list article button { align-self: start; border: 1px solid rgba(20,38,58,.3); background: transparent; color: var(--ink); padding: 6px 8px; font: 600 10px "IBM Plex Mono", monospace; }
 .event-revisions-list article button:disabled { opacity: .55; }
+.family-collaboration-control, .event-comments { margin-top: 17px; border-top: 1px solid rgba(20,38,58,.18); padding-top: 13px; }
+.family-collaboration-control > p, .event-comments header { display: flex; align-items: center; gap: 7px; margin: 0 0 6px; color: var(--ink); font: 600 11px "IBM Plex Mono", monospace; letter-spacing: .05em; }
+.family-collaboration-control > small, .event-comments header small { display: block; color: var(--ink-soft); font-size: 11px; line-height: 1.55; }
+.family-collaboration-control > div { display: grid; grid-template-columns: minmax(0,1fr) 110px auto; gap: 7px; margin-top: 10px; }
+.family-collaboration-control input, .family-collaboration-control select, .event-comment-compose textarea { border: 1px solid rgba(20,38,58,.28); background: rgba(255,255,255,.7); color: var(--ink); padding: 9px 10px; font: 500 12px "IBM Plex Mono", monospace; }
+.family-collaboration-control button, .event-comment-compose button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--ink); background: var(--ink); color: #fff; padding: 0 10px; font: 600 10px "IBM Plex Mono", monospace; }
+.event-comments > p { margin: 9px 0; color: var(--ink-soft); font-size: 12px; }
+.event-comment-list { display: grid; gap: 9px; margin: 10px 0; }
+.event-comment-list article { padding: 10px 0; border-bottom: 1px solid rgba(20,38,58,.12); }
+.event-comment-list b { color: var(--ink); font: 600 11px "IBM Plex Mono", monospace; }
+.event-comment-list span { display: block; margin-top: 3px; color: var(--ink-soft); font: 400 10px "IBM Plex Mono", monospace; }
+.event-comment-list p { margin: 6px 0 0; color: var(--ink); font-size: 13px; line-height: 1.6; }
+.event-comment-compose { display: grid; gap: 7px; margin-top: 10px; }
+.event-comment-compose textarea { resize: vertical; min-height: 72px; }
+.event-comment-compose button { justify-self: start; min-height: 31px; }
 
 @media (prefers-reduced-motion: no-preference) {
   .hero-copy, .hero-side-note { animation: reveal-up .7s cubic-bezier(.23,1,.32,1) both; }
@@ -746,6 +761,8 @@ a { color: inherit; text-decoration: none; }
   .phase-anchor-fields { grid-template-columns: 1fr; }
   .share-mode-options { grid-template-columns: 1fr; }
   .share-mode-options button { min-height: 60px; }
+  .family-collaboration-control > div { grid-template-columns: 1fr; }
+  .family-collaboration-control button { min-height: 38px; }
   .share-access-summary { gap: 12px; }
   .phase-boundary-actions button { width: 100%; justify-content: center; }
   .shared-password form { flex-direction: column; gap: 8px; }

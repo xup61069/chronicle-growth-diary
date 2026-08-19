@@ -16,8 +16,12 @@ const diaryDb = vi.hoisted(() => {
   });
   return {
     state,
+    acceptDiaryInvite: vi.fn(async () => ({ diaryId: 2, role: "commenter" })),
+    createDiaryInvite: vi.fn(async () => ({ id: 4, token: "family-invite-token-123456", expiresAt: 1_900_000_000_000, role: "commenter" })),
     getDiarySnapshot,
+    createEventComment: vi.fn(async () => ({ id: 11, eventId: 8, body: "我也記得這一天。" })),
     getDiaryEventRevisions: vi.fn(async () => [{ id: 31, eventId: 8, version: 2, changeType: "update", snapshot: { title: "第二版" }, createdAt: new Date("2026-01-02") }]),
+    getEventComments: vi.fn(async () => [{ id: 11, body: "我也記得這一天。", authorName: "Test User", createdAt: new Date() }]),
     uploadDiaryCoverImage,
     createDiaryEvent: vi.fn(),
     deleteDiaryEvent: vi.fn(),
@@ -185,5 +189,27 @@ describe("diary router validation", () => {
     expect(revisions[0]?.snapshot.title).toBe("第二版");
     expect(diaryDb.restoreDiaryEventRevision).toHaveBeenCalledWith(1, 8, 31);
     expect(restored).toEqual({ eventId: 8, restoredVersion: 3 });
+  });
+
+  it("creates family invites and event comments only through protected account-scoped helpers", async () => {
+    const caller = diaryRouter.createCaller(authenticatedContext);
+    const invite = await caller.createFamilyInvite({ email: "family@example.com", role: "commenter", expiresAt: Date.now() + 120_000 });
+    const comment = await caller.createEventComment({ eventId: 8, body: "我也記得這一天。" });
+    const comments = await caller.getEventComments({ eventId: 8 });
+
+    expect(diaryDb.createDiaryInvite).toHaveBeenCalledWith(1, expect.objectContaining({ email: "family@example.com", role: "commenter" }));
+    expect(invite.role).toBe("commenter");
+    expect(diaryDb.createEventComment).toHaveBeenCalledWith(1, 8, "我也記得這一天。");
+    expect(comment.id).toBe(11);
+    expect(diaryDb.getEventComments).toHaveBeenCalledWith(1, 8);
+    expect(comments).toHaveLength(1);
+  });
+
+  it("rejects expired family invites and empty event comments before persistence", async () => {
+    const caller = diaryRouter.createCaller(authenticatedContext);
+    await expect(caller.createFamilyInvite({ email: "family@example.com", role: "editor", expiresAt: Date.now() - 1 })).rejects.toThrow();
+    await expect(caller.createEventComment({ eventId: 8, body: "  " })).rejects.toThrow();
+    expect(diaryDb.createDiaryInvite).not.toHaveBeenCalled();
+    expect(diaryDb.createEventComment).not.toHaveBeenCalled();
   });
 });
