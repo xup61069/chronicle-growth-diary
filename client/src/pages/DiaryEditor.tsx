@@ -6,7 +6,7 @@ import DashboardLayout from "@/components/DashboardLayout";
 import { DiaryEditorHeader } from "@/components/DiaryEditorHeader";
 import { DiaryLoadState } from "@/components/DiaryLoadState";
 import { annualReviewTemplates, buildAnnualReview, type AnnualReviewTemplate } from "@/lib/annualReview";
-import { consumeTagInputEnter, diaryColors, eventTypes, formatDate, formatInputDate, makeEmptyForm, readImage, toTimestamp, type DatePrecision, type EventForm, type EventType, type PendingImage } from "@/lib/diaryEditor";
+import { consumeTagInputEnter, diaryColors, eventTypes, formatDate, formatInputDate, makeEmptyForm, parseCoordinateE6, readImage, toTimestamp, type DatePrecision, type EventForm, type EventType, type PendingImage } from "@/lib/diaryEditor";
 import { filterDiaryEvents, type DiarySortOrder } from "@/lib/diaryFilters";
 import { getDiaryLoadStatus } from "@/lib/diaryLoadState";
 import { exportDiaryAsLongImage, exportDiaryAsPdf } from "@/lib/diaryExport";
@@ -16,6 +16,7 @@ import { parseChronicleImport, type ChronicleImportPreview } from "@/lib/diaryIm
 import { appendWritingGuide, getLocalWritingGuides } from "@/lib/writingGuide";
 import { parseSocialDraftCsv, parseSocialDraftJson, type SocialDraftCandidate } from "@/lib/socialDraftImport";
 import { buildTrackRows, filterEventsBySkill, getTimelineInsights, getTimelineSkills, isTimeCapsuleLocked, milestoneLabels } from "@/lib/multitrackTimeline";
+import { buildPlaceFootprints, buildSpatialFootprints, getBentoSpan, timelineViewOptions, type TimelineViewMode } from "@/lib/timelineViews";
 import { trpc } from "@/lib/trpc";
 import { canEditFamilyDiary, canManageFamilyDiarySettings, describeFamilyAuditAction, type FamilyDiaryAccessRole } from "@/lib/familyCollaboration";
 import "@/styles/family-collaboration.css";
@@ -99,6 +100,7 @@ function DiaryEditorContent() {
   const [filterTag, setFilterTag] = useState("all");
   const [phaseFilter, setPhaseFilter] = useState("all");
   const [skillFilter, setSkillFilter] = useState<string | null>(null);
+  const [timelineViewMode, setTimelineViewMode] = useState<TimelineViewMode>("timeline");
   const [searchQuery, setSearchQuery] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -238,6 +240,9 @@ function DiaryEditorContent() {
   const visibleEvents = useMemo(() => filterEventsBySkill(phaseScopedEvents, skillFilter), [phaseScopedEvents, skillFilter]);
   const trackRows = useMemo(() => buildTrackRows(visibleEvents, null), [visibleEvents]);
   const timelineInsights = useMemo(() => getTimelineInsights(visibleEvents), [visibleEvents]);
+  const bentoEvents = useMemo(() => [...visibleEvents].sort((left, right) => right.milestoneWeight - left.milestoneWeight || right.occurredAt - left.occurredAt), [visibleEvents]);
+  const placeFootprints = useMemo(() => buildPlaceFootprints(visibleEvents), [visibleEvents]);
+  const spatialFootprints = useMemo(() => buildSpatialFootprints(visibleEvents), [visibleEvents]);
   const selectedEvent = events.find((event) => event.id === (selectedId ?? editingId)) ?? visibleEvents[0] ?? events[0];
   const revisionsQuery = trpc.diary.getEventRevisions.useQuery(
     { eventId: selectedEvent?.id ?? 0 },
@@ -385,6 +390,9 @@ function DiaryEditorContent() {
       body: event.body,
       ageLabel: event.ageLabel ?? "",
       place: event.place ?? "",
+      mapLatitude: event.mapLatitudeE6 == null ? "" : String(event.mapLatitudeE6 / 1_000_000),
+      mapLongitude: event.mapLongitudeE6 == null ? "" : String(event.mapLongitudeE6 / 1_000_000),
+      locationPrivacy: event.locationPrivacy,
       color: event.color as (typeof diaryColors)[number],
       tagNames: event.tags.map((tag) => tag.name),
       skillNames: event.skills.map((skill) => skill.name),
@@ -434,13 +442,21 @@ function DiaryEditorContent() {
       return;
     }
     if (!form.title.trim()) return toast.error("先為這段記憶寫下標題。");
+    const mapLatitudeE6 = parseCoordinateE6(form.mapLatitude, 90);
+    const mapLongitudeE6 = parseCoordinateE6(form.mapLongitude, 180);
+    if (mapLatitudeE6 === undefined || mapLongitudeE6 === undefined) return toast.error("私有座標超出有效範圍，緯度需在 -90 到 90、經度需在 -180 到 180 之間。");
+    if ((mapLatitudeE6 === null) !== (mapLongitudeE6 === null)) return toast.error("請同時填入緯度與經度，或清空兩者。 ");
+    if (form.locationPrivacy === "precise" && (mapLatitudeE6 === null || mapLongitudeE6 === null)) return toast.error("精確位置僅私用時，請主動填入完整座標。 ");
+    const { mapLatitude: _mapLatitude, mapLongitude: _mapLongitude, ...eventForm } = form;
     const payload = {
-      ...form,
+      ...eventForm,
       occurredAt: toTimestamp(form.occurredAt, form.datePrecision),
       ageLabel: form.ageLabel.trim() || null,
       place: form.place.trim() || null,
       comparisonGroup: form.comparisonGroup.trim() || null,
       unlocksAt: form.unlocksAt ? new Date(`${form.unlocksAt}T00:00:00`).getTime() : null,
+      mapLatitudeE6,
+      mapLongitudeE6,
     };
 
     try {
@@ -1085,6 +1101,22 @@ function DiaryEditorContent() {
               <input value={form.place} onChange={(event) => setForm({ ...form, place: event.target.value })} placeholder="例如：外婆家、學校禮堂" maxLength={180} />
             </label>
 
+            <div className="form-row location-privacy-row">
+              <label className="form-field">
+                <span>分享時的位置精度</span>
+                <select value={form.locationPrivacy} onChange={(event) => setForm({ ...form, locationPrivacy: event.target.value as EventForm["locationPrivacy"] })}>
+                  <option value="none">不顯示地點</option>
+                  <option value="city">僅顯示城市／區域文字</option>
+                  <option value="precise">精確座標僅私人足跡使用</option>
+                </select>
+              </label>
+              <div className="form-field private-coordinates">
+                <span><LockKeyhole size={14} /> 私有座標（選填）</span>
+                <div><input value={form.mapLatitude} onChange={(event) => setForm({ ...form, mapLatitude: event.target.value })} inputMode="decimal" placeholder="緯度，例如 25.033" /><input value={form.mapLongitude} onChange={(event) => setForm({ ...form, mapLongitude: event.target.value })} inputMode="decimal" placeholder="經度，例如 121.565" /></div>
+                <small>不自動地理編碼；精確點位永遠不會出現在公開／密碼分享頁。</small>
+              </div>
+            </div>
+
             <div className="form-field tags-field">
               <span><Tag size={14} /> 標籤</span>
               <div className="tag-input-row">
@@ -1148,7 +1180,10 @@ function DiaryEditorContent() {
 
         <aside id="mobile-workspace-preview" role="tabpanel" className={`timeline-preview mobile-workspace-panel ${mobileWorkspacePanel === "preview" ? "is-active" : ""}`} aria-label="選取事件的時間帶預覽">
           <div className="panel-title"><span>時間帶預覽</span><b>LIVE</b></div>
-          <section className="multitrack-timeline" aria-labelledby="multitrack-title">
+          <nav className="timeline-view-switch" aria-label="時間軸閱讀視角">
+            {timelineViewOptions.map((view) => <button type="button" key={view.key} className={timelineViewMode === view.key ? "is-active" : ""} aria-pressed={timelineViewMode === view.key} onClick={() => setTimelineViewMode(view.key)}><b>{view.label}</b><small>{view.description}</small></button>)}
+          </nav>
+          {timelineViewMode === "timeline" ? <section className="multitrack-timeline" aria-labelledby="multitrack-title">
             <header className="multitrack-heading">
               <div><p>PARALLEL LOG / {visibleEvents.length.toString().padStart(2, "0")}</p><h3 id="multitrack-title">四條軌道，同步回看</h3></div>
               {skillFilter ? <button type="button" className="multitrack-reset" onClick={() => setSkillFilter(null)}>清除技能篩選</button> : null}
@@ -1182,7 +1217,20 @@ function DiaryEditorContent() {
                 </div>
               </section>)}
             </div>
-          </section>
+          </section> : null}
+          {timelineViewMode === "bento" ? <section className="bento-timeline" aria-labelledby="bento-timeline-title">
+            <header><div><p>BENTO / PRIORITY</p><h3 id="bento-timeline-title">把重要時刻放大</h3></div><small>{bentoEvents.length.toString().padStart(2, "0")} 段</small></header>
+            {bentoEvents.length ? <div className="bento-event-grid">{bentoEvents.map((event) => <button type="button" key={event.id} className={`bento-event bento-${getBentoSpan(event.milestoneWeight)} ${selectedEvent?.id === event.id ? "is-selected" : ""}`} onClick={() => { setSelectedId(event.id); setMobileWorkspacePanel("preview"); }}>
+              {event.media[0] ? <img src={event.media[0].url} alt={event.media[0].caption ?? event.title} /> : <span className="bento-color-field" style={{ backgroundColor: event.color }} />}
+              <span className="bento-event-copy"><small>{new Date(event.occurredAt).getFullYear()} · {event.track}</small><b>{event.title}</b>{event.place ? <em><MapPin size={11} /> {event.place}</em> : null}</span><i aria-label={`里程碑權重 ${event.milestoneWeight}／5`}>{event.milestoneWeight}</i>
+            </button>)}</div> : <p className="view-empty-note">目前篩選範圍尚未有可排入精華格的事件。</p>}
+          </section> : null}
+          {timelineViewMode === "map" ? <section className="footprint-atlas" aria-labelledby="footprint-atlas-title">
+            <header><div><p>PRIVATE ATLAS / LOCAL ONLY</p><h3 id="footprint-atlas-title">以地點串起移動</h3></div><small>不使用 GPS 或外部地圖</small></header>
+            <p className="footprint-privacy-note"><LockKeyhole size={12} /> 已填入的私有經緯度會以世界格網顯示；座標不會送往第三方，公開／密碼分享頁也永遠不會收到精確點位。</p>
+            {spatialFootprints.length ? <div className="spatial-footprint-map" aria-label="以私有經緯度投影的事件據點圖"><span className="spatial-equator" aria-hidden="true" />{spatialFootprints.map((event, index) => <button type="button" key={event.id} className={`spatial-footprint-node track-${event.track} ${selectedEvent?.id === event.id ? "is-selected" : ""}`} style={{ left: `${event.x}%`, top: `${event.y}%`, "--node-color": event.color, "--node-order": index } as React.CSSProperties} onClick={() => { setSelectedId(event.id); setMobileWorkspacePanel("preview"); }} aria-label={`${event.title}，${event.place ?? "私有位置"}`}><i /><span>{event.place ?? event.title}</span></button>)}</div> : <p className="spatial-map-empty">尚未有設定私有座標的事件。可在撰寫欄填入經緯度後，於此查看真實空間分佈。</p>}
+            {placeFootprints.length ? <div className="footprint-route">{placeFootprints.map((footprint, index) => <article key={footprint.place} className="footprint-stop"><span className="footprint-step">{String(index + 1).padStart(2, "0")}</span><div><h4>{footprint.place}</h4><p>{new Date(footprint.firstSeenAt).getFullYear()} — {new Date(footprint.lastSeenAt).getFullYear()} · {footprint.events.length} 段記憶</p><div>{footprint.events.map((event) => <button type="button" key={event.id} onClick={() => { setSelectedId(event.id); setMobileWorkspacePanel("preview"); }}>{event.title}</button>)}</div></div><small>{footprint.tracks.join(" / ")}</small></article>)}</div> : <p className="view-empty-note">為事件補上地點後，這裡會建立不含座標的私人足跡索引。</p>}
+          </section> : null}
           {selectedEvent ? (
             <>
               <div className="preview-date"><span>{formatDate(selectedEvent.occurredAt, selectedEvent.datePrecision)}</span><i style={{ backgroundColor: selectedEvent.color }} /></div>

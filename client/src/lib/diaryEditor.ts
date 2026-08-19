@@ -11,6 +11,7 @@ export type EventType = (typeof eventTypes)[number]["value"];
 export type DatePrecision = "day" | "month" | "year";
 export type TimelineTrack = "career" | "skills" | "life" | "hardware";
 export type MilestoneType = "standard" | "highlight" | "turning_point" | "gear_workflow" | "reflection";
+export type LocationPrivacy = "none" | "city" | "precise";
 export type EventForm = {
   title: string;
   occurredAt: string;
@@ -19,6 +20,9 @@ export type EventForm = {
   body: string;
   ageLabel: string;
   place: string;
+  mapLatitude: string;
+  mapLongitude: string;
+  locationPrivacy: LocationPrivacy;
   color: (typeof diaryColors)[number];
   tagNames: string[];
   skillNames: string[];
@@ -42,6 +46,9 @@ export const makeEmptyForm = (): EventForm => ({
   body: "",
   ageLabel: "",
   place: "",
+  mapLatitude: "",
+  mapLongitude: "",
+  locationPrivacy: "none",
   color: "#EE623B",
   tagNames: [],
   skillNames: [],
@@ -70,6 +77,13 @@ export function formatDate(timestamp: number, precision: DatePrecision) {
 export function toTimestamp(value: string, precision: DatePrecision) {
   const [year, month = "01", day = "01"] = value.split("-");
   return new Date(Number(year), precision === "year" ? 0 : Number(month) - 1, precision === "day" ? Number(day) : 1).getTime();
+}
+
+export function parseCoordinateE6(value: string, maximumAbsoluteValue: number) {
+  if (!value.trim()) return null;
+  const coordinate = Number(value);
+  if (!Number.isFinite(coordinate) || Math.abs(coordinate) > maximumAbsoluteValue) return undefined;
+  return Math.round(coordinate * 1_000_000);
 }
 
 /**

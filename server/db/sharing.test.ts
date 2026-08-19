@@ -98,4 +98,24 @@ describe("sharing data access", () => {
     expect(set).toHaveBeenCalledWith(expect.objectContaining({ lastSharedAt: expect.any(Date) }));
     expect(values).toHaveBeenCalledWith({ diaryId: 7, channel: "public" });
   });
+
+  it("strips precise coordinates and only exposes city-level place text to shared readers", async () => {
+    const { db } = createDb([sharedDiary]);
+    mocks.getEnrichedDiaryEvents.mockResolvedValueOnce([
+      { id: 2, occurredAt: Date.UTC(2000, 0, 1), place: "台北市信義區", mapLatitudeE6: 25_033_000, mapLongitudeE6: 121_565_000, locationPrivacy: "precise", tags: [], media: [] },
+      { id: 3, occurredAt: Date.UTC(2001, 0, 1), place: "台中", mapLatitudeE6: 24_147_000, mapLongitudeE6: 120_673_000, locationPrivacy: "city", tags: [], media: [] },
+      { id: 4, occurredAt: Date.UTC(2002, 0, 1), place: "私人地點", mapLatitudeE6: null, mapLongitudeE6: null, locationPrivacy: "none", tags: [], media: [] },
+    ]);
+
+    const result = await readSharedDiary(db, "story-growth-file");
+
+    expect(result).toMatchObject({
+      status: "ok",
+      events: [
+        { id: 2, place: null, mapLatitudeE6: null, mapLongitudeE6: null },
+        { id: 3, place: "台中", mapLatitudeE6: null, mapLongitudeE6: null },
+        { id: 4, place: null, mapLatitudeE6: null, mapLongitudeE6: null },
+      ],
+    });
+  });
 });

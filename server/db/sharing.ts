@@ -118,6 +118,13 @@ export async function readSharedDiary(db: DbClient, slug: string, token?: string
     channel: diary.shareMode === "link" ? "link" : "public",
   });
 
+  const sharedEvents = events.map((event) => ({
+    ...event,
+    place: event.locationPrivacy === "city" ? event.place : null,
+    mapLatitudeE6: null,
+    mapLongitudeE6: null,
+  }));
+
   return {
     status: "ok" as const,
     diary: {
@@ -128,7 +135,7 @@ export async function readSharedDiary(db: DbClient, slug: string, token?: string
       publicCoverTitle: diary.publicCoverTitle,
       publicStoryLayout: diary.publicStoryLayout,
     },
-    events,
-    lifePhases: makeLifePhaseSnapshot(diary, events),
+    events: sharedEvents,
+    lifePhases: makeLifePhaseSnapshot(diary, sharedEvents),
   };
 }

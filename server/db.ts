@@ -65,6 +65,9 @@ export type DiaryEventInput = {
   comparisonGroup?: string | null;
   unlocksAt?: number | null;
   phaseKeywords?: string[];
+  mapLatitudeE6?: number | null;
+  mapLongitudeE6?: number | null;
+  locationPrivacy?: "none" | "city" | "precise";
 };
 
 

@@ -53,6 +53,9 @@ const diaryEventInput = z.object({
   comparisonGroup: z.string().trim().max(96).nullable().optional(),
   unlocksAt: z.number().int().min(0).max(4102444800000).nullable().optional(),
   phaseKeywords: z.array(z.string().trim().max(24)).max(8).default([]),
+  mapLatitudeE6: z.number().int().min(-90_000_000).max(90_000_000).nullable().optional(),
+  mapLongitudeE6: z.number().int().min(-180_000_000).max(180_000_000).nullable().optional(),
+  locationPrivacy: z.enum(["none", "city", "precise"]).default("none"),
 });
 
 const year = z.number().int().min(1900).max(2200).nullable().optional();

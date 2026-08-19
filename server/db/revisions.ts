@@ -13,6 +13,9 @@ export type DiaryEventRevisionSnapshot = {
   comparisonGroup?: string | null;
   unlocksAt?: number | null;
   phaseKeywords: string[];
+  mapLatitudeE6?: number | null;
+  mapLongitudeE6?: number | null;
+  locationPrivacy: "none" | "city" | "precise";
   isPublic: boolean;
   timelinePosition: number;
   tagNames: string[];
@@ -37,13 +40,16 @@ export function parseDiaryEventRevisionSnapshot(snapshot: string): DiaryEventRev
   }
   const value = parsed as Record<string, unknown>;
   return {
-    ...(value as Omit<DiaryEventRevisionSnapshot, "track" | "milestoneType" | "milestoneWeight" | "comparisonGroup" | "unlocksAt" | "phaseKeywords" | "skillNames">),
+    ...(value as Omit<DiaryEventRevisionSnapshot, "track" | "milestoneType" | "milestoneWeight" | "comparisonGroup" | "unlocksAt" | "phaseKeywords" | "mapLatitudeE6" | "mapLongitudeE6" | "locationPrivacy" | "skillNames">),
     track: value.track === "career" || value.track === "skills" || value.track === "hardware" ? value.track : "life",
     milestoneType: value.milestoneType === "highlight" || value.milestoneType === "turning_point" || value.milestoneType === "gear_workflow" || value.milestoneType === "reflection" ? value.milestoneType : "standard",
     milestoneWeight: typeof value.milestoneWeight === "number" && value.milestoneWeight >= 1 && value.milestoneWeight <= 5 ? value.milestoneWeight : 1,
     comparisonGroup: typeof value.comparisonGroup === "string" ? value.comparisonGroup : null,
     unlocksAt: typeof value.unlocksAt === "number" ? value.unlocksAt : null,
     phaseKeywords: Array.isArray(value.phaseKeywords) ? value.phaseKeywords.filter((keyword): keyword is string => typeof keyword === "string") : [],
+    mapLatitudeE6: typeof value.mapLatitudeE6 === "number" ? value.mapLatitudeE6 : null,
+    mapLongitudeE6: typeof value.mapLongitudeE6 === "number" ? value.mapLongitudeE6 : null,
+    locationPrivacy: value.locationPrivacy === "city" || value.locationPrivacy === "precise" ? value.locationPrivacy : "none",
     skillNames: Array.isArray(value.skillNames) ? value.skillNames.filter((name): name is string => typeof name === "string") : [],
   };
 }

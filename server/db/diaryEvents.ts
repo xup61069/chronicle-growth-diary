@@ -29,6 +29,9 @@ type DiaryEventInput = {
   comparisonGroup?: string | null;
   unlocksAt?: number | null;
   phaseKeywords?: string[];
+  mapLatitudeE6?: number | null;
+  mapLongitudeE6?: number | null;
+  locationPrivacy?: "none" | "city" | "precise";
 };
 type WritableDiaryAccess = { diary: { id: number; userId: number } };
 type EventWriteAccess = { id: number; diaryId: number; access: { diary: { id: number; userId: number } } };
@@ -105,6 +108,9 @@ export async function writeEventRevisionSnapshot(db: DbClient, assertEventWriteA
     comparisonGroup: event[0].comparisonGroup,
     unlocksAt: event[0].unlocksAt,
     phaseKeywords: parsePhaseKeywords(event[0].phaseKeywords),
+    mapLatitudeE6: event[0].mapLatitudeE6,
+    mapLongitudeE6: event[0].mapLongitudeE6,
+    locationPrivacy: event[0].locationPrivacy ?? "none",
     isPublic: event[0].isPublic,
     timelinePosition: event[0].timelinePosition,
     tagNames: tags.filter((tag) => tag.kind === "general").map((tag) => tag.name),
@@ -153,6 +159,9 @@ export async function restoreDiaryEventRevisionForUser(db: DbClient, assertEvent
     comparisonGroup: snapshot.comparisonGroup?.trim() || null,
     unlocksAt: snapshot.unlocksAt ?? null,
     phaseKeywords: serializePhaseKeywords(snapshot.phaseKeywords),
+    mapLatitudeE6: snapshot.mapLatitudeE6 ?? null,
+    mapLongitudeE6: snapshot.mapLongitudeE6 ?? null,
+    locationPrivacy: snapshot.locationPrivacy,
     isPublic: snapshot.isPublic,
     timelinePosition: snapshot.timelinePosition,
   }).where(eq(growthEvents.id, eventId));
@@ -180,6 +189,9 @@ export async function createDiaryEventForUser(db: DbClient, getWritableDiary: Ge
     comparisonGroup: input.comparisonGroup?.trim() || null,
     unlocksAt: input.unlocksAt ?? null,
     phaseKeywords: serializePhaseKeywords(input.phaseKeywords),
+    mapLatitudeE6: input.mapLatitudeE6 ?? null,
+    mapLongitudeE6: input.mapLongitudeE6 ?? null,
+    locationPrivacy: input.locationPrivacy ?? "none",
     timelinePosition: existingEvents.length,
   });
   const created = await db.select().from(growthEvents).where(eq(growthEvents.diaryId, diary.id)).orderBy(desc(growthEvents.id)).limit(1);
@@ -220,6 +232,9 @@ export async function updateDiaryEventForUser(db: DbClient, assertEventWriteAcce
     comparisonGroup: input.comparisonGroup?.trim() || null,
     unlocksAt: input.unlocksAt ?? null,
     phaseKeywords: serializePhaseKeywords(input.phaseKeywords),
+    mapLatitudeE6: input.mapLatitudeE6 ?? null,
+    mapLongitudeE6: input.mapLongitudeE6 ?? null,
+    locationPrivacy: input.locationPrivacy ?? "none",
   }).where(eq(growthEvents.id, eventId));
   await saveEventTagsForDiaryUser(db, eventId, eventAccess.access.diary.userId, input.tagNames, input.skillNames);
   await writeEventRevisionSnapshot(db, assertEventWriteAccess, userId, eventId, "update");

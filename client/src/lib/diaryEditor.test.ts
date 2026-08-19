@@ -1,4 +1,4 @@
-import { consumeTagInputEnter, formatDate, formatInputDate, makeEmptyForm, toTimestamp } from "./diaryEditor";
+import { consumeTagInputEnter, formatDate, formatInputDate, makeEmptyForm, parseCoordinateE6, toTimestamp } from "./diaryEditor";
 import { describe, expect, it, vi } from "vitest";
 
 describe("diary editor helpers", () => {
@@ -20,6 +20,9 @@ describe("diary editor helpers", () => {
       milestoneWeight: 1,
       comparisonGroup: "",
       unlocksAt: "",
+      mapLatitude: "",
+      mapLongitude: "",
+      locationPrivacy: "none",
     });
   });
 
@@ -28,6 +31,13 @@ describe("diary editor helpers", () => {
     expect(new Date(toTimestamp("2024-05", "month")).getDate()).toBe(1);
     expect(formatInputDate(toTimestamp("2024-05-23", "day"))).toBe("2024-05-23");
     expect(formatDate(toTimestamp("2024-05", "month"), "month")).toContain("2024 年 5 月");
+  });
+
+  it("converts only valid private coordinate input into bounded E6 integers", () => {
+    expect(parseCoordinateE6("25.033", 90)).toBe(25_033_000);
+    expect(parseCoordinateE6("", 90)).toBeNull();
+    expect(parseCoordinateE6("91", 90)).toBeUndefined();
+    expect(parseCoordinateE6("not-a-coordinate", 180)).toBeUndefined();
   });
 
   it("consumes Enter in the tag field before it can submit the enclosing event form", () => {
