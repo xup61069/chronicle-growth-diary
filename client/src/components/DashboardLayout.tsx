@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/sidebar";
 import { startLogin } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { Archive, Home, LogOut, PanelLeft, RefreshCw } from "lucide-react";
+import { Archive, BarChart3, Home, LogOut, PanelLeft, RefreshCw } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -31,6 +31,7 @@ import { LocalAuthPanel } from "./LocalAuthPanel";
 
 const menuItems = [
   { icon: Archive, label: "我的成長史", path: "/editor" },
+  { icon: BarChart3, label: "成長數據", path: "/dashboard" },
   { icon: Home, label: "網站首頁", path: "/" },
 ];
 

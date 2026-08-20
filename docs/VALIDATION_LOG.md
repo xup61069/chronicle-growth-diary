@@ -6,13 +6,14 @@
 
 | 範圍 | 狀態 | 可重現方法 |
 | --- | --- | --- |
-| 型別、單元測試與正式建置 | 通過 | `pnpm check && pnpm test && pnpm build`。目前基準為 **48 個測試檔、136 項 Vitest**。 |
+| 型別、單元測試與正式建置 | 通過 | `pnpm check && pnpm test && pnpm build`。目前基準為 **51 個測試檔、142 項 Vitest**。 |
 | 公開首頁 375px | 通過 | 設定 HTTPS `CHRONICLE_E2E_BASE_URL` 後執行 `pnpm test:e2e:mobile-nav`。覆蓋跳至主要內容、行動導覽、故事案例、時間帶鍵盤探索、篩選狀態、減少動態與離線快速記事入口。 |
-| 隔離 local-auth 編輯器 | 通過 | 設定 HTTPS `CHRONICLE_E2E_BASE_URL` 後執行 `pnpm test:e2e:isolated`。腳本會建立並清除暫時帳號，覆蓋 375px 日記載入、分頁、事件選取、年度 AI 同意與 private 事件 Markdown 匯出，以及 `diary.get` 逾時／失敗恢復。 |
+| 隔離 local-auth 編輯器 | 通過 | 設定 HTTPS `CHRONICLE_E2E_BASE_URL` 後執行 `pnpm test:e2e:isolated`。腳本會建立並清除暫時帳號，覆蓋 375px 日記載入、分頁、事件選取、年度 AI 同意與 private 事件 Markdown 匯出、成長數據儀表板，以及 `diary.get` 逾時／失敗恢復。 |
 | 公開故事閱讀版型 | 通過 | `SharedStory` 測試覆蓋 `editorial`、`gallery` 與 `minimal`；隔離 local-auth 已完成三種版型的 375px 視覺回歸。 |
 | 社群分享中繼資料 | 通過 | `socialMetadata.test.ts` 驗證 Open Graph 與 Twitter 圖片皆採 Chronicle 品牌時間帶視覺與替代文字。 |
 | 離線快速記事 | 通過 | `/quick-note` 使用目前瀏覽器的 localStorage 保存草稿；單元與 375px 回歸覆蓋儲存、還原、清除與複製行為。 |
 | 年度回顧隱私 | 通過 | AI 生成必須每次確認，僅處理指定年份的 private 事件；`public`／`link` 事件不會送往 AI。年度 AI 與 Markdown 匯出控制項僅對日記擁有者呈現，未登入 router 呼叫會被拒絕。 |
+| 成長數據儀表板隱私 | 通過 | `stats.growth` 為受保護且 owner-only 的程序；SQL 與第二層 helper 均限制為 private、非 public 事件。前端僅接收摘要、月份密度、階段計數與關鍵字頻率，沒有日記正文、媒體或地點。隔離 local-auth 已完成 375px 與 1280px 視覺驗證。 |
 
 ## 正式 OAuth 驗證邊界
 

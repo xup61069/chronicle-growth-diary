@@ -4,7 +4,9 @@
 
 ## Active
 
-- [ ] 將年度回顧的 private 範圍、每次 AI 同意、owner-only 控制項與 Markdown 匯出改善同步至 GitHub `main`。
+- [x] 實作 owner-only 成長數據儀表板 MVP：以私有日記事件聚合年度寫作密度、關鍵字與連續紀錄，提供行動版可及性視覺化與完整隱私回歸。
+
+- [x] 將年度回顧的 private 範圍、每次 AI 同意、owner-only 控制項與 Markdown 匯出改善同步至 GitHub `main`。
 
 - [x] 完成年度回顧 MVP 的私有資料範圍：以明確 AI 同意為前提，僅彙整擁有者指定年份的 private 日記事件生成回顧，並提供 Chronicle frontmatter Markdown 匯出與隱私回歸測試。
 

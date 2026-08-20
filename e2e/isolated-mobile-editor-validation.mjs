@@ -6,6 +6,7 @@ if (!baseUrl) throw new Error('請設定 CHRONICLE_E2E_BASE_URL 為已啟動 loc
 const email = `mobile-editor-${Date.now()}@example.test`;
 const password = 'local-validation-passphrase';
 const eventTitle = '375px 工作區驗證事件';
+const viewport = process.env.CHRONICLE_E2E_VIEWPORT === 'desktop' ? { width: 1280, height: 720 } : { width: 375, height: 812 };
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -26,7 +27,7 @@ const browser = await chromium.launch({
   executablePath: '/usr/bin/chromium',
   headless: true,
 });
-const context = await browser.newContext({ viewport: { width: 375, height: 812 } });
+const context = await browser.newContext({ viewport });
 const page = await context.newPage();
 const findings = { email, checks: [], cleaned: false };
 
@@ -56,7 +57,7 @@ try {
     milestoneWeight: 3,
     comparisonGroup: null,
     unlocksAt: null,
-    phaseKeywords: [],
+    phaseKeywords: ['行動驗證', '資料索引'],
     mapLatitudeE6: null,
     mapLongitudeE6: null,
     locationPrivacy: 'none',
@@ -67,6 +68,17 @@ try {
   assert(eventCreation.status === 200, '無法建立隔離驗證事件。');
   findings.checks.push('authenticated diary.createEvent');
 
+  if (viewport.width > 375) {
+    await page.goto(`${baseUrl}/dashboard`, { waitUntil: 'domcontentloaded' });
+    await page.getByRole('heading', { name: '成長數據索引' }).waitFor({ timeout: 10_000 });
+    await page.getByRole('img', { name: '私有事件的每月紀錄密度圖' }).waitFor({ timeout: 10_000 });
+    await page.getByText('行動驗證', { exact: true }).waitFor({ timeout: 10_000 });
+    assert(await page.getByText('僅計入 private 範圍').isVisible(), '桌面儀表板未明確揭露 private 資料範圍。');
+    if (process.env.CHRONICLE_E2E_SCREENSHOT_PATH) {
+      await page.screenshot({ path: process.env.CHRONICLE_E2E_SCREENSHOT_PATH, fullPage: true });
+    }
+    findings.checks.push('desktop private growth dashboard');
+  } else {
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.getByRole('tab', { name: '索引' }).click();
   const indexEventButton = page.locator('.event-list button').filter({ hasText: eventTitle });
@@ -100,6 +112,18 @@ try {
   await annualReview.getByRole('button', { name: '匯出年度 Markdown' }).click();
   assert((await annualDownload).suggestedFilename() === 'year-review-2026.chronicle.md', '年度 Markdown 匯出檔名不符合 Chronicle 格式。');
   findings.checks.push('annual review consent and Markdown export');
+
+  await page.goto(`${baseUrl}/dashboard`, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('heading', { name: '成長數據索引' }).waitFor({ timeout: 10_000 });
+  await page.getByRole('img', { name: '私有事件的每月紀錄密度圖' }).waitFor({ timeout: 10_000 });
+  await page.getByText('行動驗證', { exact: true }).waitFor({ timeout: 10_000 });
+  assert(await page.getByText('僅計入 private 範圍').isVisible(), '儀表板未明確揭露 private 資料範圍。');
+  if (process.env.CHRONICLE_E2E_SCREENSHOT_PATH) {
+    await page.screenshot({ path: process.env.CHRONICLE_E2E_SCREENSHOT_PATH, fullPage: true });
+  }
+  await page.getByRole('link', { name: '回到成長史' }).first().click();
+  await page.getByRole('tab', { name: '索引' }).waitFor({ timeout: 10_000 });
+  findings.checks.push('375px private growth dashboard and return navigation');
 
   let delayDiaryGet = true;
   await page.route('**/api/trpc/diary.get**', async (route) => {
@@ -140,6 +164,7 @@ try {
   findings.checks.push('diary.get page reload recovery');
 
   await page.unroute('**/api/trpc/diary.get**');
+  }
   const deletion = await trpcMutation(page, 'auth.deleteAccount', { confirmation: '刪除我的帳號' });
   assert(deletion.status === 200, '無法清除隔離驗證帳號。');
   findings.cleaned = true;

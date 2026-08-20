@@ -43,6 +43,7 @@ import {
   setDiaryAiEnabled,
   updatePhaseReflectionForDiary,
 } from "./db/aiReflections";
+import { getGrowthDashboardStatsForDiary } from "./db/growthStats";
 export { assertAiEnabled } from "./db/aiReflections";
 import type { PhaseReflectionInput, ReflectionPhaseKey } from "./db/aiReflections";
 
@@ -321,4 +322,11 @@ export async function getDiaryAuditLogs(userId: number) {
   const db = await requireDb();
   const diary = await getOwnedDiary(userId);
   return getDiaryAuditLogsForDiary(db, diary.id);
+}
+
+/** Dashboard statistics are intentionally limited to the diary owner. */
+export async function getGrowthDashboardStats(userId: number) {
+  const db = await requireDb();
+  const diary = await getOwnedDiary(userId);
+  return getGrowthDashboardStatsForDiary(db, diary);
 }

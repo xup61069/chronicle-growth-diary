@@ -9,6 +9,7 @@ import Home from "./pages/Home";
 
 const DiaryEditor = lazy(() => import("@/pages/DiaryEditor"));
 const FamilyInvite = lazy(() => import("@/pages/FamilyInvite"));
+const GrowthDashboard = lazy(() => import("@/pages/GrowthDashboard"));
 const QuickNote = lazy(() => import("@/pages/QuickNote"));
 const SharedStory = lazy(() => import("@/pages/SharedStory"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
@@ -23,6 +24,7 @@ function Router() {
       <Switch>
         <Route path="/" component={Home} />
         <Route path="/editor" component={DiaryEditor} />
+        <Route path="/dashboard" component={GrowthDashboard} />
         <Route path="/family-invite" component={FamilyInvite} />
         <Route path="/quick-note" component={QuickNote} />
         <Route path="/story/:slug" component={SharedStory} />
@@ -37,7 +39,7 @@ function RouteMetadata() {
   const [location] = useLocation();
 
   useEffect(() => {
-    const isPrivateRoute = location === "/editor" || location === "/quick-note" || location.startsWith("/family-invite");
+    const isPrivateRoute = location === "/editor" || location === "/dashboard" || location === "/quick-note" || location.startsWith("/family-invite");
     let robots = document.querySelector<HTMLMetaElement>('meta[name="robots"]');
     if (!robots) {
       robots = document.createElement("meta");

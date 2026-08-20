@@ -8,6 +8,7 @@ import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { hashLocalPassword, localOpenIdForEmail, normalizeLocalEmail, verifyLocalPassword } from "./localCredentials";
 import { getAuthProvider } from "./providers/auth";
 import { diaryRouter, shareRouter } from "./routers/diary";
+import { statsRouter } from "./routers/stats";
 
 const localCredentialInput = z.object({
   email: z.string().trim().email("請輸入有效的 email。").max(320),
@@ -75,6 +76,7 @@ export const appRouter = router({
   }),
   diary: diaryRouter,
   share: shareRouter,
+  stats: statsRouter,
 });
 
 export type AppRouter = typeof appRouter;
