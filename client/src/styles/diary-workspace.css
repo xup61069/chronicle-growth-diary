@@ -58,6 +58,10 @@
 .timeline-preview { border-left: 1px solid rgba(20,38,58,.24); }
 .editor-form-panel { padding: 35px clamp(22px,3vw,48px) 42px; }
 
+@media (min-width: 821px) {
+  .mobile-workspace-panel { display: block; }
+}
+
 @media (max-width: 820px) {
   .diary-editor { padding: 22px 18px; }
   .editor-header { display: block; padding-bottom: 26px; }

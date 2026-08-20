@@ -48,6 +48,8 @@ const diaryDb = vi.hoisted(() => {
     updateDiaryMemberRole: vi.fn(async () => ({ id: 7, role: "editor" })),
     updatePhaseReflection: vi.fn(),
     uploadDiaryEventImage: vi.fn(),
+    uploadDiaryVoiceNote: vi.fn(),
+    deleteDiaryVoiceNote: vi.fn(),
   };
 });
 
@@ -79,6 +81,18 @@ beforeEach(() => {
 });
 
 describe("diary router validation", () => {
+  it("requires audio transcription consent and a supported audio format before persistence", async () => {
+    const caller = diaryRouter.createCaller(authenticatedContext);
+
+    await expect(caller.uploadVoiceNote({
+      eventId: 8, fileName: "note.webm", mimeType: "audio/webm", base64: "AQID", confirmAiProcessing: false,
+    })).rejects.toThrow("請先確認本次錄音會送往語音轉寫服務");
+    await expect(caller.uploadVoiceNote({
+      eventId: 8, fileName: "note.pdf", mimeType: "application/pdf", base64: "AQID", confirmAiProcessing: true,
+    })).rejects.toThrow("只支援 WebM、MP3、WAV、OGG 或 M4A 音檔");
+    expect(diaryDb.uploadDiaryVoiceNote).not.toHaveBeenCalled();
+  });
+
   it("rejects an event with a missing title before calling persistence", async () => {
     const caller = diaryRouter.createCaller(authenticatedContext);
     await expect(

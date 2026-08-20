@@ -32,8 +32,10 @@ import {
   updatePhaseReflection,
   uploadDiaryCoverImage,
   uploadDiaryEventImage,
+  uploadDiaryVoiceNote,
+  deleteDiaryVoiceNote,
 } from "../db";
-import { EVENT_COLORS, EVENT_TYPES, isSupportedImageMimeType } from "../diaryHelpers";
+import { EVENT_COLORS, EVENT_TYPES, isSupportedAudioMimeType, isSupportedImageMimeType } from "../diaryHelpers";
 import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
 
 const diaryEventInput = z.object({
@@ -139,6 +141,16 @@ export const diaryRouter = router({
     mimeType: z.string().trim().refine(isSupportedImageMimeType, "只支援 JPG、PNG、WebP 或 GIF 圖片。"),
     base64: z.string().min(1).max(6_000_000),
   })).mutation(({ ctx, input }) => uploadDiaryCoverImage({ userId: ctx.user.id, ...input })),
+  uploadVoiceNote: protectedProcedure.input(z.object({
+    eventId: z.number().int().positive(),
+    fileName: z.string().trim().min(1).max(180),
+    mimeType: z.string().trim().refine(isSupportedAudioMimeType, "只支援 WebM、MP3、WAV、OGG 或 M4A 音檔。"),
+    base64: z.string().min(1).max(22_500_000),
+    durationMs: z.number().int().min(0).max(14_400_000).nullable().optional(),
+    language: z.string().trim().regex(/^[a-z]{2,3}$/i, "請使用 ISO 語言代碼，例如 zh 或 en。" ).max(3).optional(),
+    confirmAiProcessing: z.boolean().refine((value) => value, "請先確認本次錄音會送往語音轉寫服務。"),
+  })).mutation(({ ctx, input }) => uploadDiaryVoiceNote({ userId: ctx.user.id, ...input })),
+  deleteVoiceNote: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ ctx, input }) => deleteDiaryVoiceNote(ctx.user.id, input.id)),
   deleteImage: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ ctx, input }) => deleteDiaryEventMedia(ctx.user.id, input.id)),
 });
 

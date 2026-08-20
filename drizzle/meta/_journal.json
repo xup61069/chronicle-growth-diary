@@ -99,6 +99,13 @@
       "when": 1787141309696,
       "tag": "0013_tricky_crystal",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "5",
+      "when": 1787197026796,
+      "tag": "0014_steady_the_hood",
+      "breakpoints": true
     }
   ]
 }

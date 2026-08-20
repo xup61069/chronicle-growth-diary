@@ -69,6 +69,17 @@ try {
   findings.checks.push('authenticated diary.createEvent');
 
   if (viewport.width > 375) {
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    const desktopVoiceDiary = page.locator('.voice-diary');
+    await desktopVoiceDiary.scrollIntoViewIfNeeded();
+    await desktopVoiceDiary.getByText('VOICE DIARY / PRIVATE').waitFor({ timeout: 10_000 });
+    assert(await desktopVoiceDiary.getByRole('button', { name: '開始錄音' }).isVisible(), '桌面私人事件未提供語音錄製入口。');
+    assert(await desktopVoiceDiary.getByRole('status').getByText('尚未有待上傳的錄音。').isVisible(), '桌面語音日記未提供未上傳狀態回饋。');
+    if (process.env.CHRONICLE_E2E_VOICE_SCREENSHOT_PATH) {
+      await desktopVoiceDiary.screenshot({ path: process.env.CHRONICLE_E2E_VOICE_SCREENSHOT_PATH });
+    }
+    findings.checks.push('desktop private voice diary privacy entry');
+
     await page.goto(`${baseUrl}/dashboard`, { waitUntil: 'domcontentloaded' });
     await page.getByRole('heading', { name: '成長數據索引' }).waitFor({ timeout: 10_000 });
     await page.getByRole('img', { name: '私有事件的每月紀錄密度圖' }).waitFor({ timeout: 10_000 });
@@ -91,6 +102,18 @@ try {
   await page.locator('#mobile-workspace-preview').getByRole('heading', { name: eventTitle, exact: true }).waitFor({ timeout: 10_000 });
   assert(await page.getByRole('tab', { name: '預覽' }).getAttribute('aria-selected') === 'true', '事件選取後預覽分頁未可用。');
   findings.checks.push('375px event selection and preview');
+
+  const voiceDiary = page.locator('.voice-diary');
+  await voiceDiary.scrollIntoViewIfNeeded();
+  await voiceDiary.getByText('VOICE DIARY / PRIVATE').waitFor({ timeout: 10_000 });
+  assert(await voiceDiary.getByText('錄音會先保存在這台裝置').isVisible(), '語音日記未說明本機優先保存。');
+  assert(await voiceDiary.getByRole('button', { name: '開始錄音' }).isVisible(), '私人事件未提供語音錄製入口。');
+  assert(await voiceDiary.getByRole('checkbox').count() === 0, '沒有待上傳錄音時不應顯示轉寫同意控制項。');
+  assert(await voiceDiary.getByRole('status').getByText('尚未有待上傳的錄音。').isVisible(), '語音日記未提供未上傳狀態回饋。');
+  if (process.env.CHRONICLE_E2E_VOICE_SCREENSHOT_PATH) {
+    await voiceDiary.screenshot({ path: process.env.CHRONICLE_E2E_VOICE_SCREENSHOT_PATH });
+  }
+  findings.checks.push('375px private voice diary privacy entry');
 
   await page.getByRole('tab', { name: '索引' }).click();
   await page.getByRole('button', { name: '新增一段記憶' }).click();

@@ -33,3 +33,7 @@ export function safeMediaName(fileName: string): string {
 export function isSupportedImageMimeType(mimeType: string): boolean {
   return ["image/jpeg", "image/png", "image/webp", "image/gif"].includes(mimeType);
 }
+
+export function isSupportedAudioMimeType(mimeType: string): boolean {
+  return ["audio/webm", "audio/ogg", "audio/mpeg", "audio/mp3", "audio/wav", "audio/wave", "audio/mp4", "audio/m4a"].includes(mimeType);
+}

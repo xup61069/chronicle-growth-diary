@@ -44,6 +44,8 @@ import {
   updatePhaseReflectionForDiary,
 } from "./db/aiReflections";
 import { getGrowthDashboardStatsForDiary } from "./db/growthStats";
+import { createVoiceNoteForEvent, deleteVoiceNoteForUser } from "./db/voiceNotes";
+import type { VoiceNoteInput } from "./db/voiceNotes";
 export { assertAiEnabled } from "./db/aiReflections";
 import type { PhaseReflectionInput, ReflectionPhaseKey } from "./db/aiReflections";
 
@@ -249,6 +251,16 @@ export async function getSharedDiary(slug: string, token?: string | null, passwo
 export async function uploadDiaryEventImage(input: { userId: number; eventId: number; fileName: string; mimeType: string; base64: string; caption?: string; }) {
   const db = await requireDb();
   return uploadDiaryEventMedia(db, assertEventWriteAccess, input);
+}
+
+export async function uploadDiaryVoiceNote(input: VoiceNoteInput) {
+  const db = await requireDb();
+  return createVoiceNoteForEvent(db, assertEventWriteAccess, input);
+}
+
+export async function deleteDiaryVoiceNote(userId: number, voiceNoteId: number) {
+  const db = await requireDb();
+  return deleteVoiceNoteForUser(db, assertEventWriteAccess, userId, voiceNoteId);
 }
 
 export async function deleteDiaryEventMedia(userId: number, mediaId: number) {

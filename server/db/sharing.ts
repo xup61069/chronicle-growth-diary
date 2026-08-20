@@ -144,6 +144,7 @@ export async function readSharedDiary(db: DbClient, slug: string, token?: string
       place: sharedEvent.isTimeCapsuleLocked ? null : event.locationPrivacy === "city" ? event.place : null,
       mapLatitudeE6: null,
       mapLongitudeE6: null,
+      voiceNotes: [],
     };
   });
 

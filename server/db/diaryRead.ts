@@ -1,6 +1,6 @@
 import { and, asc, eq, inArray, or } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
-import { growthEventMedia, growthEvents, growthEventTags, growthTags } from "../../drizzle/schema";
+import { growthEventMedia, growthEvents, growthEventTags, growthEventVoiceNotes, growthTags } from "../../drizzle/schema";
 
 function parsePhaseKeywords(rawKeywords: string | null) {
   if (!rawKeywords) return [];
@@ -29,11 +29,15 @@ export async function getEnrichedDiaryEvents(db: MySql2Database<Record<string, u
   const mediaRows = eventIds.length
     ? await db.select().from(growthEventMedia).where(inArray(growthEventMedia.eventId, eventIds)).orderBy(asc(growthEventMedia.sortOrder), asc(growthEventMedia.id))
     : [];
+  const voiceRows = eventIds.length
+    ? await db.select().from(growthEventVoiceNotes).where(inArray(growthEventVoiceNotes.eventId, eventIds)).orderBy(asc(growthEventVoiceNotes.createdAt), asc(growthEventVoiceNotes.id))
+    : [];
   return events.map((event) => ({
     ...event,
     phaseKeywords: parsePhaseKeywords(event.phaseKeywords),
     tags: taggedRows.filter((tag) => tag.eventId === event.id && tag.kind === "general").map(({ eventId: _eventId, kind: _kind, ...tag }) => tag),
     skills: taggedRows.filter((tag) => tag.eventId === event.id && tag.kind === "skill").map(({ eventId: _eventId, kind: _kind, ...tag }) => tag),
     media: mediaRows.filter((media) => media.eventId === event.id),
+    voiceNotes: voiceRows.filter((voiceNote) => voiceNote.eventId === event.id),
   }));
 }

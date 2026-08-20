@@ -1,0 +1,43 @@
+.voice-diary {
+  margin-top: 1rem;
+  border-top: 1px solid color-mix(in srgb, var(--ink, #14263a) 18%, transparent);
+  padding-top: 1rem;
+}
+
+.voice-diary header,
+.voice-diary .voice-diary-actions,
+.voice-diary .voice-diary-consent,
+.voice-diary .voice-note-item > div,
+.voice-diary .voice-note-item footer {
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+}
+
+.voice-diary header { justify-content: space-between; }
+.voice-diary header span { display: inline-flex; align-items: center; gap: .4rem; font: 600 11px/1.2 var(--font-mono, monospace); letter-spacing: .08em; }
+.voice-diary header small { color: #5a6975; }
+.voice-diary > p { margin: .65rem 0; color: #52616d; font-size: .82rem; line-height: 1.55; }
+.voice-diary .voice-diary-status { border-left: 2px solid #587a8b; padding-left: .55rem; font-size: .76rem; }
+.voice-diary-actions { flex-wrap: wrap; }
+.voice-diary button { display: inline-flex; align-items: center; gap: .35rem; border: 1px solid #14263a; background: #fffdf8; color: #14263a; padding: .42rem .62rem; font-size: .78rem; }
+.voice-diary button:hover:not(:disabled) { border-color: #ee623b; color: #ee623b; }
+.voice-diary button:disabled { cursor: not-allowed; opacity: .5; }
+.voice-diary button.voice-recording { background: #ee623b; border-color: #ee623b; color: #fffdf8; }
+.voice-diary-consent { align-items: flex-start; margin: .8rem 0; color: #52616d; font-size: .76rem; line-height: 1.45; }
+.voice-diary-consent input { margin-top: .18rem; accent-color: #ee623b; }
+.voice-diary-queue, .voice-diary-library { display: grid; gap: .5rem; margin-top: .8rem; }
+.voice-diary-queue h4, .voice-diary-library h4 { margin: .2rem 0; font: 600 10px/1.3 var(--font-mono, monospace); letter-spacing: .08em; color: #52616d; }
+.voice-note-item { border-left: 2px solid #ee623b; background: #f4eee4; padding: .65rem; }
+.voice-note-item > div { justify-content: space-between; font-size: .8rem; }
+.voice-note-item b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.voice-note-item small { color: #5a6975; }
+.voice-note-item audio { width: 100%; height: 2rem; margin: .55rem 0 .3rem; }
+.voice-note-item p { margin: .45rem 0; color: #405365; font-size: .82rem; line-height: 1.55; white-space: pre-wrap; }
+.voice-note-item footer { justify-content: flex-end; }
+.voice-diary-private-note { color: #5a6975; font-size: .8rem; }
+
+@media (max-width: 640px) {
+  .voice-diary-actions { align-items: stretch; }
+  .voice-diary-actions button { justify-content: center; }
+}

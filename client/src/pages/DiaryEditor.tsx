@@ -23,6 +23,7 @@ import { buildAnnualShareCardData, downloadAnnualShareCard } from "@/lib/annualS
 import { parseSocialDraftCsv, parseSocialDraftJson, type SocialDraftCandidate } from "@/lib/socialDraftImport";
 import { buildTrackRows, filterEventsBySkill, getTimelineInsights, getTimelineSkills, isTimeCapsuleLocked, milestoneLabels } from "@/lib/multitrackTimeline";
 import { buildPlaceFootprints, buildSpatialFootprints, getBentoSpan, timelineViewOptions, type TimelineViewMode } from "@/lib/timelineViews";
+import { formatVoiceDuration, listVoiceDrafts, makeVoiceDraftFileName, queueVoiceDraft, removeVoiceDraft, voiceBlobToBase64, type QueuedVoiceDraft } from "@/lib/voiceDrafts";
 import { trpc } from "@/lib/trpc";
 import { canEditFamilyDiary, canManageAnnualReview, canManageFamilyDiarySettings, describeFamilyAuditAction, type FamilyDiaryAccessRole } from "@/lib/familyCollaboration";
 import "@/styles/family-collaboration.css";
@@ -31,6 +32,7 @@ import "@/styles/annual-review.css";
 import "@/styles/account-revisions.css";
 import "@/styles/diary-workspace.css";
 import "@/styles/diary-event-studio.css";
+import "@/styles/voice-diary.css";
 import {
   Archive,
   ArrowDownUp,
@@ -54,6 +56,7 @@ import {
   LockKeyhole,
   MapPin,
   Music,
+  Mic,
   PencilLine,
   Plus,
   RefreshCw,
@@ -63,8 +66,10 @@ import {
   Share2,
   ShieldCheck,
   Sparkles,
+  Square,
   Tag,
   Trash2,
+  Upload,
   WandSparkles,
   X,
 } from "lucide-react";
@@ -145,10 +150,17 @@ function DiaryEditorContent() {
   const [mediaArchivePreview, setMediaArchivePreview] = useState<ImportedMediaArchive | null>(null);
   const [isMediaArchiveExporting, setIsMediaArchiveExporting] = useState(false);
   const [isMediaArchiveImporting, setIsMediaArchiveImporting] = useState(false);
+  const [voiceDrafts, setVoiceDrafts] = useState<QueuedVoiceDraft[]>([]);
+  const [voiceAiConsent, setVoiceAiConsent] = useState(false);
+  const [isRecordingVoice, setIsRecordingVoice] = useState(false);
+  const [isPreparingVoice, setIsPreparingVoice] = useState(false);
   const exportRef = useRef<HTMLElement>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
   const socialImportInputRef = useRef<HTMLInputElement>(null);
   const mediaArchiveInputRef = useRef<HTMLInputElement>(null);
+  const voiceRecorderRef = useRef<MediaRecorder | null>(null);
+  const voiceStreamRef = useRef<MediaStream | null>(null);
+  const voiceStartedAtRef = useRef(0);
   const tagEnterSubmitGuard = useRef(false);
 
   useEffect(() => {
@@ -160,6 +172,27 @@ function DiaryEditorContent() {
     return () => window.clearTimeout(timeout);
   }, [isLoading]);
 
+  useEffect(() => {
+    let cancelled = false;
+    const eventId = selectedId;
+    setVoiceAiConsent(false);
+    if (!eventId) {
+      setVoiceDrafts([]);
+      return;
+    }
+    void listVoiceDrafts(eventId).then((drafts) => {
+      if (!cancelled) setVoiceDrafts(drafts);
+    }).catch(() => {
+      if (!cancelled) toast.error("無法讀取此裝置上的離線語音草稿。");
+    });
+    return () => { cancelled = true; };
+  }, [selectedId]);
+
+  useEffect(() => () => {
+    voiceRecorderRef.current?.stop();
+    voiceStreamRef.current?.getTracks().forEach((track) => track.stop());
+  }, []);
+
   const saveMutation = trpc.diary.createEvent.useMutation();
   const updateMutation = trpc.diary.updateEvent.useMutation();
   const uploadMutation = trpc.diary.uploadImage.useMutation();
@@ -168,6 +201,8 @@ function DiaryEditorContent() {
   const updateImageMutation = trpc.diary.updateImage.useMutation();
   const reorderImagesMutation = trpc.diary.reorderImages.useMutation();
   const uploadCoverMutation = trpc.diary.uploadCoverImage.useMutation();
+  const uploadVoiceMutation = trpc.diary.uploadVoiceNote.useMutation();
+  const deleteVoiceMutation = trpc.diary.deleteVoiceNote.useMutation();
   const visibilityMutation = trpc.diary.setEventVisibility.useMutation();
   const sharingMutation = trpc.diary.updateSharing.useMutation();
   const reorderMutation = trpc.diary.reorderEvents.useMutation();
@@ -530,6 +565,88 @@ function DiaryEditorContent() {
       toast.success("圖片已移除。");
     } catch (deleteError) {
       toast.error(deleteError instanceof Error ? deleteError.message : "圖片移除失敗。");
+    }
+  };
+
+  const refreshVoiceDrafts = async (eventId: number) => setVoiceDrafts(await listVoiceDrafts(eventId));
+
+  const startVoiceRecording = async () => {
+    if (!selectedEvent || selectedEvent.shareScope !== "private") return toast.info("語音日記只可附加在完全私人的事件。請先調整事件分享範圍。");
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") return toast.error("目前瀏覽器不支援直接錄音。請改用支援 MediaRecorder 的瀏覽器。");
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const preferredMimeType = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus"].find((type) => MediaRecorder.isTypeSupported(type));
+      const recorder = preferredMimeType ? new MediaRecorder(stream, { mimeType: preferredMimeType }) : new MediaRecorder(stream);
+      const chunks: BlobPart[] = [];
+      voiceStreamRef.current = stream;
+      voiceRecorderRef.current = recorder;
+      voiceStartedAtRef.current = Date.now();
+      recorder.ondataavailable = (event) => { if (event.data.size) chunks.push(event.data); };
+      recorder.onstop = () => {
+        const durationMs = Date.now() - voiceStartedAtRef.current;
+        const mimeType = recorder.mimeType || "audio/webm";
+        const blob = new Blob(chunks, { type: mimeType });
+        voiceStreamRef.current?.getTracks().forEach((track) => track.stop());
+        voiceStreamRef.current = null;
+        voiceRecorderRef.current = null;
+        setIsRecordingVoice(false);
+        if (!blob.size) return toast.error("這次錄音沒有可保存的內容。");
+        if (blob.size > 16 * 1024 * 1024) return toast.error("這次錄音超過 16MB，請縮短後再試。");
+        setIsPreparingVoice(true);
+        void queueVoiceDraft({ id: crypto.randomUUID(), eventId: selectedEvent.id, blob, mimeType, fileName: makeVoiceDraftFileName(mimeType), durationMs, createdAt: Date.now() })
+          .then(() => refreshVoiceDrafts(selectedEvent.id))
+          .then(() => toast.success("錄音已保留在這台裝置，尚未上傳或轉寫。"))
+          .catch(() => toast.error("無法將錄音保留在這台裝置。"))
+          .finally(() => setIsPreparingVoice(false));
+      };
+      recorder.start();
+      setIsRecordingVoice(true);
+    } catch {
+      toast.error("無法開始錄音。請確認瀏覽器已允許麥克風權限。");
+    }
+  };
+
+  const stopVoiceRecording = () => {
+    if (voiceRecorderRef.current?.state === "recording") voiceRecorderRef.current.stop();
+  };
+
+  const discardVoiceDraft = async (draft: QueuedVoiceDraft) => {
+    await removeVoiceDraft(draft.id);
+    await refreshVoiceDrafts(draft.eventId);
+    toast.success("本機語音草稿已移除，從未上傳。");
+  };
+
+  const uploadVoiceDraft = async (draft: QueuedVoiceDraft) => {
+    if (!voiceAiConsent) return toast.info("請先確認這次錄音會送往語音轉寫服務。");
+    if (!navigator.onLine) return toast.info("目前離線；錄音已保留在這台裝置，恢復連線後再由你手動上傳。");
+    try {
+      await uploadVoiceMutation.mutateAsync({
+        eventId: draft.eventId,
+        fileName: draft.fileName,
+        mimeType: draft.mimeType,
+        base64: await voiceBlobToBase64(draft.blob),
+        durationMs: draft.durationMs,
+        language: "zh",
+        confirmAiProcessing: voiceAiConsent,
+      });
+      await removeVoiceDraft(draft.id);
+      await refreshVoiceDrafts(draft.eventId);
+      await utils.diary.get.invalidate();
+      toast.success("原音與逐字稿已存入這段私人事件。");
+    } catch (voiceError) {
+      toast.error(voiceError instanceof Error ? voiceError.message : "語音上傳或轉寫尚未完成；本機草稿會保留。");
+    } finally {
+      setVoiceAiConsent(false);
+    }
+  };
+
+  const deleteVoiceNote = async (id: number) => {
+    try {
+      await deleteVoiceMutation.mutateAsync({ id });
+      await utils.diary.get.invalidate();
+      toast.success("語音日記的原音引用與逐字稿已移除。");
+    } catch (voiceError) {
+      toast.error(voiceError instanceof Error ? voiceError.message : "無法移除這段語音日記。");
     }
   };
 
@@ -1318,6 +1435,16 @@ function DiaryEditorContent() {
                 <div className="preview-tags">{selectedEvent.tags.map((tag) => <span key={tag.id}>{tag.name}</span>)}</div>
                 <div className="event-visibility-control"><span>{selectedEvent.shareScope === "public" ? <Globe2 size={13} /> : <LockKeyhole size={13} />}{selectedEvent.shareScope === "public" ? "公開故事可閱" : selectedEvent.shareScope === "link" ? "僅私密連結／密碼分享可閱" : "完全私人"}</span>{canEdit ? <select aria-label="更新事件分享範圍" value={selectedEvent.shareScope} onChange={async (event) => { try { await visibilityMutation.mutateAsync({ id: selectedEvent.id, shareScope: event.target.value as "private" | "public" | "link" }); await utils.diary.get.invalidate(); toast.success("事件分享範圍已更新。"); } catch (visibilityError) { toast.error(visibilityError instanceof Error ? visibilityError.message : "無法更新事件分享範圍。"); } }} disabled={visibilityMutation.isPending}><option value="private">私人</option><option value="link">連結／密碼</option><option value="public">公開</option></select> : null}</div>
                 {selectedEvent.media.length ? <section className="media-editor" aria-label={canEdit ? "事件圖片編輯" : "事件圖片"}><header><span><GripVertical size={13} /> {canEdit ? "圖片排序與說明" : "事件圖片"}</span><b>{selectedEvent.media.length.toString().padStart(2, "0")} 張</b></header>{selectedEvent.media.map((media) => <article key={media.id} draggable={canEdit && selectedEvent.media.length > 1} onDragStart={() => canEdit && setDraggedMediaId(media.id)} onDragOver={(event) => canEdit && event.preventDefault()} onDrop={() => canEdit && dropImageAt(media.id)} onDragEnd={() => setDraggedMediaId(null)}><img src={media.url} alt={media.caption ?? selectedEvent.title} /><div>{canEdit ? <><input value={mediaCaptionDrafts[media.id] ?? media.caption ?? ""} onChange={(event) => setMediaCaptionDrafts((current) => ({ ...current, [media.id]: event.target.value }))} placeholder="為這張圖片寫下說明" maxLength={240} /><div><button type="button" onClick={() => saveImageCaption(media.id)} disabled={updateImageMutation.isPending}><Save size={12} /> 儲存說明</button><button type="button" onClick={() => removeImage(media.id)}><Trash2 size={12} /> 移除</button></div></> : <p className="media-caption-readonly">{media.caption ?? "未提供圖片說明"}</p>}</div></article>)}</section> : null}
+                <section className="voice-diary" aria-labelledby="voice-diary-title">
+                  <header><span id="voice-diary-title"><Mic size={14} /> VOICE DIARY / PRIVATE</span><small>{selectedEvent.shareScope === "private" ? "只限這段私人事件" : "需要完全私人範圍"}</small></header>
+                    {selectedEvent.shareScope !== "private" ? <p className="voice-diary-private-note"><LockKeyhole size={13} /> 語音日記不會出現在公開或連結分享。請先將這段事件設為「私人」後再錄音。</p> : <>
+                    <p>錄音會先保存在這台裝置。只有你按下「上傳並轉寫」且勾選本次同意後，音檔才會送往語音轉寫服務。</p>
+                    {canEdit ? <div className="voice-diary-actions"><button type="button" className={isRecordingVoice ? "voice-recording" : ""} onClick={isRecordingVoice ? stopVoiceRecording : startVoiceRecording} disabled={isPreparingVoice || uploadVoiceMutation.isPending}>{isRecordingVoice ? <><Square size={13} /> 停止並保留</> : <><Mic size={13} /> 開始錄音</>}</button>{isPreparingVoice ? <span><Loader2 size={13} className="animate-spin" /> 正在保存到這台裝置…</span> : null}</div> : <p className="voice-diary-private-note">只有可編輯者能新增或移除語音日記。</p>}
+                    <p className="voice-diary-status" role="status" aria-live="polite">{isRecordingVoice ? "錄音中；停止後會先保留在這台裝置。" : isPreparingVoice ? "正在將錄音保留在這台裝置。" : voiceDrafts.length ? `有 ${voiceDrafts.length} 段錄音尚未上傳。` : "尚未有待上傳的錄音。"}</p>
+                    {canEdit && voiceDrafts.length ? <><label className="voice-diary-consent"><input type="checkbox" checked={voiceAiConsent} onChange={(event) => setVoiceAiConsent(event.target.checked)} disabled={uploadVoiceMutation.isPending} />我確認本次上傳的錄音會送往語音轉寫服務建立逐字稿；完成後必須再次確認。</label><div className="voice-diary-queue"><h4>THIS DEVICE / NOT UPLOADED</h4>{voiceDrafts.map((draft) => <article className="voice-note-item" key={draft.id}><div><b>{draft.fileName}</b><small>{formatVoiceDuration(draft.durationMs)} · 僅此裝置</small></div><footer><button type="button" onClick={() => discardVoiceDraft(draft)} disabled={uploadVoiceMutation.isPending}><Trash2 size={12} /> 移除本機草稿</button><button type="button" onClick={() => uploadVoiceDraft(draft)} disabled={!voiceAiConsent || uploadVoiceMutation.isPending}>{uploadVoiceMutation.isPending ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />} 上傳並轉寫</button></footer></article>)}</div></> : null}
+                    {(selectedEvent.voiceNotes ?? []).length ? <div className="voice-diary-library"><h4>PRIVATE RECORDINGS</h4>{selectedEvent.voiceNotes.map((voiceNote) => <article className="voice-note-item" key={voiceNote.id}><div><b>{voiceNote.fileName}</b><small>{formatVoiceDuration(voiceNote.durationMs ?? 0)} · {voiceNote.language?.toUpperCase() ?? "語言未標示"}</small></div><audio controls preload="metadata" src={voiceNote.url}>你的瀏覽器不支援音訊播放。</audio><p>{voiceNote.transcript}</p>{canEdit ? <footer><button type="button" onClick={() => deleteVoiceNote(voiceNote.id)} disabled={deleteVoiceMutation.isPending}><Trash2 size={12} /> 刪除原音與逐字稿</button></footer> : null}</article>)}</div> : null}
+                  </>}
+                </section>
                 {canEdit ? <section className="event-revisions" aria-label="事件版本歷程">
                   <button type="button" className="event-revisions-toggle" onClick={() => setShowRevisions((visible) => !visible)}><History size={13} /> {showRevisions ? "收起版本歷程" : "查看版本歷程"}</button>
                   {showRevisions ? <div className="event-revisions-list">{revisionsQuery.isLoading ? <p><Loader2 size={13} className="animate-spin" /> 載入版本中…</p> : revisionsQuery.error ? <p>無法讀取版本：{revisionsQuery.error.message}</p> : revisionsQuery.data?.length ? revisionsQuery.data.map((revision) => <article key={revision.id}><div><b>第 {revision.version} 版</b><span>{revision.changeType === "create" ? "初始建立" : revision.changeType === "restore" ? "還原版本" : "內容更新"} · {new Date(revision.createdAt).toLocaleString("zh-TW")}</span></div><p>{revision.snapshot.title}</p>{canEdit ? <button type="button" onClick={() => restoreEventRevision(revision.id, revision.version)} disabled={restoreRevisionMutation.isPending}><RotateCcw size={12} /> 還原此版</button> : null}</article>) : <p>這段事件尚未有可顯示的版本。</p>}</div> : null}

@@ -137,6 +137,26 @@ export const growthEventMedia = mysqlTable(
   (table) => [index("growth_event_media_event_idx").on(table.eventId)],
 );
 
+/** Private voice recordings and Whisper transcripts attached to a single event. */
+export const growthEventVoiceNotes = mysqlTable(
+  "growth_event_voice_notes",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    eventId: int("eventId").notNull().references(() => growthEvents.id, { onDelete: "cascade" }),
+    storageKey: varchar("storageKey", { length: 512 }).notNull(),
+    url: varchar("url", { length: 1024 }).notNull(),
+    fileName: varchar("fileName", { length: 180 }).notNull(),
+    mimeType: varchar("mimeType", { length: 80 }).notNull(),
+    durationMs: int("durationMs"),
+    transcript: text("transcript").notNull(),
+    language: varchar("language", { length: 16 }),
+    transcriptionModel: varchar("transcriptionModel", { length: 80 }).notNull().default("whisper-1"),
+    consentedAt: timestamp("consentedAt").defaultNow().notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (table) => [index("growth_event_voice_notes_event_idx").on(table.eventId, table.createdAt)],
+);
+
 /** Immutable snapshots of a personal event after a meaningful content change. */
 export const growthEventRevisions = mysqlTable(
   "growth_event_revisions",
@@ -247,6 +267,7 @@ export type GrowthDiary = typeof growthDiaries.$inferSelect;
 export type GrowthEvent = typeof growthEvents.$inferSelect;
 export type GrowthTag = typeof growthTags.$inferSelect;
 export type GrowthEventMedia = typeof growthEventMedia.$inferSelect;
+export type GrowthEventVoiceNote = typeof growthEventVoiceNotes.$inferSelect;
 export type GrowthEventRevision = typeof growthEventRevisions.$inferSelect;
 export type GrowthPhaseReflection = typeof growthPhaseReflections.$inferSelect;
 export type GrowthDiaryMember = typeof growthDiaryMembers.$inferSelect;

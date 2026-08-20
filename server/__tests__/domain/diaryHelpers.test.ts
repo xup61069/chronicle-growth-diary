@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isSupportedImageMimeType, normalizeTagNames, safeMediaName } from "../../diaryHelpers";
+import { isSupportedAudioMimeType, isSupportedImageMimeType, normalizeTagNames, safeMediaName } from "../../diaryHelpers";
 
 describe("growth diary helpers", () => {
   it("normalizes, deduplicates, and limits personal event tags", () => {
@@ -16,5 +16,12 @@ describe("growth diary helpers", () => {
   it("allows only supported image formats", () => {
     expect(isSupportedImageMimeType("image/webp")).toBe(true);
     expect(isSupportedImageMimeType("application/pdf")).toBe(false);
+  });
+
+  it("keeps audio uploads on a separate limited MIME allowlist", () => {
+    expect(isSupportedAudioMimeType("audio/webm")).toBe(true);
+    expect(isSupportedAudioMimeType("audio/mpeg")).toBe(true);
+    expect(isSupportedAudioMimeType("image/webp")).toBe(false);
+    expect(isSupportedAudioMimeType("video/mp4")).toBe(false);
   });
 });
