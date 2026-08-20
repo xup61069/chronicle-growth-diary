@@ -23,6 +23,7 @@ import {
   X,
 } from "lucide-react";
 import { startLogin } from "@/const";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { isMobileMenuDismissKey, shouldHandleTimelineArrowKey } from "@/lib/homeNavigation";
 
 type TimelineEvent = {
@@ -429,6 +430,7 @@ export default function Home() {
           >
             登入
           </button>
+          <ThemeToggle />
           <a className="nav-cta" href="/editor" onClick={() => setMenuOpen(false)}>
             開啟工作台 <ArrowUpRight size={15} />
           </a>

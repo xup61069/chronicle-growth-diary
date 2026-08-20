@@ -18,9 +18,20 @@ function makeExifJpeg(date = '2026:08:20 09:30:00') {
   const dateBytes = new TextEncoder().encode(`${date}\0`);
   const tiff = new Uint8Array([
     0x4d, 0x4d, 0x00, 0x2a, 0x00, 0x00, 0x00, 0x08,
-    0x00, 0x01, 0x87, 0x69, 0x00, 0x04, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x1a, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x01, 0x90, 0x03, 0x00, 0x02, 0x00, 0x00, 0x00, 0x14, 0x00, 0x00, 0x00, 0x2c, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x02,
+    0x87, 0x69, 0x00, 0x04, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x26,
+    0x88, 0x25, 0x00, 0x04, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x4c,
+    0x00, 0x00, 0x00, 0x00,
+    0x00, 0x01, 0x90, 0x03, 0x00, 0x02, 0x00, 0x00, 0x00, 0x14, 0x00, 0x00, 0x00, 0x38, 0x00, 0x00, 0x00, 0x00,
     ...dateBytes,
+    0x00, 0x04,
+    0x00, 0x01, 0x00, 0x02, 0x00, 0x00, 0x00, 0x02, 0x4e, 0x00, 0x00, 0x00,
+    0x00, 0x02, 0x00, 0x05, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x82,
+    0x00, 0x03, 0x00, 0x02, 0x00, 0x00, 0x00, 0x02, 0x45, 0x00, 0x00, 0x00,
+    0x00, 0x04, 0x00, 0x05, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x9a,
+    0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x19, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x18, 0x00, 0x00, 0x00, 0x0a,
+    0x00, 0x00, 0x00, 0x79, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x21, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x24, 0x00, 0x00, 0x00, 0x0a,
   ]);
   const payload = new Uint8Array([0x45, 0x78, 0x69, 0x66, 0x00, 0x00, ...tiff]);
   const length = payload.length + 2;
@@ -191,22 +202,31 @@ try {
 
   if (viewport.width > 375) {
     await page.reload({ waitUntil: 'domcontentloaded' });
-    const photoExifEntry = page.locator('.import-studio').filter({ has: page.getByRole('heading', { name: '從照片日期開始整理' }) });
-    await photoExifEntry.getByRole('heading', { name: '從照片日期開始整理' }).waitFor({ timeout: 10_000 });
+    const photoExifEntry = page.locator('.import-studio').filter({ has: page.getByRole('heading', { name: '從照片資料開始整理' }) });
+    await photoExifEntry.getByRole('heading', { name: '從照片資料開始整理' }).waitFor({ timeout: 10_000 });
     await page.locator('input[accept="image/jpeg"]').setInputFiles([
       { name: 'without-exif.jpg', mimeType: 'image/jpeg', buffer: Buffer.from([0xff, 0xd8, 0xff, 0xd9]) },
       { name: 'captured.jpg', mimeType: 'image/jpeg', buffer: makeExifJpeg() },
     ]);
-    const photoExifPreview = page.locator('.import-studio').filter({ has: page.getByRole('heading', { name: '依照片拍攝日期建立記錄' }) });
+    const photoExifPreview = page.locator('.import-studio').filter({ has: page.getByRole('heading', { name: '確認照片的時間與位置' }) });
     const manualCapturedAt = photoExifPreview.getByLabel('without-exif.jpg 的拍攝日期與時間');
     const exifCapturedAt = photoExifPreview.getByLabel('captured.jpg 的拍攝日期與時間');
     await manualCapturedAt.waitFor({ timeout: 10_000 });
     assert(await manualCapturedAt.inputValue() === '', '缺少 EXIF 的 JPEG 應提供空白的手動日期時間欄位。');
     assert(await photoExifPreview.getByRole('button', { name: '確認建立 1 段私人記錄' }).isDisabled(), '尚未補齊日期時不應允許建立事件。');
-    await manualCapturedAt.fill('2026-08-21T18:45');
-    await exifCapturedAt.fill('2026-08-21T06:30');
+    assert(await photoExifPreview.getByLabel('captured.jpg 的緯度').inputValue() === '25.034', '應從標準 JPEG EXIF 本機讀取 GPS 緯度。');
+    assert(await photoExifPreview.getByLabel('captured.jpg 的經度').inputValue() === '121.551', '應從標準 JPEG EXIF 本機讀取 GPS 經度。');
+    await photoExifPreview.getByLabel('without-exif.jpg 的緯度').fill('25.0478');
+    await photoExifPreview.getByLabel('without-exif.jpg 的經度').fill('121.5319');
+    await photoExifPreview.getByLabel('選取 without-exif.jpg 以批次套用日期').check();
+    await photoExifPreview.getByLabel('選取 captured.jpg 以批次套用日期').check();
+    await photoExifPreview.getByLabel('批次套用的拍攝日期與時間').fill('2026-08-21T06:30');
+    await photoExifPreview.getByRole('button', { name: '套用至 2 張' }).click();
+    assert(await manualCapturedAt.inputValue() === '2026-08-21T06:30', '批次日期套用應填入缺少 EXIF 的照片。');
+    assert(await exifCapturedAt.inputValue() === '2026-08-21T06:30', '批次日期套用應覆寫已讀取 EXIF 的照片。');
     await photoExifPreview.getByText('2026-08-21', { exact: true }).waitFor({ timeout: 10_000 });
-    assert(await photoExifPreview.getByText(/不讀取位置資訊.*確認前不會上傳/).isVisible(), '照片 EXIF 匯入預覽未明確說明位置與確認前不上傳的隱私邊界。');
+    assert(await photoExifPreview.getByText(/GPS 只在這個瀏覽器讀取.*確認前不會上傳/).isVisible(), '照片 EXIF 匯入預覽未明確說明 GPS 與確認前不上傳的隱私邊界。');
+    assert(await photoExifPreview.getByText(/私有座標已帶入/).isVisible(), '手動校正或 EXIF 讀取的 GPS 應標示為 private 事件座標。');
     let releaseUpload;
     let noteUploadStarted;
     const uploadStarted = new Promise((resolve) => { noteUploadStarted = resolve; });
@@ -226,7 +246,7 @@ try {
     releaseUpload();
     await page.getByText('已建立 1 段私人照片記錄。', { exact: true }).waitFor({ timeout: 20_000 });
     await page.unroute('**/api/trpc/diary.uploadImage**');
-    findings.checks.push('desktop photo EXIF manual date fill, time adjustment, privacy boundary, upload progress and private event creation');
+    findings.checks.push('desktop photo EXIF GPS preview and correction, batch date apply, privacy boundary, upload progress and private event creation');
     const desktopFutureLetters = page.locator('.future-letters-studio');
     await desktopFutureLetters.getByRole('heading', { name: '寫給以後的自己' }).waitFor({ timeout: 10_000 });
     assert(await desktopFutureLetters.getByText(readyFutureLetterTitle, { exact: true }).isVisible(), '桌面未來信件索引未顯示已解鎖事件。');
@@ -293,22 +313,29 @@ try {
     findings.checks.push('desktop private growth dashboard');
   } else {
   await page.reload({ waitUntil: 'domcontentloaded' });
-  const mobilePhotoExifEntry = page.locator('.import-studio').filter({ has: page.getByRole('heading', { name: '從照片日期開始整理' }) });
-  await mobilePhotoExifEntry.getByRole('heading', { name: '從照片日期開始整理' }).waitFor({ timeout: 10_000 });
+  const mobilePhotoExifEntry = page.locator('.import-studio').filter({ has: page.getByRole('heading', { name: '從照片資料開始整理' }) });
+  await mobilePhotoExifEntry.getByRole('heading', { name: '從照片資料開始整理' }).waitFor({ timeout: 10_000 });
   await page.locator('input[accept="image/jpeg"]').setInputFiles([
     { name: 'without-exif-mobile.jpg', mimeType: 'image/jpeg', buffer: Buffer.from([0xff, 0xd8, 0xff, 0xd9]) },
     { name: 'captured-mobile.jpg', mimeType: 'image/jpeg', buffer: makeExifJpeg() },
   ]);
-  const mobilePhotoExifPreview = page.locator('.import-studio').filter({ has: page.getByRole('heading', { name: '依照片拍攝日期建立記錄' }) });
+  const mobilePhotoExifPreview = page.locator('.import-studio').filter({ has: page.getByRole('heading', { name: '確認照片的時間與位置' }) });
   await mobilePhotoExifPreview.getByText('2026-08-20', { exact: true }).waitFor({ timeout: 10_000 });
   const mobileManualCapturedAt = mobilePhotoExifPreview.getByLabel('without-exif-mobile.jpg 的拍攝日期與時間');
   const mobileCapturedAt = mobilePhotoExifPreview.getByLabel('captured-mobile.jpg 的拍攝日期與時間');
   assert(await mobileManualCapturedAt.inputValue() === '', '行動版缺少 EXIF 的 JPEG 應提供空白手動日期時間欄位。');
   assert(await mobilePhotoExifPreview.getByRole('button', { name: '確認建立 1 段私人記錄' }).isDisabled(), '行動版未補齊日期時不應允許建立事件。');
-  await mobileManualCapturedAt.fill('2026-08-20T19:45');
-  await mobileCapturedAt.fill('2026-08-20T11:30');
-  assert(await mobileCapturedAt.inputValue() === '2026-08-20T11:30', '行動版應允許在確認前微調 EXIF 拍攝時間。');
-  assert(await mobilePhotoExifPreview.getByText(/不讀取位置資訊.*確認前不會上傳/).isVisible(), '行動版照片 EXIF 匯入預覽未明確說明位置與確認前不上傳的隱私邊界。');
+  assert(await mobilePhotoExifPreview.getByLabel('captured-mobile.jpg 的緯度').inputValue() === '25.034', '行動版應從標準 JPEG EXIF 本機讀取 GPS 緯度。');
+  await mobilePhotoExifPreview.getByLabel('without-exif-mobile.jpg 的緯度').fill('25.0478');
+  await mobilePhotoExifPreview.getByLabel('without-exif-mobile.jpg 的經度').fill('121.5319');
+  await mobilePhotoExifPreview.getByLabel('選取 without-exif-mobile.jpg 以批次套用日期').check();
+  await mobilePhotoExifPreview.getByLabel('選取 captured-mobile.jpg 以批次套用日期').check();
+  await mobilePhotoExifPreview.getByLabel('批次套用的拍攝日期與時間').fill('2026-08-20T11:30');
+  await mobilePhotoExifPreview.getByRole('button', { name: '套用至 2 張' }).click();
+  assert(await mobileManualCapturedAt.inputValue() === '2026-08-20T11:30', '行動版批次日期套用應填入缺少 EXIF 的照片。');
+  assert(await mobileCapturedAt.inputValue() === '2026-08-20T11:30', '行動版批次日期套用應覆寫 EXIF 日期。');
+  assert(await mobilePhotoExifPreview.getByText(/GPS 只在這個瀏覽器讀取.*確認前不會上傳/).isVisible(), '行動版照片預覽未明確說明 GPS 與確認前不上傳的隱私邊界。');
+  assert(await mobilePhotoExifPreview.getByText(/私有座標已帶入/).isVisible(), '行動版應標示 GPS 僅會帶入 private 事件。');
   let releaseMobileUpload;
   let noteMobileUploadStarted;
   const mobileUploadStarted = new Promise((resolve) => { noteMobileUploadStarted = resolve; });
@@ -322,11 +349,11 @@ try {
   await mobileUploadStarted;
   assert(await mobilePhotoExifPreview.getByRole('progressbar', { name: '照片上傳進度' }).isVisible(), '行動版批次上傳時應顯示可及進度條。');
   assert(await mobilePhotoExifPreview.getByText('正在上傳 0／2 張', { exact: true }).isVisible(), '行動版批次上傳應顯示目前完成張數。');
-  assert(await mobilePhotoExifPreview.getByText('目前處理：captured-mobile.jpg', { exact: true }).isVisible(), '行動版批次上傳應顯示目前處理的檔名。');
+  assert(await mobilePhotoExifPreview.getByText('目前處理：without-exif-mobile.jpg', { exact: true }).isVisible(), '行動版批次上傳應顯示目前處理的檔名。');
   releaseMobileUpload();
   await page.getByText('已建立 1 段私人照片記錄。', { exact: true }).waitFor({ timeout: 20_000 });
   await page.unroute('**/api/trpc/diary.uploadImage**');
-  findings.checks.push('375px photo EXIF manual date fill, time adjustment, privacy boundary, upload progress and private event creation');
+  findings.checks.push('375px photo EXIF GPS preview and correction, batch date apply, privacy boundary, upload progress and private event creation');
   const mobileFutureLetters = page.locator('.future-letters-studio');
   await mobileFutureLetters.getByRole('heading', { name: '寫給以後的自己' }).waitFor({ timeout: 10_000 });
   assert(await mobileFutureLetters.getByText(readyFutureLetterTitle, { exact: true }).isVisible(), '行動版未來信件索引未顯示已解鎖事件。');

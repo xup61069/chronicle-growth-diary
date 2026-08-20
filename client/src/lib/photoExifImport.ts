@@ -4,13 +4,18 @@ export const MAX_EXIF_IMPORT_IMAGES_PER_EVENT = 8;
 
 export type PhotoExifFile = Pick<File, "name" | "type" | "size">;
 export type ExifDateReader = (file: File) => Promise<Date | string | null | undefined>;
+export type ExifGpsReader = (file: File) => Promise<{ latitude?: number; longitude?: number } | null | undefined>;
 export type PhotoCaptureSource = "exif" | "manual";
+export type PhotoGpsSource = "exif" | "manual" | "none";
 
 export type PhotoExifImportCandidate = {
   id: string;
   file: File;
   capturedAt: string;
   source: PhotoCaptureSource;
+  latitude: string;
+  longitude: string;
+  gpsSource: PhotoGpsSource;
 };
 
 export type PhotoExifImportGroup = {
@@ -20,6 +25,8 @@ export type PhotoExifImportGroup = {
   title: string;
   files: File[];
   photoIds: string[];
+  mapLatitudeE6: number | null;
+  mapLongitudeE6: number | null;
 };
 
 export type PhotoExifImportPreview = {
@@ -40,6 +47,19 @@ function toLocalDateTimeInput(value: Date | string | null | undefined) {
   return `${year}-${month}-${day}T${hour}:${minute}`;
 }
 
+function toCoordinateInput(value: unknown, maximumAbsoluteValue: number) {
+  const coordinate = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(coordinate) || Math.abs(coordinate) > maximumAbsoluteValue) return "";
+  return String(Math.round(coordinate * 1_000_000) / 1_000_000);
+}
+
+function coordinateE6(value: string, maximumAbsoluteValue: number) {
+  if (!value.trim()) return null;
+  const coordinate = Number(value);
+  if (!Number.isFinite(coordinate) || Math.abs(coordinate) > maximumAbsoluteValue) return null;
+  return Math.round(coordinate * 1_000_000);
+}
+
 function dateLabel(date: string) {
   const [year, month, day] = date.split("-").map(Number);
   return `${year} 年 ${month} 月 ${day} 日`;
@@ -47,6 +67,10 @@ function dateLabel(date: string) {
 
 export function isValidCapturedAt(value: string) {
   return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value) && !Number.isNaN(new Date(value).getTime());
+}
+
+export function hasValidPhotoLocation(photo: Pick<PhotoExifImportCandidate, "latitude" | "longitude">) {
+  return coordinateE6(photo.latitude, 90) !== null && coordinateE6(photo.longitude, 180) !== null;
 }
 
 export function buildPhotoExifImportGroups(photos: PhotoExifImportCandidate[]): PhotoExifImportGroup[] {
@@ -62,14 +86,19 @@ export function buildPhotoExifImportGroups(photos: PhotoExifImportCandidate[]): 
     .flatMap(([date, matchedPhotos]) => {
       const chronological = [...matchedPhotos].sort((left, right) => left.capturedAt.localeCompare(right.capturedAt));
       const chunks = Array.from({ length: Math.ceil(chronological.length / MAX_EXIF_IMPORT_IMAGES_PER_EVENT) }, (_, index) => chronological.slice(index * MAX_EXIF_IMPORT_IMAGES_PER_EVENT, (index + 1) * MAX_EXIF_IMPORT_IMAGES_PER_EVENT));
-      return chunks.map((chunk, index) => ({
-        id: `${date}-${index + 1}`,
-        date,
-        occurredAt: new Date(chunk[0].capturedAt).getTime(),
-        title: `照片記錄：${dateLabel(date)}${chunks.length > 1 ? `（第 ${index + 1} 批）` : ""}`,
-        files: chunk.map((photo) => photo.file),
-        photoIds: chunk.map((photo) => photo.id),
-      }));
+      return chunks.map((chunk, index) => {
+        const primaryLocation = chunk.find(hasValidPhotoLocation);
+        return {
+          id: `${date}-${index + 1}`,
+          date,
+          occurredAt: new Date(chunk[0].capturedAt).getTime(),
+          title: `照片記錄：${dateLabel(date)}${chunks.length > 1 ? `（第 ${index + 1} 批）` : ""}`,
+          files: chunk.map((photo) => photo.file),
+          photoIds: chunk.map((photo) => photo.id),
+          mapLatitudeE6: primaryLocation ? coordinateE6(primaryLocation.latitude, 90) : null,
+          mapLongitudeE6: primaryLocation ? coordinateE6(primaryLocation.longitude, 180) : null,
+        };
+      });
     });
 }
 
@@ -78,14 +107,32 @@ export function updatePhotoCapturedAt(preview: PhotoExifImportPreview, photoId: 
   return { ...preview, photos, groups: buildPhotoExifImportGroups(photos) };
 }
 
-/** Reads only DateTimeOriginal/CreateDate in the browser. GPS and other metadata are never requested. */
+export function applyPhotoCapturedAt(preview: PhotoExifImportPreview, photoIds: string[], capturedAt: string): PhotoExifImportPreview {
+  const selected = new Set(photoIds);
+  const photos = preview.photos.map((photo) => selected.has(photo.id) ? { ...photo, capturedAt, source: "manual" as const } : photo);
+  return { ...preview, photos, groups: buildPhotoExifImportGroups(photos) };
+}
+
+export function updatePhotoLocation(preview: PhotoExifImportPreview, photoId: string, latitude: string, longitude: string): PhotoExifImportPreview {
+  const photos = preview.photos.map((photo) => photo.id === photoId ? { ...photo, latitude, longitude, gpsSource: latitude || longitude ? "manual" as const : "none" as const } : photo);
+  return { ...preview, photos, groups: buildPhotoExifImportGroups(photos) };
+}
+
+/** Reads only capture dates from JPEG metadata by default. GPS is read separately only for a user-requested preview. */
 export async function readPhotoCapturedAt(file: File): Promise<Date | string | null | undefined> {
   const { default: exifr } = await import("exifr/dist/full.esm.mjs");
   const metadata = await exifr.parse(await file.arrayBuffer(), ["DateTimeOriginal", "CreateDate"]);
   return metadata?.DateTimeOriginal ?? metadata?.CreateDate;
 }
 
-export async function preparePhotoExifImport(files: File[], readCapturedAt: ExifDateReader = readPhotoCapturedAt): Promise<PhotoExifImportPreview> {
+/** Reads only normalized GPS coordinates for a local preview when the user has requested location import. */
+export async function readPhotoGps(file: File): Promise<{ latitude?: number; longitude?: number } | null | undefined> {
+  const { default: exifr } = await import("exifr/dist/full.esm.mjs");
+  const gps = await exifr.gps(await file.arrayBuffer());
+  return gps ? { latitude: gps.latitude, longitude: gps.longitude } : null;
+}
+
+export async function preparePhotoExifImport(files: File[], readCapturedAt: ExifDateReader = readPhotoCapturedAt, readGps: ExifGpsReader = readPhotoGps): Promise<PhotoExifImportPreview> {
   const skipped: PhotoExifImportPreview["skipped"] = [];
   const accepted = files.slice(0, MAX_EXIF_IMPORT_FILES);
   if (files.length > accepted.length) skipped.push(...files.slice(MAX_EXIF_IMPORT_FILES).map((file) => ({ name: file.name, reason: `每次最多選取 ${MAX_EXIF_IMPORT_FILES} 張照片` })));
@@ -103,12 +150,22 @@ export async function preparePhotoExifImport(files: File[], readCapturedAt: Exif
     }
 
     let capturedAt = "";
+    let latitude = "";
+    let longitude = "";
     try {
       capturedAt = toLocalDateTimeInput(await readCapturedAt(file));
     } catch {
       capturedAt = "";
     }
-    photos.push({ id: `${index}-${file.name}`, file, capturedAt, source: capturedAt ? "exif" : "manual" });
+    try {
+      const gps = await readGps(file);
+      latitude = toCoordinateInput(gps?.latitude, 90);
+      longitude = toCoordinateInput(gps?.longitude, 180);
+    } catch {
+      latitude = "";
+      longitude = "";
+    }
+    photos.push({ id: `${index}-${file.name}`, file, capturedAt, source: capturedAt ? "exif" : "manual", latitude, longitude, gpsSource: latitude && longitude ? "exif" : "none" });
   }
 
   return { photos, groups: buildPhotoExifImportGroups(photos), skipped };
