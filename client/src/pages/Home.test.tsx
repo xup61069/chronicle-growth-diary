@@ -71,6 +71,15 @@ describe("Home", () => {
     expect(html).toContain('aria-pressed="false">研究');
   });
 
+  it("provides an accessible date filter and live result summary for the public timeline", () => {
+    const html = renderToStaticMarkup(<Home />);
+    expect(html).toContain('id="timeline-date-query"');
+    expect(html).toContain('type="date"');
+    expect(html).toContain('aria-label="依日期篩選示範事件"');
+    expect(html).toContain('class="timeline-result-summary" role="status" aria-live="polite"');
+    expect(html).toContain("顯示 5 筆示範事件");
+  });
+
   it("provides a skip link that moves keyboard focus to the main content landmark", () => {
     const html = renderToStaticMarkup(<Home />);
     const skipLinkIndex = html.indexOf('class="skip-link" href="#main-content"');

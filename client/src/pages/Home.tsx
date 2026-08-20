@@ -8,6 +8,7 @@ import {
   ArrowLeft,
   ArrowRight,
   ArrowUpRight,
+  CalendarDays,
   Check,
   ChevronRight,
   Eye,
@@ -27,6 +28,7 @@ type TimelineEvent = {
   date: string;
   month: string;
   year: string;
+  isoDate: string;
   category: "策展" | "研究" | "專案";
   title: string;
   copy: string;
@@ -38,6 +40,7 @@ const events: TimelineEvent[] = [
     date: "06",
     month: "APR",
     year: "2024",
+    isoDate: "2024-04-06",
     category: "研究",
     title: "記下第一次自己回家的路",
     copy: "一張課表、一段錄音和那天的照片，先放在同一個日期。",
@@ -47,6 +50,7 @@ const events: TimelineEvent[] = [
     date: "18",
     month: "APR",
     year: "2024",
+    isoDate: "2024-04-18",
     category: "策展",
     title: "把高中三年的練習排在一起",
     copy: "標記比賽、老師的批註和換樂器的那一週，回頭才看得見變化。",
@@ -56,6 +60,7 @@ const events: TimelineEvent[] = [
     date: "02",
     month: "MAY",
     year: "2024",
+    isoDate: "2024-05-02",
     category: "專案",
     title: "第一份作品上線的下午",
     copy: "把草圖、版本紀錄與發表連結放在同一段時間裡。",
@@ -65,6 +70,7 @@ const events: TimelineEvent[] = [
     date: "17",
     month: "MAY",
     year: "2024",
+    isoDate: "2024-05-17",
     category: "研究",
     title: "搬家後重新整理工作桌",
     copy: "桌面照片、設備清單和當時的工作習慣，留給未來比較。",
@@ -74,6 +80,7 @@ const events: TimelineEvent[] = [
     date: "31",
     month: "MAY",
     year: "2024",
+    isoDate: "2024-05-31",
     category: "策展",
     title: "寄出第一封作品集",
     copy: "只分享想公開的頁面，其餘事件留在私人時間帶。",
@@ -113,21 +120,23 @@ const filters = ["全部", "研究", "策展", "專案"] as const;
 export default function Home() {
   const [activeIndex, setActiveIndex] = useState(2);
   const [activeFilter, setActiveFilter] = useState<(typeof filters)[number]>("全部");
+  const [selectedDate, setSelectedDate] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const dragStart = useRef<{ x: number; index: number } | null>(null);
 
   const visibleEvents = useMemo(
     () =>
-      activeFilter === "全部"
-        ? events
-        : events.filter((event) => event.category === activeFilter),
-    [activeFilter],
+      events.filter((event) =>
+        (activeFilter === "全部" || event.category === activeFilter)
+        && (!selectedDate || event.isoDate === selectedDate),
+      ),
+    [activeFilter, selectedDate],
   );
 
-  const selectedEvent = visibleEvents[Math.min(activeIndex, visibleEvents.length - 1)] ?? events[0];
+  const selectedEvent = visibleEvents[activeIndex];
 
   useEffect(() => {
-    setActiveIndex((current) => Math.min(current, visibleEvents.length - 1));
+    setActiveIndex((current) => visibleEvents.length ? Math.min(current, visibleEvents.length - 1) : 0);
   }, [visibleEvents.length]);
 
   useEffect(() => {
@@ -138,6 +147,7 @@ export default function Home() {
       }
       const target = event.target as HTMLElement | null;
       if (!shouldHandleTimelineArrowKey(event.key, target?.tagName, target?.isContentEditable)) return;
+      if (!visibleEvents.length) return;
       if (event.key === "ArrowLeft") {
         setActiveIndex((current) => Math.max(0, current - 1));
       }
@@ -158,13 +168,26 @@ export default function Home() {
     setActiveIndex(0);
   };
 
+  const chooseDate = (date: string) => {
+    setSelectedDate(date);
+    setActiveIndex(0);
+  };
+
+  const clearTimelineFilters = () => {
+    setActiveFilter("全部");
+    setSelectedDate("");
+    setActiveIndex(0);
+  };
+
   const stepTimeline = (direction: 1 | -1) => {
+    if (!visibleEvents.length) return;
     setActiveIndex((current) =>
       Math.max(0, Math.min(visibleEvents.length - 1, current + direction)),
     );
   };
 
   const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!visibleEvents.length) return;
     event.currentTarget.setPointerCapture(event.pointerId);
     dragStart.current = { x: event.clientX, index: activeIndex };
   };
@@ -186,6 +209,7 @@ export default function Home() {
   const onTimelineViewportKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     const target = event.target as HTMLElement | null;
     if (!shouldHandleTimelineArrowKey(event.key, target?.tagName, target?.isContentEditable)) return;
+    if (!visibleEvents.length) return;
 
     event.preventDefault();
     event.stopPropagation();
@@ -301,11 +325,23 @@ export default function Home() {
                 </button>
               ))}
             </div>
+            <div className="timeline-date-filter">
+              <label htmlFor="timeline-date-query"><CalendarDays size={14} /> 日期</label>
+              <input
+                id="timeline-date-query"
+                type="date"
+                value={selectedDate}
+                onChange={(event) => chooseDate(event.target.value)}
+                aria-label="依日期篩選示範事件"
+              />
+              {(selectedDate || activeFilter !== "全部") ? <button type="button" className="timeline-filter-clear" onClick={clearTimelineFilters}>清除</button> : null}
+            </div>
             <div className="arrow-set">
-              <button aria-label="前一個事件" onClick={() => stepTimeline(-1)} disabled={activeIndex === 0}><ArrowLeft size={18} /></button>
-              <button aria-label="下一個事件" onClick={() => stepTimeline(1)} disabled={activeIndex === visibleEvents.length - 1}><ArrowRight size={18} /></button>
+              <button aria-label="前一個事件" onClick={() => stepTimeline(-1)} disabled={!visibleEvents.length || activeIndex === 0}><ArrowLeft size={18} /></button>
+              <button aria-label="下一個事件" onClick={() => stepTimeline(1)} disabled={!visibleEvents.length || activeIndex === visibleEvents.length - 1}><ArrowRight size={18} /></button>
             </div>
           </div>
+          <p className="timeline-result-summary" role="status" aria-live="polite">顯示 {visibleEvents.length} 筆示範事件{selectedDate ? `／${selectedDate}` : ""}{activeFilter !== "全部" ? `／${activeFilter}` : ""}</p>
 
           <div
             className="timeline-viewport"
@@ -319,7 +355,7 @@ export default function Home() {
             onPointerCancel={onPointerEnd}
             onKeyDown={onTimelineViewportKeyDown}
           >
-            <div
+            {visibleEvents.length ? <div
               className="timeline-track"
               style={{ transform: `translateX(${-Math.max(0, activeIndex - 1) * 202}px)` }}
             >
@@ -335,10 +371,10 @@ export default function Home() {
                   <span className="event-preview"><b>{event.category}</b>{event.title}</span>
                 </button>
               ))}
-            </div>
+            </div> : <div className="timeline-empty" role="status"><CalendarDays size={19} /><p>沒有符合目前日期與事件類型的示範紀錄。</p><button type="button" onClick={clearTimelineFilters}>清除篩選</button></div>}
           </div>
 
-          <div className="timeline-detail" aria-live="polite">
+          {selectedEvent ? <div className="timeline-detail" aria-live="polite">
             <div className="detail-number">{selectedEvent.number}</div>
             <div className="detail-copy">
               <span>{selectedEvent.date} {selectedEvent.month} / {selectedEvent.year}</span>
@@ -346,7 +382,7 @@ export default function Home() {
               <p>{selectedEvent.copy}</p>
             </div>
             <a href="/editor">開啟工作台 <ArrowUpRight size={17} /></a>
-          </div>
+          </div> : null}
 
           <div className="timeboard-scale" aria-hidden="true">
             <span>APR 2024</span><div /><span>MAY 2024</span><div /><span>JUN 2024</span>

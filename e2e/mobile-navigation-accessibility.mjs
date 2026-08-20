@@ -78,6 +78,21 @@ try {
     throw new Error("時間帶內按鈕取得焦點時，方向鍵不應重複切換事件。");
   }
 
+  const dateFilter = page.getByLabel("依日期篩選示範事件");
+  await dateFilter.fill("2024-05-17");
+  await page.getByText("顯示 1 筆示範事件／2024-05-17／研究", { exact: true }).waitFor();
+  if ((await timelineTitle.textContent())?.trim() !== "搬家後重新整理工作桌") {
+    throw new Error("日期與事件類型篩選應交集顯示符合的示範事件。");
+  }
+
+  await dateFilter.fill("2030-01-01");
+  await page.getByText("沒有符合目前日期與事件類型的示範紀錄。", { exact: true }).waitFor();
+  if (await page.locator(".timeline-detail").count() !== 0) {
+    throw new Error("沒有符合篩選的事件時，不應保留過期的事件詳情。");
+  }
+  await page.locator(".timeline-empty").getByRole("button", { name: "清除篩選" }).click();
+  await page.getByText("顯示 5 筆示範事件", { exact: true }).waitFor();
+
   await Promise.all([
     page.waitForURL(/#stories$/),
     exampleLink.click(),
