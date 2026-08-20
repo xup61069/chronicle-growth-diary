@@ -294,6 +294,7 @@ export default function Home() {
                   key={filter}
                   onClick={() => chooseFilter(filter)}
                   className={activeFilter === filter ? "active" : ""}
+                  aria-pressed={activeFilter === filter}
                 >
                   {filter}
                 </button>

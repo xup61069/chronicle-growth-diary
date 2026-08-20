@@ -31,6 +31,16 @@ try {
     throw new Error("減少動態偏好下，故事圖片 hover 不應產生縮放移動。");
   }
 
+  const allFilter = page.getByRole("button", { name: "全部", exact: true });
+  const researchFilter = page.getByRole("button", { name: "研究", exact: true });
+  if (await allFilter.getAttribute("aria-pressed") !== "true") {
+    throw new Error("時間帶預設篩選應揭露為已選取。");
+  }
+  await researchFilter.click();
+  if (await researchFilter.getAttribute("aria-pressed") !== "true" || await allFilter.getAttribute("aria-pressed") !== "false") {
+    throw new Error("變更時間帶篩選後應同步更新 aria-pressed 狀態。");
+  }
+
   const exampleLink = page.getByRole("link", { name: "觀看範例" });
   if (await exampleLink.getAttribute("href") !== "#stories") {
     throw new Error("首頁範例入口未指向故事案例區段。");
@@ -112,7 +122,7 @@ try {
     quickNoteLink.click(),
   ]);
 
-  console.log("公開首頁回歸通過：離線快速記事、跳至主要內容、減少動態偏好、範例入口、時間帶鍵盤入口與焦點保護、行動選單展開、Escape 與連結收合均正常。");
+  console.log("公開首頁回歸通過：離線快速記事、跳至主要內容、減少動態偏好、篩選狀態語意、範例入口、時間帶鍵盤入口與焦點保護、行動選單展開、Escape 與連結收合均正常。");
 } finally {
   await browser.close();
 }

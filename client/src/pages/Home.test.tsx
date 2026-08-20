@@ -50,6 +50,13 @@ describe("Home", () => {
     expect(html).toContain("聚焦時間帶後");
   });
 
+  it("exposes the selected public timeline filter to assistive technology", () => {
+    const html = renderToStaticMarkup(<Home />);
+    expect(html).toContain('aria-label="時間軸分類篩選"');
+    expect(html).toContain('class="active" aria-pressed="true">全部');
+    expect(html).toContain('aria-pressed="false">研究');
+  });
+
   it("provides a skip link that moves keyboard focus to the main content landmark", () => {
     const html = renderToStaticMarkup(<Home />);
     const skipLinkIndex = html.indexOf('class="skip-link" href="#main-content"');
