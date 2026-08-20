@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { preparePhotoExifImport } from "./photoExifImport";
+import { preparePhotoExifImport, updatePhotoCapturedAt } from "./photoExifImport";
 
 const file = (name: string, type = "image/jpeg", size = 100) => ({ name, type, size } as File);
 
@@ -21,12 +21,13 @@ describe("photo EXIF import", () => {
     const jpeg = new File([makeExifJpeg()], "captured.jpg", { type: "image/jpeg" });
     const preview = await preparePhotoExifImport([jpeg]);
     expect(preview.skipped).toEqual([]);
+    expect(preview.photos.map((photo) => ({ capturedAt: photo.capturedAt, source: photo.source }))).toEqual([{ capturedAt: "2026-08-20T09:30", source: "exif" }]);
     expect(preview.groups.map((group) => ({ date: group.date, count: group.files.length }))).toEqual([{ date: "2026-08-20", count: 1 }]);
   });
 
   it("groups JPEGs by captured local date, chunks groups to the event image limit, and does not require location metadata", async () => {
     const files = Array.from({ length: 9 }, (_, index) => file(`photo-${index}.jpg`));
-    const preview = await preparePhotoExifImport(files, async () => new Date(2026, 7, 20, 9));
+    const preview = await preparePhotoExifImport(files, async () => new Date(2026, 7, 20, 9, 5));
     expect(preview.skipped).toEqual([]);
     expect(preview.groups.map((group) => ({ date: group.date, title: group.title, count: group.files.length }))).toEqual([
       { date: "2026-08-20", title: "照片記錄：2026 年 8 月 20 日（第 1 批）", count: 8 },
@@ -34,7 +35,7 @@ describe("photo EXIF import", () => {
     ]);
   });
 
-  it("reports unsupported files, oversized files, missing dates and parser failures without preparing them for upload", async () => {
+  it("keeps missing or unreadable EXIF JPEGs as manual date candidates while rejecting unsupported and oversized files", async () => {
     const preview = await preparePhotoExifImport([
       file("other.png", "image/png"),
       file("large.jpg", "image/jpeg", 4 * 1024 * 1024 + 1),
@@ -48,8 +49,23 @@ describe("photo EXIF import", () => {
     expect(preview.skipped.map((item) => item.reason)).toEqual([
       "目前只讀取 JPEG 的拍攝日期",
       "單張照片超過 4MB",
-      "找不到可用的拍攝日期",
-      "無法讀取拍攝日期",
+    ]);
+    expect(preview.photos.map((photo) => ({ name: photo.file.name, capturedAt: photo.capturedAt, source: photo.source }))).toEqual([
+      { name: "missing.jpg", capturedAt: "", source: "manual" },
+      { name: "broken.jpg", capturedAt: "", source: "manual" },
+    ]);
+  });
+
+  it("rebuilds date groups after a user manually fills or adjusts a captured local date and time", async () => {
+    const preview = await preparePhotoExifImport([file("no-exif.jpg"), file("from-exif.jpg")], async (input) => input.name === "no-exif.jpg" ? null : new Date(2026, 7, 20, 7, 15));
+    const filled = updatePhotoCapturedAt(preview, preview.photos[0].id, "2026-08-21T18:45");
+    const adjusted = updatePhotoCapturedAt(filled, filled.photos[1].id, "2026-08-21T06:30");
+    expect(adjusted.photos.map((photo) => ({ name: photo.file.name, capturedAt: photo.capturedAt, source: photo.source }))).toEqual([
+      { name: "no-exif.jpg", capturedAt: "2026-08-21T18:45", source: "manual" },
+      { name: "from-exif.jpg", capturedAt: "2026-08-21T06:30", source: "manual" },
+    ]);
+    expect(adjusted.groups.map((group) => ({ date: group.date, occurredAt: group.occurredAt, count: group.files.length }))).toEqual([
+      { date: "2026-08-21", occurredAt: new Date(2026, 7, 21, 6, 30).getTime(), count: 2 },
     ]);
   });
 });

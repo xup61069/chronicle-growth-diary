@@ -194,27 +194,39 @@ try {
     const photoExifEntry = page.locator('.import-studio').filter({ has: page.getByRole('heading', { name: '從照片日期開始整理' }) });
     await photoExifEntry.getByRole('heading', { name: '從照片日期開始整理' }).waitFor({ timeout: 10_000 });
     await page.locator('input[accept="image/jpeg"]').setInputFiles([
-      { name: 'unsupported.png', mimeType: 'image/png', buffer: Buffer.from([0x89, 0x50, 0x4e, 0x47]) },
-      { name: 'too-large.jpg', mimeType: 'image/jpeg', buffer: Buffer.alloc(4 * 1024 * 1024 + 1) },
       { name: 'without-exif.jpg', mimeType: 'image/jpeg', buffer: Buffer.from([0xff, 0xd8, 0xff, 0xd9]) },
+      { name: 'captured.jpg', mimeType: 'image/jpeg', buffer: makeExifJpeg() },
     ]);
-    const skippedPhotoExifPreview = page.locator('.import-studio').filter({ has: page.getByRole('heading', { name: '依照片拍攝日期建立記錄' }) });
-    await skippedPhotoExifPreview.getByText('unsupported.png', { exact: true }).waitFor({ timeout: 10_000 });
-    assert(await skippedPhotoExifPreview.getByText('目前只讀取 JPEG 的拍攝日期', { exact: true }).isVisible(), '格式不符的照片應顯示 JPEG 限制原因。');
-    assert(await skippedPhotoExifPreview.getByText('too-large.jpg', { exact: true }).isVisible(), '超過大小限制的照片應完整列在略過預覽。');
-    assert(await skippedPhotoExifPreview.getByText('單張照片超過 4MB', { exact: true }).isVisible(), '超過大小限制的照片應顯示 4MB 原因。');
-    assert(await skippedPhotoExifPreview.getByText('without-exif.jpg', { exact: true }).isVisible(), '缺少日期的照片應完整列在略過預覽。');
-    assert(await skippedPhotoExifPreview.getByText(/無法讀取拍攝日期|找不到可用的拍攝日期/).isVisible(), '缺少日期的照片應顯示可讀的略過原因。');
-    assert(await skippedPhotoExifPreview.getByText('沒有可建立的事件。請保留這份結果檢查每張照片的略過原因，或取消後重新選擇。', { exact: true }).isVisible(), '全數略過的照片應保留缺失原因預覽。');
-    assert(await skippedPhotoExifPreview.getByRole('button', { name: /確認建立/ }).count() === 0, '全數略過的照片不應提供建立事件的確認按鈕。');
-    await skippedPhotoExifPreview.getByRole('button', { name: '取消' }).click();
-    await page.locator('input[accept="image/jpeg"]').setInputFiles({ name: 'captured.jpg', mimeType: 'image/jpeg', buffer: makeExifJpeg() });
     const photoExifPreview = page.locator('.import-studio').filter({ has: page.getByRole('heading', { name: '依照片拍攝日期建立記錄' }) });
-    await photoExifPreview.getByText('2026-08-20', { exact: true }).waitFor({ timeout: 10_000 });
+    const manualCapturedAt = photoExifPreview.getByLabel('without-exif.jpg 的拍攝日期與時間');
+    const exifCapturedAt = photoExifPreview.getByLabel('captured.jpg 的拍攝日期與時間');
+    await manualCapturedAt.waitFor({ timeout: 10_000 });
+    assert(await manualCapturedAt.inputValue() === '', '缺少 EXIF 的 JPEG 應提供空白的手動日期時間欄位。');
+    assert(await photoExifPreview.getByRole('button', { name: '確認建立 1 段私人記錄' }).isDisabled(), '尚未補齊日期時不應允許建立事件。');
+    await manualCapturedAt.fill('2026-08-21T18:45');
+    await exifCapturedAt.fill('2026-08-21T06:30');
+    await photoExifPreview.getByText('2026-08-21', { exact: true }).waitFor({ timeout: 10_000 });
     assert(await photoExifPreview.getByText(/不讀取位置資訊.*確認前不會上傳/).isVisible(), '照片 EXIF 匯入預覽未明確說明位置與確認前不上傳的隱私邊界。');
+    let releaseUpload;
+    let noteUploadStarted;
+    const uploadStarted = new Promise((resolve) => { noteUploadStarted = resolve; });
+    const allowUpload = new Promise((resolve) => { releaseUpload = resolve; });
+    await page.route('**/api/trpc/diary.uploadImage**', async (route) => {
+      noteUploadStarted();
+      await allowUpload;
+      await route.continue();
+    });
     await photoExifPreview.getByRole('button', { name: '確認建立 1 段私人記錄' }).click();
-    await page.getByText('已建立 1 段私人照片記錄。', { exact: true }).waitFor({ timeout: 10_000 });
-    findings.checks.push('desktop photo EXIF local preview, privacy boundary and private event creation');
+    await uploadStarted;
+    assert(await photoExifPreview.getByRole('progressbar', { name: '照片上傳進度' }).isVisible(), '批次上傳時應顯示可及進度條。');
+    assert(await photoExifPreview.getByText('正在上傳 0／2 張', { exact: true }).isVisible(), '批次上傳應顯示目前完成張數。');
+    if (process.env.CHRONICLE_E2E_PHOTO_IMPORT_SCREENSHOT_PATH) {
+      await photoExifPreview.screenshot({ path: process.env.CHRONICLE_E2E_PHOTO_IMPORT_SCREENSHOT_PATH });
+    }
+    releaseUpload();
+    await page.getByText('已建立 1 段私人照片記錄。', { exact: true }).waitFor({ timeout: 20_000 });
+    await page.unroute('**/api/trpc/diary.uploadImage**');
+    findings.checks.push('desktop photo EXIF manual date fill, time adjustment, privacy boundary, upload progress and private event creation');
     const desktopFutureLetters = page.locator('.future-letters-studio');
     await desktopFutureLetters.getByRole('heading', { name: '寫給以後的自己' }).waitFor({ timeout: 10_000 });
     assert(await desktopFutureLetters.getByText(readyFutureLetterTitle, { exact: true }).isVisible(), '桌面未來信件索引未顯示已解鎖事件。');
@@ -283,13 +295,38 @@ try {
   await page.reload({ waitUntil: 'domcontentloaded' });
   const mobilePhotoExifEntry = page.locator('.import-studio').filter({ has: page.getByRole('heading', { name: '從照片日期開始整理' }) });
   await mobilePhotoExifEntry.getByRole('heading', { name: '從照片日期開始整理' }).waitFor({ timeout: 10_000 });
-  await page.locator('input[accept="image/jpeg"]').setInputFiles({ name: 'captured-mobile.jpg', mimeType: 'image/jpeg', buffer: makeExifJpeg() });
+  await page.locator('input[accept="image/jpeg"]').setInputFiles([
+    { name: 'without-exif-mobile.jpg', mimeType: 'image/jpeg', buffer: Buffer.from([0xff, 0xd8, 0xff, 0xd9]) },
+    { name: 'captured-mobile.jpg', mimeType: 'image/jpeg', buffer: makeExifJpeg() },
+  ]);
   const mobilePhotoExifPreview = page.locator('.import-studio').filter({ has: page.getByRole('heading', { name: '依照片拍攝日期建立記錄' }) });
   await mobilePhotoExifPreview.getByText('2026-08-20', { exact: true }).waitFor({ timeout: 10_000 });
+  const mobileManualCapturedAt = mobilePhotoExifPreview.getByLabel('without-exif-mobile.jpg 的拍攝日期與時間');
+  const mobileCapturedAt = mobilePhotoExifPreview.getByLabel('captured-mobile.jpg 的拍攝日期與時間');
+  assert(await mobileManualCapturedAt.inputValue() === '', '行動版缺少 EXIF 的 JPEG 應提供空白手動日期時間欄位。');
+  assert(await mobilePhotoExifPreview.getByRole('button', { name: '確認建立 1 段私人記錄' }).isDisabled(), '行動版未補齊日期時不應允許建立事件。');
+  await mobileManualCapturedAt.fill('2026-08-20T19:45');
+  await mobileCapturedAt.fill('2026-08-20T11:30');
+  assert(await mobileCapturedAt.inputValue() === '2026-08-20T11:30', '行動版應允許在確認前微調 EXIF 拍攝時間。');
   assert(await mobilePhotoExifPreview.getByText(/不讀取位置資訊.*確認前不會上傳/).isVisible(), '行動版照片 EXIF 匯入預覽未明確說明位置與確認前不上傳的隱私邊界。');
+  let releaseMobileUpload;
+  let noteMobileUploadStarted;
+  const mobileUploadStarted = new Promise((resolve) => { noteMobileUploadStarted = resolve; });
+  const allowMobileUpload = new Promise((resolve) => { releaseMobileUpload = resolve; });
+  await page.route('**/api/trpc/diary.uploadImage**', async (route) => {
+    noteMobileUploadStarted();
+    await allowMobileUpload;
+    await route.continue();
+  });
   await mobilePhotoExifPreview.getByRole('button', { name: '確認建立 1 段私人記錄' }).click();
+  await mobileUploadStarted;
+  assert(await mobilePhotoExifPreview.getByRole('progressbar', { name: '照片上傳進度' }).isVisible(), '行動版批次上傳時應顯示可及進度條。');
+  assert(await mobilePhotoExifPreview.getByText('正在上傳 0／2 張', { exact: true }).isVisible(), '行動版批次上傳應顯示目前完成張數。');
+  assert(await mobilePhotoExifPreview.getByText('目前處理：captured-mobile.jpg', { exact: true }).isVisible(), '行動版批次上傳應顯示目前處理的檔名。');
+  releaseMobileUpload();
   await page.getByText('已建立 1 段私人照片記錄。', { exact: true }).waitFor({ timeout: 20_000 });
-  findings.checks.push('375px photo EXIF local preview, privacy boundary and private event creation');
+  await page.unroute('**/api/trpc/diary.uploadImage**');
+  findings.checks.push('375px photo EXIF manual date fill, time adjustment, privacy boundary, upload progress and private event creation');
   const mobileFutureLetters = page.locator('.future-letters-studio');
   await mobileFutureLetters.getByRole('heading', { name: '寫給以後的自己' }).waitFor({ timeout: 10_000 });
   assert(await mobileFutureLetters.getByText(readyFutureLetterTitle, { exact: true }).isVisible(), '行動版未來信件索引未顯示已解鎖事件。');

@@ -49,6 +49,21 @@
 .sharing-url { display: flex; gap: 6px; align-items: center; color: #fff; font-family: "IBM Plex Mono", monospace; overflow-wrap: anywhere; }
 .sharing-url.private { color: #ffd7cb; }
 
+.photo-exif-adjustments { margin: 17px 0; border-top: 1px solid rgba(20,38,58,.22); border-bottom: 1px solid rgba(20,38,58,.22); }
+.photo-exif-adjustments > p { margin: 0; padding: 11px 0; color: var(--ink-soft); font-size: 11px; line-height: 1.65; }
+.photo-exif-adjustments label { display: grid; grid-template-columns: minmax(0,1fr) 190px; align-items: center; gap: 14px; padding: 10px 0; border-top: 1px solid rgba(20,38,58,.12); }
+.photo-exif-adjustments label span, .photo-exif-adjustments label b, .photo-exif-adjustments label small { display: block; min-width: 0; }
+.photo-exif-adjustments label b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.photo-exif-adjustments label small { margin-top: 4px; color: var(--ink-soft); font-size: 10px; line-height: 1.45; }
+.photo-exif-adjustments input { box-sizing: border-box; width: 100%; border: 1px solid rgba(20,38,58,.38); outline: 0; color: var(--ink); background: #fffdf8; padding: 8px; font: 500 11px "IBM Plex Mono", monospace; }
+.photo-exif-adjustments input:focus { border-color: var(--cinnabar); box-shadow: 0 0 0 2px rgba(238,98,59,.17); }
+.photo-exif-progress { margin: 16px 0; padding: 13px; border: 1px solid rgba(20,38,58,.35); background: rgba(238,98,59,.07); }
+.photo-exif-progress > div:first-child { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.photo-exif-progress b { font-size: 12px; }
+.photo-exif-progress small { color: var(--ink-soft); font: 500 10px "IBM Plex Mono", monospace; overflow-wrap: anywhere; text-align: right; }
+.photo-exif-progress [role="progressbar"] { height: 6px; margin-top: 10px; overflow: hidden; background: rgba(20,38,58,.16); }
+.photo-exif-progress [role="progressbar"] span { display: block; height: 100%; background: var(--cinnabar); transition: width 180ms cubic-bezier(.23,1,.32,1); }
+
 .editor-workspace { display: grid; grid-template-columns: minmax(205px,.55fr) minmax(450px,1.25fr) minmax(260px,.7fr); border-bottom: 1px solid var(--ink); }
 .editor-mobile-tabs { display: none; }
 .mobile-workspace-panel { display: none; }
@@ -85,4 +100,7 @@
   .phase-anchor-fields, .share-mode-options { grid-template-columns: 1fr; }
   .share-mode-options button { min-height: 60px; }
   .share-access-summary { gap: 12px; }
+  .photo-exif-adjustments label { grid-template-columns: 1fr; gap: 8px; }
+  .photo-exif-progress > div:first-child { align-items: flex-start; flex-direction: column; gap: 4px; }
+  .photo-exif-progress small { text-align: left; }
 }
