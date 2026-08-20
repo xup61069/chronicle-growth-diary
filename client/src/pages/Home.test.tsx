@@ -29,8 +29,10 @@ describe("Home", () => {
 
   it("keeps a public offline quick-note entry available alongside the full editor", () => {
     const html = renderToStaticMarkup(<Home />);
-    expect(html).toContain('class="text-button offline-note-link" href="/quick-note"');
+    expect(html).toContain('class="text-button offline-note-link" href="/quick-note" aria-describedby="offline-note-guidance"');
     expect(html).toContain("先用離線快速記事");
+    expect(html).toContain('id="offline-note-guidance"');
+    expect(html).toContain("離線草稿只保存在目前裝置；準備好後可複製並整理成正式事件。");
     expect(html).toContain('class="solid-button" href="/editor"');
   });
 

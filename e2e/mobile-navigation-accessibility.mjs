@@ -117,6 +117,12 @@ try {
   if (await quickNoteLink.getAttribute("href") !== "/quick-note") {
     throw new Error("首頁應提供不需登入的離線快速記事入口。");
   }
+  if (await quickNoteLink.getAttribute("aria-describedby") !== "offline-note-guidance") {
+    throw new Error("離線快速記事入口應連結到本機資料處理說明。");
+  }
+  if ((await page.locator("#offline-note-guidance").textContent())?.trim() !== "離線草稿只保存在目前裝置；準備好後可複製並整理成正式事件。") {
+    throw new Error("首頁應清楚說明離線快速記事的本機保存與後續整理方式。");
+  }
   await Promise.all([
     page.waitForURL(/\/quick-note$/),
     quickNoteLink.click(),

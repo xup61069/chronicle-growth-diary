@@ -252,9 +252,10 @@ export default function Home() {
             </p>
             <div className="hero-actions">
               <a className="solid-button" href="/editor">開始書寫成長故事 <ArrowUpRight size={17} /></a>
-              <a className="text-button offline-note-link" href="/quick-note">先用離線快速記事 <FilePenLine size={16} /></a>
+              <a className="text-button offline-note-link" href="/quick-note" aria-describedby="offline-note-guidance">先用離線快速記事 <FilePenLine size={16} /></a>
               <a className="text-button" href="#stories">觀看範例 <ChevronRight size={17} /></a>
             </div>
+            <p id="offline-note-guidance" className="hero-offline-note">離線草稿只保存在目前裝置；準備好後可複製並整理成正式事件。</p>
           </div>
 
           <button className="hero-workbench" onClick={scrollToTimeline} aria-label="前往完整互動時間工作台">
