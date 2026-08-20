@@ -6,7 +6,7 @@
 
 | 範圍 | 狀態 | 可重現方法 |
 | --- | --- | --- |
-| 型別、單元測試與正式建置 | 通過 | `pnpm check && pnpm test && pnpm build`。目前基準為 **51 個測試檔、142 項 Vitest**。 |
+| 型別、單元測試與正式建置 | 通過 | `pnpm check && pnpm test && pnpm build`。目前基準為 **51 個測試檔、143 項 Vitest**。 |
 | 公開首頁 375px | 通過 | 設定 HTTPS `CHRONICLE_E2E_BASE_URL` 後執行 `pnpm test:e2e:mobile-nav`。覆蓋跳至主要內容、行動導覽、故事案例、時間帶鍵盤探索、篩選狀態、減少動態與離線快速記事入口。 |
 | 隔離 local-auth 編輯器 | 通過 | 設定 HTTPS `CHRONICLE_E2E_BASE_URL` 後執行 `pnpm test:e2e:isolated`。腳本會建立並清除暫時帳號，覆蓋 375px 日記載入、分頁、事件選取、年度 AI 同意與 private 事件 Markdown 匯出、成長數據儀表板，以及 `diary.get` 逾時／失敗恢復。 |
 | 公開故事閱讀版型 | 通過 | `SharedStory` 測試覆蓋 `editorial`、`gallery` 與 `minimal`；隔離 local-auth 已完成三種版型的 375px 視覺回歸。 |

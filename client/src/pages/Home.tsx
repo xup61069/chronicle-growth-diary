@@ -39,8 +39,8 @@ const events: TimelineEvent[] = [
     month: "APR",
     year: "2024",
     category: "研究",
-    title: "收集最早的線索",
-    copy: "把文件、訪談與記憶先放到同一條可閱讀的線上。",
+    title: "記下第一次自己回家的路",
+    copy: "一張課表、一段錄音和那天的照片，先放在同一個日期。",
     number: "01",
   },
   {
@@ -48,8 +48,8 @@ const events: TimelineEvent[] = [
     month: "APR",
     year: "2024",
     category: "策展",
-    title: "定義故事的節奏",
-    copy: "用標籤與顏色區分脈絡，在重要轉折留下編輯記號。",
+    title: "把高中三年的練習排在一起",
+    copy: "標記比賽、老師的批註和換樂器的那一週，回頭才看得見變化。",
     number: "02",
   },
   {
@@ -57,8 +57,8 @@ const events: TimelineEvent[] = [
     month: "MAY",
     year: "2024",
     category: "專案",
-    title: "讓團隊同步看見",
-    copy: "從全貌切入，再向一個精準事件聚焦，討論不再失焦。",
+    title: "第一份作品上線的下午",
+    copy: "把草圖、版本紀錄與發表連結放在同一段時間裡。",
     number: "03",
   },
   {
@@ -66,8 +66,8 @@ const events: TimelineEvent[] = [
     month: "MAY",
     year: "2024",
     category: "研究",
-    title: "串起散落的證據",
-    copy: "透過富媒體、連結與註解，把資料轉換成能被理解的序列。",
+    title: "搬家後重新整理工作桌",
+    copy: "桌面照片、設備清單和當時的工作習慣，留給未來比較。",
     number: "04",
   },
   {
@@ -75,8 +75,8 @@ const events: TimelineEvent[] = [
     month: "MAY",
     year: "2024",
     category: "策展",
-    title: "發佈一條清晰的路徑",
-    copy: "分享一個可探索的時間敘事，讓每位讀者自己找到關鍵。",
+    title: "寄出第一封作品集",
+    copy: "只分享想公開的頁面，其餘事件留在私人時間帶。",
     number: "05",
   },
 ];
@@ -84,28 +84,28 @@ const events: TimelineEvent[] = [
 const examples = [
   {
     number: "01",
-    type: "文化策展",
-    title: "一座城市的聲音檔案",
+    type: "成長日記",
+    title: "從第一張課表到畢業照",
     image: "/manus-storage/chronicle-example-museum_4849906d.jpg",
   },
   {
     number: "02",
-    type: "專案紀錄",
-    title: "從草圖到開幕的 180 天",
+    type: "作品紀錄",
+    title: "一份作品從草圖到發表",
     image: "/manus-storage/chronicle-example-project_9ea5698d.jpg",
   },
   {
     number: "03",
-    type: "研究敘事",
-    title: "一種材料，三十年的變化",
+    type: "練習筆記",
+    title: "三十次練習留下的改變",
     image: "/manus-storage/chronicle-example-orbit_ff92b973.jpg",
   },
 ];
 
 const featureNotes = [
-  ["A", "分層梳理", "把微小事件放入長期脈絡，並保留回到全景的路徑。"],
-  ["B", "多種閱讀尺度", "以年、月、日自由切換；觀眾能由宏觀走向每一個細節。"],
-  ["C", "分享你的脈絡", "用一個連結呈現完整歷程，讓資料不再只是靜態清單。"],
+  ["A", "先寫下當天發生的事", "加上日期、幾句話和一張照片；不用先替它下結論。"],
+  ["B", "把同一段日子放在一起", "用標籤、技能和章節把分散的事件排回時間帶。"],
+  ["C", "決定要給誰看", "每一則事件可留在私有日記，也可在整理後再用連結分享。"],
 ];
 
 const filters = ["全部", "研究", "策展", "專案"] as const;
@@ -244,14 +244,14 @@ export default function Home() {
           </div>
 
           <div className="hero-copy">
-            <p className="eyebrow"><span /> 時間敘事工作台</p>
-            <h1 id="hero-title">把每一個轉折，<br /><em>留在正確的位置。</em></h1>
+            <p className="eyebrow"><span /> 個人成長日記</p>
+            <h1 id="hero-title">把今天發生的事，<br /><em>留給以後的你。</em></h1>
             <p className="hero-lede">
-              Chronicle 將散落的事件、素材與決策編排成可探索的時間帶，
-              讓脈絡不再埋沒於訊息與試算表。
+              例如第一份作品、換工作的那個月，或一張陪你長大的書桌。
+              Chronicle 把日期、文字、圖片和標籤放在同一條私人時間帶。
             </p>
             <div className="hero-actions">
-              <a className="solid-button" href="/editor">開始書寫成長故事 <ArrowUpRight size={17} /></a>
+              <a className="solid-button" href="/editor">寫下第一件事 <ArrowUpRight size={17} /></a>
               <a className="text-button offline-note-link" href="/quick-note" aria-describedby="offline-note-guidance">先用離線快速記事 <FilePenLine size={16} /></a>
               <a className="text-button" href="#stories">觀看範例 <ChevronRight size={17} /></a>
             </div>
@@ -263,16 +263,16 @@ export default function Home() {
             <span className="workbench-months"><i>APR</i><i>MAY</i><i>JUN</i></span>
             <span className="workbench-axis"><i /><i /><i /><i /></span>
             <span className="workbench-events">
-              <i><b>06</b><small>收集線索</small></i>
-              <i className="focus"><b>02</b><small>定義節奏</small></i>
-              <i><b>17</b><small>連結證據</small></i>
+              <i><b>06</b><small>第一張課表</small></i>
+              <i className="focus"><b>02</b><small>第一份作品</small></i>
+              <i><b>17</b><small>搬進新家</small></i>
             </span>
-            <span className="workbench-bottom"><GripHorizontal size={15} /> 拖曳探索完整路徑 <ArrowRight size={14} /></span>
+            <span className="workbench-bottom"><GripHorizontal size={15} /> 拖曳查看同一段日子的變化 <ArrowRight size={14} /></span>
           </button>
 
           <aside className="hero-side-note">
             <span>ARCHIVE NOTE / 001</span>
-            <p>從第一份筆記到公開發表，時間本身就是最好的目錄。</p>
+            <p>第一張課表、第一份作品、第一次搬家；不用一次寫完，只要先記下一天。</p>
           </aside>
         </section>
 
@@ -280,7 +280,7 @@ export default function Home() {
           <div className="timeboard-topline">
             <div>
               <p className="eyebrow inverted"><span /> 即時預覽</p>
-              <h2 id="timeboard-title">拖曳時間帶，<br />從脈絡開始閱讀。</h2>
+              <h2 id="timeboard-title">拖曳時間帶，<br />查看同一段日子的變化。</h2>
             </div>
             <div id="timeboard-instruction" className="timeboard-instruction">
               <GripHorizontal size={18} />
@@ -356,9 +356,9 @@ export default function Home() {
         <section id="how-it-works" className="method-section" aria-labelledby="method-title">
           <div className="section-marker"><span>02</span><i /></div>
           <div className="method-intro">
-            <p className="eyebrow"><span /> 不只是一份日期表</p>
-            <h2 id="method-title">讓複雜進程，<br />有一個能被看懂的節奏。</h2>
-            <p className="method-archive-note"><b>INDEX 02.1</b> 由年份、事件、人物與素材組成可追溯的閱讀軌跡。</p>
+            <p className="eyebrow"><span /> 從一則小事開始</p>
+            <h2 id="method-title">不是替人生下結論，<br />只是把日期放回事情旁邊。</h2>
+            <p className="method-archive-note"><b>INDEX 02.1</b> 從一張照片、一段心情或一個完成的作品開始，再慢慢補上前後的日子。</p>
           </div>
           <div className="method-list">
             {featureNotes.map(([letter, title, copy]) => (
@@ -375,9 +375,9 @@ export default function Home() {
           <div className="stories-heading">
             <div>
               <p className="eyebrow"><span /> 使用情境</p>
-              <h2 id="stories-title">每一條時間帶，<br />都是一種新的閱讀方式。</h2>
+              <h2 id="stories-title">可以從一個人開始寫。</h2>
             </div>
-            <p>用於人物、組織、研究、展覽與專案。Chronicle 將資料變成一條能被分享、被討論、也被記住的路徑。</p>
+            <p>把自己的成長日記、創作過程或一次長途搬遷整理成時間帶。等你想分享時，再決定哪些事件要讓別人看見。</p>
           </div>
 
           <div className="story-ruler" aria-hidden="true"><span>STORY INDEX</span><i /><b>01</b><i /><b>02</b><i /><b>03</b></div>
@@ -397,22 +397,22 @@ export default function Home() {
         <section id="plans" className="plan-section" aria-labelledby="plans-title">
           <div className="plan-art" aria-hidden="true"><img src="/manus-storage/chronicle-hero-archive_9be1bd7c.jpg" alt="" /></div>
           <div className="plan-content">
-            <p className="eyebrow"><span /> 從第一條開始</p>
-            <h2 id="plans-title">把你的故事，<br /><em>編輯成一條路徑。</em></h2>
-            <p>先從免費工作台開始；當你的敘事成長，再選擇需要的分享與協作尺度。</p>
+            <p className="eyebrow"><span /> 從一則紀錄開始</p>
+            <h2 id="plans-title">先寫下今天，<br /><em>再慢慢看見時間。</em></h2>
+            <p>建立事件、加上日期和標籤。要不要分享、何時整理成一條故事，都由你決定。</p>
             <div className="plan-ruler" aria-hidden="true"><span>YOUR ARCHIVE</span><i /><b>01</b><i /><b>02</b><i /><b>03</b><i /></div>
             <div className="plan-columns">
               <div className="plan-card plan-free">
                 <span>INDIVIDUAL</span>
-                <h3>自由編輯</h3>
-                <p>適合個人研究與第一個公開故事。</p>
+                <h3>個人整理</h3>
+                <p>適合私人日記與正在累積的成長事件。</p>
                 <ul><li><Check size={15} /> 1 條時間帶</li><li><Check size={15} /> 50 個事件</li><li><Check size={15} /> 公開分享連結</li></ul>
                 <a href="/editor">免費開始 <ArrowUpRight size={16} /></a>
               </div>
               <div className="plan-card plan-team">
                 <span>STUDIO</span>
-                <h3>共同編輯</h3>
-                <p>適合團隊、專案與需要嵌入網站的敘事。</p>
+                <h3>分享與協作</h3>
+                <p>適合整理後想分享給家人或夥伴的故事。</p>
                 <ul><li><Check size={15} /> 多條時間帶</li><li><Check size={15} /> 成員協作與標註</li><li><Check size={15} /> 嵌入與品牌設定</li></ul>
                 <a href="/editor">開啟我的檔案 <ArrowUpRight size={16} /></a>
               </div>
@@ -423,14 +423,14 @@ export default function Home() {
         <section className="closing-note">
           <span className="closing-index">END NOTE / 2026</span>
           <div className="closing-symbol"><Sparkles size={20} /></div>
-          <p>讓重要的事情，不再只停留在發生過。</p>
+          <p>留下一個日期，讓以後的你知道它曾經發生。</p>
           <button onClick={scrollToTimeline}>回到時間帶 <ArrowUpRight size={17} /></button>
         </section>
       </main>
 
       <footer className="site-footer">
         <a className="brand" href="#top"><img src="/manus-storage/chronicle-mark_5e825172.png" alt="" /><span>CHRONICLE</span></a>
-        <p>© 2026 Chronicle Studio. 為敘事而製。</p>
+        <p>© 2026 Chronicle Studio. 為個人成長日記而製。</p>
         <div><a href="#how-it-works">指南</a><a href="#stories">案例</a><a href="#plans">聯絡</a></div>
       </footer>
     </div>

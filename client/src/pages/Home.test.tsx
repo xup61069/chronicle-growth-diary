@@ -36,6 +36,15 @@ describe("Home", () => {
     expect(html).toContain('class="solid-button" href="/editor"');
   });
 
+  it("uses concrete personal-growth scenes and states the private-first data boundary", () => {
+    const html = renderToStaticMarkup(<Home />);
+    expect(html).toContain("把今天發生的事");
+    expect(html).toContain("第一份作品、換工作的那個月，或一張陪你長大的書桌");
+    expect(html).toContain("每一則事件可留在私有日記，也可在整理後再用連結分享");
+    expect(html).toContain("不用一次寫完，只要先記下一天");
+    expect(html).not.toContain("讓脈絡不再埋沒於訊息與試算表");
+  });
+
   it("routes the timeboard and story examples to the editor instead of showing temporary notices", () => {
     const html = renderToStaticMarkup(<Home />);
     expect(html).toContain('class="timeline-detail"');
