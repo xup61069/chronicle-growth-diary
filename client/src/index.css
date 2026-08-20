@@ -144,10 +144,16 @@ a { color: inherit; text-decoration: none; }
 .filter-set { display: flex; flex-wrap: wrap; gap: 7px; }
 .filter-set button { color: #cbd5da; background: transparent; border: 1px solid rgba(255,255,255,.27); padding: 7px 11px; font-size: 12px; transition: background .18s ease-out, color .18s ease-out, border-color .18s ease-out; }
 .filter-set button:hover, .filter-set button.active { color: var(--ink); background: #fffdf8; border-color: #fffdf8; }
-.timeline-date-filter { display: flex; align-items: center; gap: 8px; margin-left: auto; color: #cbd5da; font: 500 10px "IBM Plex Mono", monospace; letter-spacing: .06em; }
-.timeline-date-filter label { display: inline-flex; align-items: center; gap: 5px; }
-.timeline-date-filter input { width: 132px; border: 1px solid rgba(255,255,255,.32); border-radius: 0; color-scheme: dark; color: #fffdf8; background: transparent; padding: 7px 8px; font: 500 10px "IBM Plex Mono", monospace; }
-.timeline-date-filter input:focus-visible { outline: 2px solid var(--cinnabar); outline-offset: 2px; }
+.timeline-search-filter, .timeline-date-filter, .timeline-sort-filter { display: flex; align-items: center; gap: 8px; color: #cbd5da; font: 500 10px "IBM Plex Mono", monospace; letter-spacing: .06em; }
+.timeline-search-filter label, .timeline-date-filter label, .timeline-sort-filter label { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.timeline-search-filter, .timeline-date-filter, .timeline-sort-filter { border: 1px solid rgba(255,255,255,.32); padding: 0 8px; }
+.timeline-search-filter:focus-within, .timeline-date-filter:focus-within, .timeline-sort-filter:focus-within { border-color: var(--cinnabar); }
+.timeline-search-filter input, .timeline-date-filter input, .timeline-sort-filter select { min-width: 0; border: 0; border-radius: 0; outline: 0; color: #fffdf8; background: transparent; padding: 7px 0; font: 500 10px "IBM Plex Mono", monospace; }
+.timeline-search-filter input { width: 146px; }
+.timeline-search-filter input::placeholder { color: #aebcc1; }
+.timeline-date-filter input { width: 124px; color-scheme: dark; }
+.timeline-sort-filter select { color-scheme: dark; }
+.timeline-sort-filter option { color: var(--ink); background: #fffdf8; }
 .timeline-filter-clear { border: 0; color: #cbd5da; background: transparent; padding: 6px 0; font-size: 11px; text-decoration: underline; text-underline-offset: 3px; }
 .timeline-filter-clear:hover { color: #fffdf8; }
 .arrow-set { display: flex; gap: 7px; }
@@ -169,11 +175,16 @@ a { color: inherit; text-decoration: none; }
 .timeline-event.is-active .event-date { color: #fff; }
 .timeline-event.is-active .event-wire i { width: 17px; height: 17px; bottom: -9px; background: var(--cinnabar); box-shadow: 0 0 0 6px rgba(238,98,59,.17); }
 .timeline-event.is-active .event-preview { opacity: 1; transform: translateY(0); }
-.timeline-empty { min-height: 166px; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 9px; padding-left: 14px; color: #c8d2d6; }
-.timeline-empty svg { color: var(--cinnabar); }
-.timeline-empty p { margin: 0; font-size: 13px; }
+.timeline-empty { min-height: 240px; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 11px; padding-left: 14px; color: #c8d2d6; }
+.timeline-empty-illustration { width: 58px; height: 52px; position: relative; display: grid; place-items: center; overflow: hidden; color: var(--cinnabar); border: 1px solid rgba(238,98,59,.62); background: linear-gradient(135deg, rgba(238,98,59,.16), transparent); }
+.timeline-empty-illustration::before { content: ""; position: absolute; width: 72px; border-top: 1px solid rgba(255,255,255,.3); transform: rotate(-35deg); }
+.timeline-empty-illustration i { position: absolute; bottom: 6px; width: 5px; height: 5px; border-radius: 50%; background: #c8d2d6; }
+.timeline-empty-illustration i:nth-of-type(1) { left: 10px; }.timeline-empty-illustration i:nth-of-type(2) { right: 10px; }
+.timeline-empty p { max-width: 430px; margin: 0; font-size: 13px; line-height: 1.7; }
+.timeline-empty p strong { display: block; color: #fffdf8; font-size: 15px; }
 .timeline-empty button { border: 0; border-bottom: 1px solid #fff; color: #fff; background: transparent; padding: 4px 0; font-size: 12px; }
 .timeline-empty button:hover { color: var(--cinnabar); border-color: var(--cinnabar); }
+.timeline-suggestions { display: grid; gap: 7px; margin-top: 4px; }.timeline-suggestions > span { color: #aebcc1; font: 500 9px "IBM Plex Mono", monospace; letter-spacing: .09em; }.timeline-suggestions > div { display: flex; flex-wrap: wrap; gap: 6px; }.timeline-suggestions button { border: 1px solid rgba(255,255,255,.34); color: #fffdf8; background: transparent; padding: 7px 9px; font-size: 11px; }.timeline-suggestions button small { display: block; margin-bottom: 3px; color: var(--cinnabar); font: 500 8px "IBM Plex Mono", monospace; }.timeline-suggestions button:hover { border-color: var(--cinnabar); color: var(--cinnabar); }
 .timeline-detail { margin-top: 20px; padding: 24px 0; border-top: 1px solid rgba(255,255,255,.28); border-bottom: 1px solid rgba(255,255,255,.28); display: grid; grid-template-columns: 80px minmax(0,1fr) auto; gap: 25px; align-items: end; }
 .detail-number { color: var(--cinnabar); font: 400 58px/.8 "DM Serif Display", serif; }
 .detail-copy > span { color: #aebcc1; font: 500 10px "IBM Plex Mono", monospace; letter-spacing: .08em; }
@@ -481,9 +492,14 @@ a { color: inherit; text-decoration: none; }
   .timeboard-topline { display: block; }
   .timeboard-instruction { margin-top: 23px; }
   .timeline-controls { flex-wrap: wrap; margin-top: 36px; }
-  .timeline-date-filter { width: 100%; margin-left: 0; order: 3; }
+  .timeline-search-filter { flex: 1 1 100%; order: 3; }
+  .timeline-search-filter input { flex: 1; width: auto; }
+  .timeline-date-filter { flex: 1 1 150px; order: 4; }
   .timeline-date-filter input { flex: 1; width: auto; }
-  .arrow-set { margin-left: auto; }
+  .timeline-sort-filter { flex: 1 1 140px; order: 5; }
+  .timeline-sort-filter select { flex: 1; }
+  .timeline-filter-clear { order: 6; }
+  .arrow-set { margin-left: auto; order: 7; }
   .timeline-track { padding-left: calc(50% - 74px); }
   .timeline-event { width: 175px; }
   .timeline-detail { grid-template-columns: 52px 1fr; gap: 16px; }

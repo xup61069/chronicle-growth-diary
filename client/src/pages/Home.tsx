@@ -18,6 +18,7 @@ import {
   Menu,
   MousePointer2,
   Plus,
+  Search,
   Sparkles,
   X,
 } from "lucide-react";
@@ -116,28 +117,44 @@ const featureNotes = [
 ];
 
 const filters = ["全部", "研究", "策展", "專案"] as const;
+const sortOrders = ["oldest", "newest"] as const;
+type TimelineSortOrder = (typeof sortOrders)[number];
+
+const recentTimelineSuggestions = [...events]
+  .sort((left, right) => right.isoDate.localeCompare(left.isoDate))
+  .slice(0, 3);
 
 export default function Home() {
   const [activeIndex, setActiveIndex] = useState(2);
   const [activeFilter, setActiveFilter] = useState<(typeof filters)[number]>("全部");
   const [selectedDate, setSelectedDate] = useState("");
+  const [keywordQuery, setKeywordQuery] = useState("");
+  const [sortOrder, setSortOrder] = useState<TimelineSortOrder>("oldest");
   const [menuOpen, setMenuOpen] = useState(false);
   const dragStart = useRef<{ x: number; index: number } | null>(null);
 
-  const visibleEvents = useMemo(
-    () =>
-      events.filter((event) =>
-        (activeFilter === "全部" || event.category === activeFilter)
-        && (!selectedDate || event.isoDate === selectedDate),
-      ),
-    [activeFilter, selectedDate],
-  );
+  const visibleEvents = useMemo(() => {
+    const normalizedKeyword = keywordQuery.trim().toLocaleLowerCase("zh-TW");
+    const filteredEvents = events.filter((event) => {
+      const searchableContent = `${event.title} ${event.copy} ${event.category} ${event.isoDate}`.toLocaleLowerCase("zh-TW");
+      return (activeFilter === "全部" || event.category === activeFilter)
+        && (!selectedDate || event.isoDate === selectedDate)
+        && (!normalizedKeyword || searchableContent.includes(normalizedKeyword));
+    });
+    return [...filteredEvents].sort((left, right) => sortOrder === "newest"
+      ? right.isoDate.localeCompare(left.isoDate)
+      : left.isoDate.localeCompare(right.isoDate));
+  }, [activeFilter, keywordQuery, selectedDate, sortOrder]);
 
   const selectedEvent = visibleEvents[activeIndex];
 
   useEffect(() => {
     setActiveIndex((current) => visibleEvents.length ? Math.min(current, visibleEvents.length - 1) : 0);
   }, [visibleEvents.length]);
+
+  useEffect(() => {
+    setActiveIndex(0);
+  }, [activeFilter, keywordQuery, selectedDate, sortOrder]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -176,6 +193,16 @@ export default function Home() {
   const clearTimelineFilters = () => {
     setActiveFilter("全部");
     setSelectedDate("");
+    setKeywordQuery("");
+    setSortOrder("oldest");
+    setActiveIndex(0);
+  };
+
+  const showSuggestedEvent = (event: TimelineEvent) => {
+    setActiveFilter("全部");
+    setKeywordQuery("");
+    setSortOrder("oldest");
+    setSelectedDate(event.isoDate);
     setActiveIndex(0);
   };
 
@@ -325,6 +352,17 @@ export default function Home() {
                 </button>
               ))}
             </div>
+            <div className="timeline-search-filter">
+              <label htmlFor="timeline-keyword-query"><Search size={14} /> 搜尋</label>
+              <input
+                id="timeline-keyword-query"
+                type="search"
+                value={keywordQuery}
+                onChange={(event) => setKeywordQuery(event.target.value)}
+                placeholder="事件標題或內容"
+                aria-label="搜尋示範事件內容"
+              />
+            </div>
             <div className="timeline-date-filter">
               <label htmlFor="timeline-date-query"><CalendarDays size={14} /> 日期</label>
               <input
@@ -334,14 +372,21 @@ export default function Home() {
                 onChange={(event) => chooseDate(event.target.value)}
                 aria-label="依日期篩選示範事件"
               />
-              {(selectedDate || activeFilter !== "全部") ? <button type="button" className="timeline-filter-clear" onClick={clearTimelineFilters}>清除</button> : null}
             </div>
+            <div className="timeline-sort-filter">
+              <label htmlFor="timeline-date-sort">排序</label>
+              <select id="timeline-date-sort" value={sortOrder} onChange={(event) => setSortOrder(event.target.value as TimelineSortOrder)} aria-label="事件日期排序">
+                <option value="oldest">由舊到新</option>
+                <option value="newest">由新到舊</option>
+              </select>
+            </div>
+            {(selectedDate || activeFilter !== "全部" || keywordQuery || sortOrder !== "oldest") ? <button type="button" className="timeline-filter-clear" onClick={clearTimelineFilters}>清除</button> : null}
             <div className="arrow-set">
               <button aria-label="前一個事件" onClick={() => stepTimeline(-1)} disabled={!visibleEvents.length || activeIndex === 0}><ArrowLeft size={18} /></button>
               <button aria-label="下一個事件" onClick={() => stepTimeline(1)} disabled={!visibleEvents.length || activeIndex === visibleEvents.length - 1}><ArrowRight size={18} /></button>
             </div>
           </div>
-          <p className="timeline-result-summary" role="status" aria-live="polite">顯示 {visibleEvents.length} 筆示範事件{selectedDate ? `／${selectedDate}` : ""}{activeFilter !== "全部" ? `／${activeFilter}` : ""}</p>
+          <p className="timeline-result-summary" role="status" aria-live="polite">顯示 {visibleEvents.length} 筆示範事件{keywordQuery.trim() ? `／關鍵字「${keywordQuery.trim()}」` : ""}{selectedDate ? `／${selectedDate}` : ""}{activeFilter !== "全部" ? `／${activeFilter}` : ""}{sortOrder === "newest" ? "／由新到舊" : "／由舊到新"}</p>
 
           <div
             className="timeline-viewport"
@@ -371,7 +416,15 @@ export default function Home() {
                   <span className="event-preview"><b>{event.category}</b>{event.title}</span>
                 </button>
               ))}
-            </div> : <div className="timeline-empty" role="status"><CalendarDays size={19} /><p>沒有符合目前日期與事件類型的示範紀錄。</p><button type="button" onClick={clearTimelineFilters}>清除篩選</button></div>}
+            </div> : <div className="timeline-empty" role="status">
+              <div className="timeline-empty-illustration" aria-hidden="true"><Search size={26} /><i /><i /></div>
+              <p><strong>沒有符合的示範事件。</strong> 請調整關鍵字、日期或事件類型。</p>
+              <button type="button" onClick={clearTimelineFilters}>清除篩選</button>
+              <div className="timeline-suggestions" aria-label="近期示範事件建議">
+                <span>近期事件</span>
+                <div>{recentTimelineSuggestions.map((event) => <button type="button" key={event.number} onClick={() => showSuggestedEvent(event)}><small>{event.isoDate}</small>{event.title}</button>)}</div>
+              </div>
+            </div>}
           </div>
 
           {selectedEvent ? <div className="timeline-detail" aria-live="polite">

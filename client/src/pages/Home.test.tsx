@@ -71,13 +71,20 @@ describe("Home", () => {
     expect(html).toContain('aria-pressed="false">研究');
   });
 
-  it("provides an accessible date filter and live result summary for the public timeline", () => {
+  it("provides accessible keyword, date, sort, and live-result controls for the public timeline", () => {
     const html = renderToStaticMarkup(<Home />);
+    expect(html).toContain('id="timeline-keyword-query"');
+    expect(html).toContain('type="search"');
+    expect(html).toContain('aria-label="搜尋示範事件內容"');
     expect(html).toContain('id="timeline-date-query"');
     expect(html).toContain('type="date"');
     expect(html).toContain('aria-label="依日期篩選示範事件"');
+    expect(html).toContain('id="timeline-date-sort"');
+    expect(html).toContain('aria-label="事件日期排序"');
+    expect(html).toContain("由舊到新");
+    expect(html).toContain("由新到舊");
     expect(html).toContain('class="timeline-result-summary" role="status" aria-live="polite"');
-    expect(html).toContain("顯示 5 筆示範事件");
+    expect(html).toContain("顯示 5 筆示範事件／由舊到新");
   });
 
   it("provides a skip link that moves keyboard focus to the main content landmark", () => {
