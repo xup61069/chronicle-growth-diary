@@ -125,6 +125,28 @@ const featureNotes = [
 const filters = ["全部", "研究", "策展", "專案"] as const;
 const sortOrders = ["oldest", "newest"] as const;
 type TimelineSortOrder = (typeof sortOrders)[number];
+const TIMELINE_RESULT_PAGE_SIZE = 3;
+
+type TimelineUrlState = {
+  filter: (typeof filters)[number];
+  date: string;
+  keyword: string;
+  sort: TimelineSortOrder;
+};
+
+function readTimelineUrlState(): TimelineUrlState {
+  if (typeof window === "undefined") return { filter: "全部", date: "", keyword: "", sort: "oldest" };
+  const params = new URLSearchParams(window.location.search);
+  const candidateFilter = params.get("type");
+  const candidateSort = params.get("sort");
+  const candidateDate = params.get("date") ?? "";
+  return {
+    filter: filters.includes(candidateFilter as (typeof filters)[number]) ? candidateFilter as (typeof filters)[number] : "全部",
+    date: /^\d{4}-\d{2}-\d{2}$/.test(candidateDate) ? candidateDate : "",
+    keyword: (params.get("q") ?? "").slice(0, 100),
+    sort: sortOrders.includes(candidateSort as TimelineSortOrder) ? candidateSort as TimelineSortOrder : "oldest",
+  };
+}
 
 const recentTimelineSuggestions = [...events]
   .sort((left, right) => right.isoDate.localeCompare(left.isoDate))
@@ -160,11 +182,13 @@ function highlightSearchMatch(text: string, query: string) {
 }
 
 export default function Home() {
-  const [activeIndex, setActiveIndex] = useState(2);
-  const [activeFilter, setActiveFilter] = useState<(typeof filters)[number]>("全部");
-  const [selectedDate, setSelectedDate] = useState("");
-  const [keywordQuery, setKeywordQuery] = useState("");
-  const [sortOrder, setSortOrder] = useState<TimelineSortOrder>("oldest");
+  const initialTimelineUrlState = useRef(readTimelineUrlState()).current;
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [activeFilter, setActiveFilter] = useState<(typeof filters)[number]>(initialTimelineUrlState.filter);
+  const [selectedDate, setSelectedDate] = useState(initialTimelineUrlState.date);
+  const [keywordQuery, setKeywordQuery] = useState(initialTimelineUrlState.keyword);
+  const [sortOrder, setSortOrder] = useState<TimelineSortOrder>(initialTimelineUrlState.sort);
+  const [renderedResultCount, setRenderedResultCount] = useState(TIMELINE_RESULT_PAGE_SIZE);
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
   const [suggestionIndex, setSuggestionIndex] = useState(-1);
@@ -193,15 +217,48 @@ export default function Home() {
       : left.isoDate.localeCompare(right.isoDate));
   }, [activeFilter, keywordQuery, selectedDate, sortOrder]);
 
-  const selectedEvent = visibleEvents[activeIndex];
+  const renderedEvents = visibleEvents.slice(0, renderedResultCount);
+  const hasMoreResults = renderedEvents.length < visibleEvents.length;
+  const selectedEvent = renderedEvents[activeIndex];
 
   useEffect(() => {
-    setActiveIndex((current) => visibleEvents.length ? Math.min(current, visibleEvents.length - 1) : 0);
-  }, [visibleEvents.length]);
+    setActiveIndex((current) => renderedEvents.length ? Math.min(current, renderedEvents.length - 1) : 0);
+  }, [renderedEvents.length]);
 
   useEffect(() => {
+    setRenderedResultCount(TIMELINE_RESULT_PAGE_SIZE);
     setActiveIndex(0);
   }, [activeFilter, keywordQuery, selectedDate, sortOrder]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const setOrDelete = (name: string, value: string) => value ? params.set(name, value) : params.delete(name);
+    setOrDelete("q", keywordQuery.trim());
+    setOrDelete("type", activeFilter === "全部" ? "" : activeFilter);
+    setOrDelete("date", selectedDate);
+    setOrDelete("sort", sortOrder === "oldest" ? "" : sortOrder);
+    const nextSearch = params.toString();
+    const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ""}${window.location.hash}`;
+    const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    if (nextUrl !== currentUrl) window.history.replaceState(window.history.state, "", nextUrl);
+  }, [activeFilter, keywordQuery, selectedDate, sortOrder]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const syncFromLocation = () => {
+      const next = readTimelineUrlState();
+      startFilterTransition(() => {
+        setActiveFilter(next.filter);
+        setSelectedDate(next.date);
+        setKeywordQuery(next.keyword);
+        setSortOrder(next.sort);
+        setActiveIndex(0);
+      });
+    };
+    window.addEventListener("popstate", syncFromLocation);
+    return () => window.removeEventListener("popstate", syncFromLocation);
+  }, []);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -211,17 +268,17 @@ export default function Home() {
       }
       const target = event.target as HTMLElement | null;
       if (!shouldHandleTimelineArrowKey(event.key, target?.tagName, target?.isContentEditable)) return;
-      if (!visibleEvents.length) return;
+      if (!renderedEvents.length) return;
       if (event.key === "ArrowLeft") {
         setActiveIndex((current) => Math.max(0, current - 1));
       }
       if (event.key === "ArrowRight") {
-        setActiveIndex((current) => Math.min(visibleEvents.length - 1, current + 1));
+        setActiveIndex((current) => Math.min(renderedEvents.length - 1, current + 1));
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [menuOpen, visibleEvents.length]);
+  }, [menuOpen, renderedEvents.length]);
 
   const scrollToTimeline = () => {
     document.querySelector("#timeboard")?.scrollIntoView({ behavior: "smooth" });
@@ -263,6 +320,7 @@ export default function Home() {
       setSortOrder("oldest");
       setActiveIndex(0);
     });
+    setSearchFocused(false);
     setSuggestionIndex(-1);
   };
 
@@ -304,14 +362,18 @@ export default function Home() {
   };
 
   const stepTimeline = (direction: 1 | -1) => {
-    if (!visibleEvents.length) return;
+    if (!renderedEvents.length) return;
     setActiveIndex((current) =>
-      Math.max(0, Math.min(visibleEvents.length - 1, current + direction)),
+      Math.max(0, Math.min(renderedEvents.length - 1, current + direction)),
     );
   };
 
+  const loadMoreTimelineResults = () => {
+    startFilterTransition(() => setRenderedResultCount((current) => Math.min(current + TIMELINE_RESULT_PAGE_SIZE, visibleEvents.length)));
+  };
+
   const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (!visibleEvents.length) return;
+    if (!renderedEvents.length) return;
     event.currentTarget.setPointerCapture(event.pointerId);
     dragStart.current = { x: event.clientX, index: activeIndex };
   };
@@ -321,7 +383,7 @@ export default function Home() {
     const steps = Math.round((dragStart.current.x - event.clientX) / 130);
     if (steps !== 0) {
       setActiveIndex(
-        Math.max(0, Math.min(visibleEvents.length - 1, dragStart.current.index + steps)),
+        Math.max(0, Math.min(renderedEvents.length - 1, dragStart.current.index + steps)),
       );
     }
   };
@@ -333,7 +395,7 @@ export default function Home() {
   const onTimelineViewportKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     const target = event.target as HTMLElement | null;
     if (!shouldHandleTimelineArrowKey(event.key, target?.tagName, target?.isContentEditable)) return;
-    if (!visibleEvents.length) return;
+    if (!renderedEvents.length) return;
 
     event.preventDefault();
     event.stopPropagation();
@@ -475,6 +537,7 @@ export default function Home() {
                 aria-controls="timeline-autocomplete-options"
                 aria-activedescendant={isAutocompleteOpen && suggestionIndex >= 0 ? `timeline-suggestion-${autocompleteSuggestions[suggestionIndex]?.id}` : undefined}
               />
+              <button type="button" className="timeline-search-clear" aria-label="清除搜尋與篩選條件" onClick={clearTimelineFilters} disabled={!selectedDate && activeFilter === "全部" && !keywordQuery && sortOrder === "oldest"}><X size={13} /></button>
               {isAutocompleteOpen ? <div id="timeline-autocomplete-options" className="timeline-autocomplete" role="listbox" aria-label="搜尋建議">
                 {autocompleteSuggestions.map((suggestion, index) => <button
                   type="button"
@@ -505,13 +568,12 @@ export default function Home() {
                 <option value="newest">由新到舊</option>
               </select>
             </div>
-            {(selectedDate || activeFilter !== "全部" || keywordQuery || sortOrder !== "oldest") ? <button type="button" className="timeline-filter-clear" onClick={clearTimelineFilters}>清除</button> : null}
             <div className="arrow-set">
-              <button aria-label="前一個事件" onClick={() => stepTimeline(-1)} disabled={!visibleEvents.length || activeIndex === 0}><ArrowLeft size={18} /></button>
-              <button aria-label="下一個事件" onClick={() => stepTimeline(1)} disabled={!visibleEvents.length || activeIndex === visibleEvents.length - 1}><ArrowRight size={18} /></button>
+              <button aria-label="前一個事件" onClick={() => stepTimeline(-1)} disabled={!renderedEvents.length || activeIndex === 0}><ArrowLeft size={18} /></button>
+              <button aria-label="下一個事件" onClick={() => stepTimeline(1)} disabled={!renderedEvents.length || activeIndex === renderedEvents.length - 1}><ArrowRight size={18} /></button>
             </div>
           </div>
-          <p className="timeline-result-summary" role="status" aria-live="polite">{isFilterTransitioning ? "正在更新篩選結果…" : <>顯示 {visibleEvents.length} 筆示範事件{keywordQuery.trim() ? `／關鍵字「${keywordQuery.trim()}」` : ""}{selectedDate ? `／${selectedDate}` : ""}{activeFilter !== "全部" ? `／${activeFilter}` : ""}{sortOrder === "newest" ? "／由新到舊" : "／由舊到新"}</>}</p>
+          <p className="timeline-result-summary" role="status" aria-live="polite">{isFilterTransitioning ? "正在更新篩選結果…" : <>符合 {visibleEvents.length} 筆示範事件／目前顯示 {renderedEvents.length} 筆{keywordQuery.trim() ? `／關鍵字「${keywordQuery.trim()}」` : ""}{selectedDate ? `／${selectedDate}` : ""}{activeFilter !== "全部" ? `／${activeFilter}` : ""}{sortOrder === "newest" ? "／由新到舊" : "／由舊到新"}</>}</p>
 
           <div
             className={`timeline-viewport ${isFilterTransitioning ? "is-updating" : ""}`}
@@ -526,12 +588,13 @@ export default function Home() {
             onPointerCancel={onPointerEnd}
             onKeyDown={onTimelineViewportKeyDown}
           >
-            {visibleEvents.length ? <div
+            {renderedEvents.length ? <div
               key={`timeline-results-${activeFilter}-${keywordQuery}-${selectedDate}-${sortOrder}`}
+              id="timeline-result-list"
               className="timeline-track"
               style={{ transform: `translateX(${-Math.max(0, activeIndex - 1) * 202}px)` }}
             >
-              {visibleEvents.map((event, index) => (
+              {renderedEvents.map((event, index) => (
                 <button
                   className={`timeline-event ${index === activeIndex ? "is-active" : ""}`}
                   key={`${event.number}-${event.title}`}
@@ -553,6 +616,11 @@ export default function Home() {
               </div>
             </div>}
           </div>
+
+          {hasMoreResults ? <div className="timeline-load-more">
+            <span>尚有 {visibleEvents.length - renderedEvents.length} 筆符合條件的事件</span>
+            <button type="button" onClick={loadMoreTimelineResults} aria-controls="timeline-result-list">載入更多（剩餘 {visibleEvents.length - renderedEvents.length} 筆）</button>
+          </div> : null}
 
           {selectedEvent ? <div className="timeline-detail" aria-live="polite">
             <div className="detail-number">{selectedEvent.number}</div>

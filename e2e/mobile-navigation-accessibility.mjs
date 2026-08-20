@@ -37,6 +37,7 @@ try {
     throw new Error("時間帶預設篩選應揭露為已選取。");
   }
   await researchFilter.click();
+  await page.waitForFunction(() => document.querySelector(".filter-set button.active")?.textContent?.trim() === "研究");
   if (await researchFilter.getAttribute("aria-pressed") !== "true" || await allFilter.getAttribute("aria-pressed") !== "false") {
     throw new Error("變更時間帶篩選後應同步更新 aria-pressed 狀態。");
   }
@@ -96,7 +97,11 @@ try {
   }
   await keywordFilter.press("ArrowDown");
   await keywordFilter.press("Enter");
-  await page.getByText("顯示 1 筆示範事件／關鍵字「搬家後重新整理工作桌」／研究／由舊到新", { exact: true }).waitFor();
+  await page.getByText("符合 1 筆示範事件／目前顯示 1 筆／關鍵字「搬家後重新整理工作桌」／研究／由舊到新", { exact: true }).waitFor();
+  const sharedSearchUrl = new URL(page.url());
+  if (sharedSearchUrl.searchParams.get("q") !== "搬家後重新整理工作桌" || sharedSearchUrl.searchParams.get("type") !== "研究") {
+    throw new Error("搜尋與事件類型篩選應同步到可分享的網址參數。");
+  }
   if ((await timelineTitle.textContent())?.trim() !== "搬家後重新整理工作桌") {
     throw new Error("自動完成選取後應以對應的公開事件關鍵字篩選結果。");
   }
@@ -117,7 +122,7 @@ try {
 
   const dateFilter = page.getByLabel("依日期篩選示範事件");
   await dateFilter.fill("2024-05-17");
-  await page.getByText("顯示 1 筆示範事件／2024-05-17／研究／由舊到新", { exact: true }).waitFor();
+  await page.getByText("符合 1 筆示範事件／目前顯示 1 筆／2024-05-17／研究／由舊到新", { exact: true }).waitFor();
   if ((await timelineTitle.textContent())?.trim() !== "搬家後重新整理工作桌") {
     throw new Error("日期與事件類型篩選應交集顯示符合的示範事件。");
   }
@@ -132,27 +137,43 @@ try {
     throw new Error("零結果狀態應提供輕量的搜尋插圖提示。");
   }
   await emptyState.getByRole("button", { name: /寄出第一封作品集/ }).click();
-  await page.getByText("顯示 1 筆示範事件／2024-05-31／由舊到新", { exact: true }).waitFor();
+  await page.getByText("符合 1 筆示範事件／目前顯示 1 筆／2024-05-31／由舊到新", { exact: true }).waitFor();
   if ((await timelineTitle.textContent())?.trim() !== "寄出第一封作品集") {
     throw new Error("零結果建議應可快速開啟既有的近期示範事件。");
   }
 
   await dateFilter.fill("2030-01-01");
-  await page.locator(".timeline-empty").getByRole("button", { name: "清除篩選" }).click();
-  await page.getByText("顯示 5 筆示範事件／由舊到新", { exact: true }).waitFor();
+  await page.getByRole("button", { name: "清除搜尋與篩選條件" }).click();
+  await page.getByText("符合 5 筆示範事件／目前顯示 3 筆／由舊到新", { exact: true }).waitFor();
+  if (new URL(page.url()).search) {
+    throw new Error("一鍵清除應移除網址中的公開搜尋與篩選參數。");
+  }
+  const loadMore = page.getByRole("button", { name: "載入更多（剩餘 2 筆）" });
+  await loadMore.click();
+  await page.getByText("符合 5 筆示範事件／目前顯示 5 筆／由舊到新", { exact: true }).waitFor();
+  if (await page.getByRole("button", { name: /載入更多/ }).count() !== 0) {
+    throw new Error("所有結果載入後不應再顯示載入更多按鈕。");
+  }
 
   const sortFilter = page.getByLabel("事件日期排序");
   await sortFilter.selectOption("newest");
-  await page.getByText("顯示 5 筆示範事件／由新到舊", { exact: true }).waitFor();
+  await page.getByText("符合 5 筆示範事件／目前顯示 3 筆／由新到舊", { exact: true }).waitFor();
   if ((await timelineTitle.textContent())?.trim() !== "寄出第一封作品集") {
     throw new Error("由新到舊排序應先顯示日期最新的事件。");
   }
   await sortFilter.selectOption("oldest");
-  await page.getByText("顯示 5 筆示範事件／由舊到新", { exact: true }).waitFor();
+  await page.getByText("符合 5 筆示範事件／目前顯示 3 筆／由舊到新", { exact: true }).waitFor();
   if ((await timelineTitle.textContent())?.trim() !== "記下第一次自己回家的路") {
     throw new Error("由舊到新排序應先顯示日期最早的事件。");
   }
 
+  await page.goto(`${baseUrl.replace(/\/$/, "")}/?q=%E5%B7%A5%E4%BD%9C&type=%E7%A0%94%E7%A9%B6&sort=newest`, { waitUntil: "domcontentloaded" });
+  await page.getByText("符合 1 筆示範事件／目前顯示 1 筆／關鍵字「工作」／研究／由新到舊", { exact: true }).waitFor();
+  if (await page.getByLabel("搜尋示範事件內容").inputValue() !== "工作") {
+    throw new Error("帶有網址參數的分享連結應在載入時還原搜尋欄位。 ");
+  }
+
+  await page.goto(`${baseUrl.replace(/\/$/, "")}/`, { waitUntil: "domcontentloaded" });
   await Promise.all([
     page.waitForURL(/#stories$/),
     exampleLink.click(),

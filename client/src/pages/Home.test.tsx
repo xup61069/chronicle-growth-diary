@@ -79,6 +79,7 @@ describe("Home", () => {
     expect(html).toContain('role="combobox"');
     expect(html).toContain('aria-autocomplete="list"');
     expect(html).toContain('aria-controls="timeline-autocomplete-options"');
+    expect(html).toContain('aria-label="清除搜尋與篩選條件"');
     expect(html).toContain('id="timeline-date-query"');
     expect(html).toContain('type="date"');
     expect(html).toContain('aria-label="依日期篩選示範事件"');
@@ -87,7 +88,8 @@ describe("Home", () => {
     expect(html).toContain("由舊到新");
     expect(html).toContain("由新到舊");
     expect(html).toContain('class="timeline-result-summary" role="status" aria-live="polite"');
-    expect(html).toContain("顯示 5 筆示範事件／由舊到新");
+    expect(html).toContain("符合 5 筆示範事件／目前顯示 3 筆／由舊到新");
+    expect(html).toContain("載入更多（剩餘 2 筆）");
     expect(html).toContain('aria-busy="false"');
   });
 
