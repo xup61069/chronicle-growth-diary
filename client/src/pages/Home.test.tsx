@@ -35,4 +35,11 @@ describe("Home", () => {
     expect(html).not.toContain("完整檔案將於後續內容管理功能中開啟");
     expect(html).not.toContain("案例詳情可連結至實際分享頁面");
   });
+
+  it("provides a focusable, described keyboard entry point for the interactive timeline", () => {
+    const html = renderToStaticMarkup(<Home />);
+    expect(html).toContain('id="timeboard-instruction"');
+    expect(html).toContain('role="region" aria-label="互動時間帶" aria-describedby="timeboard-instruction" tabindex="0"');
+    expect(html).toContain("聚焦時間帶後");
+  });
 });

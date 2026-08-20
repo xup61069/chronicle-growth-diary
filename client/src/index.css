@@ -138,6 +138,7 @@ a { color: inherit; text-decoration: none; }
 .arrow-set button:not(:disabled):hover { color: var(--ink); background: #fffdf8; }
 .timeline-viewport { margin-top: 32px; overflow: hidden; cursor: grab; padding: 22px 0; touch-action: pan-y; user-select: none; }
 .timeline-viewport:active { cursor: grabbing; }
+.timeline-viewport:focus-visible { outline: 2px solid var(--cinnabar); outline-offset: 5px; }
 .timeline-track { display: flex; min-width: max-content; padding-left: calc(50% - 88px); transition: transform .24s cubic-bezier(.23,1,.32,1); }
 .timeline-event { color: #c9d3d8; background: transparent; padding: 0 0 0 14px; width: 202px; border: 0; text-align: left; position: relative; min-height: 166px; display: flex; flex-direction: column; align-items: flex-start; }
 .event-date { font: 400 37px/.85 "DM Serif Display", serif; display: flex; align-items: baseline; gap: 7px; letter-spacing: -.03em; }

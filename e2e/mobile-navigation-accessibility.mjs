@@ -30,6 +30,25 @@ try {
     throw new Error("沒有互動控制項取得焦點時，方向鍵應可切換時間帶事件。");
   }
 
+  const timelineViewport = page.locator(".timeline-viewport");
+  if (await timelineViewport.getAttribute("tabindex") !== "0") {
+    throw new Error("互動時間帶應提供可聚焦的鍵盤入口。");
+  }
+  await timelineViewport.focus();
+  const focusedTimelineTitle = (await timelineTitle.textContent())?.trim();
+  await page.keyboard.press("ArrowLeft");
+  if ((await timelineTitle.textContent())?.trim() === focusedTimelineTitle) {
+    throw new Error("聚焦時間帶後，左方向鍵應可切換事件。");
+  }
+
+  const nextEventButton = page.getByRole("button", { name: "下一個事件" });
+  await nextEventButton.focus();
+  const buttonFocusedTimelineTitle = (await timelineTitle.textContent())?.trim();
+  await page.keyboard.press("ArrowRight");
+  if ((await timelineTitle.textContent())?.trim() !== buttonFocusedTimelineTitle) {
+    throw new Error("時間帶內按鈕取得焦點時，方向鍵不應重複切換事件。");
+  }
+
   await Promise.all([
     page.waitForURL(/#stories$/),
     exampleLink.click(),
@@ -65,7 +84,7 @@ try {
     throw new Error("點擊行動導覽連結後未收合選單。");
   }
 
-  console.log("公開首頁回歸通過：範例入口、方向鍵焦點保護、行動選單展開、Escape 與連結收合均正常。");
+  console.log("公開首頁回歸通過：範例入口、時間帶鍵盤入口與焦點保護、行動選單展開、Escape 與連結收合均正常。");
 } finally {
   await browser.close();
 }

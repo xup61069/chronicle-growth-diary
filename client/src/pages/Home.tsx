@@ -182,6 +182,15 @@ export default function Home() {
     dragStart.current = null;
   };
 
+  const onTimelineViewportKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement | null;
+    if (!shouldHandleTimelineArrowKey(event.key, target?.tagName, target?.isContentEditable)) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    stepTimeline(event.key === "ArrowLeft" ? -1 : 1);
+  };
+
   return (
     <div className="chronicle-site">
       <header className="site-header">
@@ -265,9 +274,9 @@ export default function Home() {
               <p className="eyebrow inverted"><span /> 即時預覽</p>
               <h2 id="timeboard-title">拖曳時間帶，<br />從脈絡開始閱讀。</h2>
             </div>
-            <div className="timeboard-instruction">
+            <div id="timeboard-instruction" className="timeboard-instruction">
               <GripHorizontal size={18} />
-              <span>可拖曳或使用<br />鍵盤左右鍵探索</span>
+              <span>可拖曳；聚焦時間帶後<br />可用鍵盤左右鍵探索</span>
             </div>
           </div>
 
@@ -291,10 +300,15 @@ export default function Home() {
 
           <div
             className="timeline-viewport"
+            role="region"
+            aria-label="互動時間帶"
+            aria-describedby="timeboard-instruction"
+            tabIndex={0}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerEnd}
             onPointerCancel={onPointerEnd}
+            onKeyDown={onTimelineViewportKeyDown}
           >
             <div
               className="timeline-track"

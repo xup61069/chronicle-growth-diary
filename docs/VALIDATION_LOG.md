@@ -170,3 +170,9 @@
 首頁頁內錨點維持原生平滑捲動；新增 `prefers-reduced-motion: reduce` 覆寫，當使用者要求減少動態效果時會改為立即定位。這讓「觀看範例」及主要導覽的同頁跳轉保有一致節奏，同時尊重系統層級的動態偏好。
 
 新增 `indexStyles.test.ts` 驗證預設平滑捲動與減少動態覆寫並存。完整 `pnpm check`、46 個測試檔共 125 項 Vitest 與正式建置均通過；此改善不觸發登入流程。
+
+## 2026-08-20：正式 OAuth 入口 CloudFront 403
+
+使用者在公開預覽首頁點擊「登入」後，瀏覽器正確導向 `https://manus.im/app-auth`，並帶有專案 `appId`、目前預覽來源生成的 `redirectUri`、一次性 `state` 與 `type=signIn` 參數。頁面隨即回傳 CloudFront 的「403 ERROR — The request could not be satisfied」；再次直接開啟不含任何查詢參數的 `https://manus.im/app-auth`，結果同樣是 CloudFront 403。
+
+因此，本次拒絕發生在外部 OAuth 入口抵達專案 callback 之前，而不是由 Chronicle 的 nonce／state callback 防偽檢查所產生；目前程式仍使用 `window.location.origin` 建立回呼網址，符合既有 OAuth 整合契約。正式 OAuth `diary.get` 實證繼續延後，待外部登入入口恢復可用後再進行。
