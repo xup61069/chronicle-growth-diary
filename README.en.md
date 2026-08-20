@@ -15,12 +15,20 @@ Chronicle is a private, timeline-first journal for preserving childhood memories
 | Controlled sharing | Share only explicitly public events through public or secret links, with optional passwords, expiry dates, and access counts. |
 | Portability | Export PDF, long-image, versioned JSON, Markdown, or a constrained ZIP media archive with event-image bytes. JSON imports create private events only and deliberately exclude credentials and media bytes. |
 | Recovery | Keep event revision snapshots, restore an earlier version, or permanently delete the account through an explicit confirmation phrase. |
+| Public homepage | Explore a focusable interactive timeboard, exposed filter state, a keyboard skip link, mobile navigation, reduced-motion support, branded social previews, and clear routes into examples or the editor. |
+| Offline quick notes | `/quick-note` keeps a draft in the current device’s browser, works offline, and lets a person copy the draft into the full editor when ready. |
 
 ## Privacy commitments
 
 Chronicle treats a diary as private by default. API procedures scope data to the authenticated owner, and public reading pages expose only events explicitly marked for sharing. Media bytes live in object storage; database rows retain only their keys, URLs, and metadata. Share passwords are not stored in plain text.
 
 AI chapter reflections are optional. Turning off the diary-level AI preference blocks new generation requests on the server, while saved reflections can be deleted without changing the underlying events. The editor’s writing-guide buttons run entirely in the browser and add editable prompt text to the local draft; they do not call an AI service or transmit diary content.
+
+## Current public validation status
+
+The public homepage and `/quick-note` can be used without sign-in. The 375px public-browser regression covers the skip link, reduced-motion preference, keyboard timeboard exploration, filter selection state, mobile navigation, story examples, and the offline quick-note entry. Open Graph and Twitter previews now use a branded Chronicle timeboard visual rather than a logo-only image.
+
+> Formal Manus OAuth is currently blocked outside the application: both the public-preview redirect and a direct visit to `https://manus.im/app-auth` returned a CloudFront 403. The formal `diary.get` success proof on the primary development site therefore remains deferred; the rejection occurs before Chronicle’s callback. See [`docs/VALIDATION_LOG.md`](./docs/VALIDATION_LOG.md) for the documented boundary and the separate local-auth evidence.
 
 ## Local development
 
@@ -37,6 +45,12 @@ Run the quality gate before opening a pull request:
 corepack pnpm check
 corepack pnpm test
 corepack pnpm build
+```
+
+To run the 375px public-homepage browser regression, start an HTTPS preview and provide its URL:
+
+```bash
+CHRONICLE_E2E_BASE_URL=https://your-preview.example corepack pnpm test:e2e:mobile-nav
 ```
 
 For local authentication, S3/MinIO-compatible storage, OpenAI-compatible LLM configuration, and environment-variable details, see [Local development](./docs/LOCAL_DEVELOPMENT.md). For MySQL, object storage, backups, restores, and deployment operations, see [Self-hosting](./docs/SELF_HOSTING.md).

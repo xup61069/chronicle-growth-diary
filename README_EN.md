@@ -9,6 +9,7 @@ Chronicle is a private, timeline-based journal for arranging memories, learning,
 | Sharing | Public or secret-link stories, optional password protection, expiration, and privacy-respecting access counts. |
 | Portability | PDF, long-image, versioned JSON, and Markdown exports; JSON import is previewed before private events are created. |
 | Local-first work | A PWA shell and `/quick-note` page preserve device-local draft text before a user is ready to place it in the full editor. |
+| Public experience | The homepage offers keyboard-aware timeboard exploration, reduced-motion support, a device-local quick-note route, and branded social previews. |
 
 ## Privacy model
 
@@ -27,6 +28,10 @@ corepack pnpm dev
 ```
 
 Read [LOCAL_DEVELOPMENT.md](./docs/LOCAL_DEVELOPMENT.md) for provider selection, [SELF_HOSTING.md](./docs/SELF_HOSTING.md) for deployment and recovery guidance, and [CONTRIBUTING.md](./CONTRIBUTING.md) before proposing a change.
+
+## Public validation and OAuth note
+
+The public homepage and `/quick-note` are available without sign-in. The project maintains a 375px browser regression for keyboard navigation, reduced motion, filter state, story examples, and the local quick-note route. Formal Manus OAuth verification remains deferred because both the public redirect and a direct visit to `https://manus.im/app-auth` returned a CloudFront 403 before Chronicle’s callback. See [VALIDATION_LOG.md](./docs/VALIDATION_LOG.md) for the diagnostic boundary.
 
 ## Contributing
 

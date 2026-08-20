@@ -22,6 +22,14 @@ Chronicle 是一個以時間軸呈現的私人數位日記。它幫助使用者�
 | 進階分享連結 | 分享可設為密碼保護與到期日；擁有者可查看成功開啟故事的累積次數與最近存取時間，系統不記錄閱覽者身分或 IP 位址。 |
 | 年度回顧模板 | 依指定年度的實際日記事件產生年度敘事、里程碑索引或回望提問，絕不虛構未記錄的經歷。 |
 | 公開故事編排 | 可上傳公開故事封面、設定封面標題，並選擇編輯式長文、影像畫廊或極簡時間帶版型；分享頁完整保留公開事件的排序圖片與說明。 |
+| 公開首頁體驗 | 提供可聚焦的互動時間帶、分類篩選狀態、鍵盤跳至主要內容、行動導覽、減少動態偏好、品牌化社群分享預覽，以及案例與編輯器入口。 |
+| 離線快速記事 | `/quick-note` 會將草稿保存在目前裝置的瀏覽器；使用者可離線記錄，準備好後複製內容至完整編輯器整理成正式事件。 |
+
+## 目前公開驗證狀態
+
+公開首頁與 `/quick-note` 可在未登入狀態使用。首頁的 375px 瀏覽器回歸覆蓋鍵盤跳至主要內容、減少動態偏好、時間帶鍵盤探索、分類篩選狀態、行動選單、故事案例與離線快速記事入口。Open Graph 與 Twitter 分享預覽使用 Chronicle 的時間帶視覺，而非僅使用標誌。
+
+> 正式 Manus OAuth 目前受外部登入入口影響：公開預覽導向的 `https://manus.im/app-auth` 與不含參數的同一入口都曾回傳 CloudFront 403，因此主開發站的正式 `diary.get` 成功載入實證仍延後。此問題發生在 Chronicle callback 之前；完整診斷邊界與未登入／隔離 local-auth 證據記錄於 [`docs/VALIDATION_LOG.md`](./docs/VALIDATION_LOG.md)。
 
 ## 本機開發
 
@@ -40,6 +48,12 @@ Windows PowerShell 若未找到 `pnpm`，可直接改用 `corepack.cmd pnpm`。�
 corepack pnpm test
 corepack pnpm check
 corepack pnpm build
+```
+
+如需對公開首頁進行 375px 瀏覽器回歸，可先啟動 HTTPS 開發預覽並設定其網址：
+
+```bash
+CHRONICLE_E2E_BASE_URL=https://your-preview.example corepack pnpm test:e2e:mobile-nav
 ```
 
 ## 貢獻與持續整合

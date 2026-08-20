@@ -176,3 +176,14 @@
 使用者在公開預覽首頁點擊「登入」後，瀏覽器正確導向 `https://manus.im/app-auth`，並帶有專案 `appId`、目前預覽來源生成的 `redirectUri`、一次性 `state` 與 `type=signIn` 參數。頁面隨即回傳 CloudFront 的「403 ERROR — The request could not be satisfied」；再次直接開啟不含任何查詢參數的 `https://manus.im/app-auth`，結果同樣是 CloudFront 403。
 
 因此，本次拒絕發生在外部 OAuth 入口抵達專案 callback 之前，而不是由 Chronicle 的 nonce／state callback 防偽檢查所產生；目前程式仍使用 `window.location.origin` 建立回呼網址，符合既有 OAuth 整合契約。正式 OAuth `diary.get` 實證繼續延後，待外部登入入口恢復可用後再進行。
+
+## 2026-08-20：公開首頁、離線快速記事與社群預覽
+
+| 檢查項目 | 結果 | 方法 |
+| --- | --- | --- |
+| 公開首頁鍵盤與行動導覽 | 通過 | `test:e2e:mobile-nav` 以 375×812 Chromium 驗證跳至主要內容、行動選單收合、故事案例、時間帶鍵盤探索、內部控制項焦點保護與分類篩選的 `aria-pressed` 更新。 |
+| 減少動態偏好 | 通過 | 同一回歸啟用 `prefers-reduced-motion: reduce`，確認工作台過場縮短至近乎立即，故事圖片 hover 不再縮放。 |
+| 離線快速記事入口與資料處理說明 | 通過 | 首頁提供 `/quick-note` 入口，且明確關聯「草稿只保存在目前裝置；準備好後可複製並整理成正式事件」說明；瀏覽器回歸確認入口、說明與路由可用。 |
+| 社群分享中繼資料 | 通過（自動化） | Open Graph 與 Twitter 圖片均指向 Chronicle 品牌化時間帶視覺，並提供中文替代文字；`socialMetadata.test.ts` 已覆蓋。 |
+
+完整 `pnpm check`、48 個測試檔共 133 項 Vitest、`pnpm build` 與上述公開首頁瀏覽器回歸均通過。這些檢查均未觸發正式 OAuth 登入；正式 `diary.get` 載入仍以本文件先前所述的外部 403 限制追蹤。
