@@ -8,6 +8,7 @@ const password = 'local-validation-passphrase';
 const eventTitle = '375px 工作區驗證事件';
 const anniversaryTitle = '兩年前的同日驗證事件';
 const lockedAnniversaryTitle = '尚未解鎖的同日膠囊';
+const lockedMonthlyTitle = '尚未解鎖的月度膠囊';
 const today = new Date();
 const anniversaryOccurredAt = new Date(today.getFullYear() - 2, today.getMonth(), today.getDate(), 12).getTime();
 const viewport = process.env.CHRONICLE_E2E_VIEWPORT === 'desktop' ? { width: 1280, height: 720 } : { width: 375, height: 812 };
@@ -122,9 +123,45 @@ try {
     shareScope: 'private',
   });
   assert(lockedAnniversaryCreation.status === 200, '無法建立隔離鎖定同日膠囊。');
+  const lockedMonthlyCreation = await trpcMutation(page, 'diary.createEvent', {
+    occurredAt: Date.parse('2026-08-18T00:00:00.000Z'),
+    datePrecision: 'day',
+    eventType: 'memory',
+    title: lockedMonthlyTitle,
+    body: '此內容在月度摘要列印時應維持遮罩。',
+    ageLabel: null,
+    place: null,
+    color: '#EE623B',
+    tagNames: [],
+    skillNames: [],
+    track: 'life',
+    milestoneType: 'standard',
+    milestoneWeight: 1,
+    comparisonGroup: null,
+    unlocksAt: Date.now() + 3 * 24 * 60 * 60 * 1000,
+    phaseKeywords: [],
+    mapLatitudeE6: null,
+    mapLongitudeE6: null,
+    locationPrivacy: 'none',
+    soundtrackTitle: null,
+    soundtrackUrl: null,
+    shareScope: 'private',
+  });
+  assert(lockedMonthlyCreation.status === 200, '無法建立隔離鎖定月度膠囊。');
 
   if (viewport.width > 375) {
     await page.reload({ waitUntil: 'domcontentloaded' });
+    const desktopMonthlyDigest = page.locator('.monthly-digest-studio');
+    await desktopMonthlyDigest.getByRole('heading', { name: '這個月留下了什麼' }).waitFor({ timeout: 10_000 });
+    await desktopMonthlyDigest.getByText('未解鎖 1', { exact: true }).waitFor({ timeout: 10_000 });
+    const desktopMonthlyPreviewPromise = context.waitForEvent('page');
+    await desktopMonthlyDigest.getByRole('button', { name: '列印／另存摘要' }).click();
+    const desktopMonthlyPreview = await desktopMonthlyPreviewPromise;
+    await desktopMonthlyPreview.getByRole('button', { name: '列印／另存 PDF' }).waitFor({ timeout: 10_000 });
+    assert(await desktopMonthlyPreview.getByText(eventTitle, { exact: true }).isVisible(), '桌面月度摘要未編排已解鎖的私人事件。');
+    assert(await desktopMonthlyPreview.getByText(lockedMonthlyTitle, { exact: true }).count() === 0, '桌面月度摘要不應顯示未解鎖膠囊標題。');
+    await desktopMonthlyPreview.close();
+    findings.checks.push('desktop private monthly digest print and capsule masking');
     const desktopOnThisDay = page.locator('.on-this-day-card');
     await desktopOnThisDay.getByRole('heading', { name: 'N 年前的今天' }).waitFor({ timeout: 10_000 });
     await desktopOnThisDay.getByText(anniversaryTitle, { exact: true }).waitFor({ timeout: 10_000 });
@@ -172,6 +209,17 @@ try {
     findings.checks.push('desktop private growth dashboard');
   } else {
   await page.reload({ waitUntil: 'domcontentloaded' });
+  const mobileMonthlyDigest = page.locator('.monthly-digest-studio');
+  await mobileMonthlyDigest.getByRole('heading', { name: '這個月留下了什麼' }).waitFor({ timeout: 10_000 });
+  await mobileMonthlyDigest.getByText('未解鎖 1', { exact: true }).waitFor({ timeout: 10_000 });
+  const mobileMonthlyPreviewPromise = context.waitForEvent('page');
+  await mobileMonthlyDigest.getByRole('button', { name: '列印／另存摘要' }).click();
+  const mobileMonthlyPreview = await mobileMonthlyPreviewPromise;
+  await mobileMonthlyPreview.getByRole('button', { name: '列印／另存 PDF' }).waitFor({ timeout: 10_000 });
+  assert(await mobileMonthlyPreview.getByText(eventTitle, { exact: true }).isVisible(), '行動版月度摘要未編排已解鎖的私人事件。');
+  assert(await mobileMonthlyPreview.getByText(lockedMonthlyTitle, { exact: true }).count() === 0, '行動版月度摘要不應顯示未解鎖膠囊標題。');
+  await mobileMonthlyPreview.close();
+  findings.checks.push('375px private monthly digest print and capsule masking');
   const mobileOnThisDay = page.locator('.on-this-day-card');
   await mobileOnThisDay.getByRole('heading', { name: 'N 年前的今天' }).waitFor({ timeout: 10_000 });
   await mobileOnThisDay.getByText(anniversaryTitle, { exact: true }).waitFor({ timeout: 10_000 });

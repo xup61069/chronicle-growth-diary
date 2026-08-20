@@ -21,6 +21,7 @@ import { createChronicleFrontmatter, downloadChronicleFrontmatter, parseChronicl
 import { openPrintBook } from "@/lib/printBook";
 import { downloadMilestoneCard } from "@/lib/socialMilestoneCard";
 import { buildAnnualShareCardData, downloadAnnualShareCard } from "@/lib/annualSocialCard";
+import { buildMonthlyDigest, getAvailablePrivateMonths } from "@/lib/monthlyDigest";
 import { parseSocialDraftCsv, parseSocialDraftJson, type SocialDraftCandidate } from "@/lib/socialDraftImport";
 import { buildTrackRows, filterEventsBySkill, getTimelineInsights, getTimelineSkills, isTimeCapsuleLocked, milestoneLabels } from "@/lib/multitrackTimeline";
 import { buildPlaceFootprints, buildSpatialFootprints, getBentoSpan, timelineViewOptions, type TimelineViewMode } from "@/lib/timelineViews";
@@ -143,6 +144,7 @@ function DiaryEditorContent() {
   const [annualYear, setAnnualYear] = useState("");
   const [annualTemplate, setAnnualTemplate] = useState<AnnualReviewTemplate>("narrative");
   const [annualAiConsent, setAnnualAiConsent] = useState(false);
+  const [monthlyDigestMonthKey, setMonthlyDigestMonthKey] = useState("");
   const [phaseBoundaries, setPhaseBoundaries] = useState<PhaseBoundaries>({ childhood: { start: "", end: "" }, education: { start: "", end: "" }, career: { start: "", end: "" } });
   const [draggedEventId, setDraggedEventId] = useState<number | null>(null);
   const [draggedMediaId, setDraggedMediaId] = useState<number | null>(null);
@@ -333,6 +335,9 @@ function DiaryEditorContent() {
   }, [events]);
   const reflectionsByPhase = useMemo(() => new Map((data?.reflections ?? []).map((reflection) => [reflection.phaseKey, reflection])), [data?.reflections]);
   const privateAnnualEvents = useMemo(() => events.filter((event) => event.shareScope === "private"), [events]);
+  const monthlyDigestMonths = useMemo(() => getAvailablePrivateMonths(events), [events]);
+  const activeMonthlyDigestMonth = useMemo(() => monthlyDigestMonths.find((month) => `${month.year}-${String(month.month).padStart(2, "0")}` === monthlyDigestMonthKey) ?? monthlyDigestMonths[0], [monthlyDigestMonthKey, monthlyDigestMonths]);
+  const monthlyDigest = useMemo(() => activeMonthlyDigestMonth ? buildMonthlyDigest(events, activeMonthlyDigestMonth) : null, [activeMonthlyDigestMonth, events]);
   const onThisDayMemories = onThisDayQuery.data ?? [];
   const availableYears = useMemo(() => Array.from(new Set(privateAnnualEvents.map((event) => new Date(event.occurredAt).getFullYear()))).sort((left, right) => right - left), [privateAnnualEvents]);
   const annualReview = useMemo(() => buildAnnualReview(privateAnnualEvents, Number(annualYear || availableYears[0] || new Date().getFullYear()), annualTemplate), [annualTemplate, annualYear, availableYears, privateAnnualEvents]);
@@ -353,6 +358,26 @@ function DiaryEditorContent() {
     toast.success("已匯出年度回顧 Markdown。內容僅保存在此下載檔。 ");
   };
   const writingGuides = useMemo(() => getLocalWritingGuides(form.eventType), [form.eventType]);
+
+  useEffect(() => {
+    if (!monthlyDigestMonths.length) {
+      setMonthlyDigestMonthKey("");
+      return;
+    }
+    if (!monthlyDigestMonths.some((month) => `${month.year}-${String(month.month).padStart(2, "0")}` === monthlyDigestMonthKey)) {
+      const first = monthlyDigestMonths[0];
+      setMonthlyDigestMonthKey(`${first.year}-${String(first.month).padStart(2, "0")}`);
+    }
+  }, [monthlyDigestMonthKey, monthlyDigestMonths]);
+
+  const openMonthlyDigestPrint = () => {
+    if (!monthlyDigest || !data) return;
+    openPrintBook({
+      title: `${data.diary.title}｜${monthlyDigest.title}`,
+      subtitle: "本摘要只編排這個月份的私人事件。未解鎖時空膠囊會維持遮罩；不會寄送或自動分享給他人。",
+      phases: [{ key: `${monthlyDigest.year}-${monthlyDigest.month}`, label: monthlyDigest.title, note: monthlyDigest.lead, yearRange: `${monthlyDigest.year} 年 ${monthlyDigest.month} 月`, events: monthlyDigest.events }],
+    });
+  };
 
   const openOnThisDayMemory = (eventId: number) => {
     setSelectedId(eventId);
@@ -1094,6 +1119,11 @@ function DiaryEditorContent() {
       </section> : null}
       {mediaArchivePreview ? <section className="import-studio" aria-labelledby="media-import-title"><div><p className="editor-kicker"><span /> MEDIA ARCHIVE / VERIFIED</p><h2 id="media-import-title">確認要還原的事件圖片</h2><p>已驗證媒體封存的 manifest、事件標題與發生時間。這次將把 {mediaArchivePreview.items.length} 張圖片加回目前相符的事件；不會接受外部 URL、儲存金鑰、分享設定或帳號資料。</p></div><div className="import-warning"><Archive size={15} /> 只接受 JPG、PNG、WebP、GIF；單張最大 4MB，封存與解壓後總量皆受 25MB 上限保護。</div><div className="import-actions"><button type="button" onClick={() => setMediaArchivePreview(null)} disabled={isMediaArchiveImporting}>取消</button><button type="button" onClick={confirmMediaArchiveImport} disabled={isMediaArchiveImporting}>{isMediaArchiveImporting ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />} 匯入 {mediaArchivePreview.items.length} 張圖片</button></div></section> : null}
       {socialPreview ? <section className="import-studio" aria-labelledby="social-import-title"><div><p className="editor-kicker"><span /> SOCIAL DRAFT / LOCAL ONLY</p><h2 id="social-import-title">先檢視，再帶進成長史</h2><p>已在此裝置解析 {socialPreview.length} 則候選；系統已依來源 ID 去重。確認前不會寫入日記，也不會連接社群帳號。</p></div><div className="import-preview-list">{socialPreview.slice(0, 5).map((candidate) => <article key={candidate.sourceId}><span>{formatDate(candidate.occurredAt, "day")}</span><b>{candidate.title}</b><small>{candidate.isSignificant ? "重大事件候選" : "一般候選"}</small></article>)}</div><div className="import-warning"><Archive size={15} /> 確認後一律建立為私人事件，並標記「社群匯入」。請先檢視原始內容。</div><div className="import-actions"><button type="button" onClick={() => setSocialPreview(null)} disabled={importMutation.isPending}>取消</button><button type="button" onClick={confirmSocialImport} disabled={importMutation.isPending}>{importMutation.isPending ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />} 確認建立 {socialPreview.length} 段事件</button></div></section> : null}
+
+      {isOwner ? <section className="monthly-digest-studio" aria-labelledby="monthly-digest-title">
+        <header><div><p className="editor-kicker"><span /> MONTHLY PRIVATE EDITION</p><h2 id="monthly-digest-title">這個月留下了什麼</h2><p>手動整理指定月份的私人事件，適合在家庭聚會前列印或另存。摘要不會自動寄送，也不會把內容放進公開分享。</p></div><CalendarDays size={27} aria-hidden="true" /></header>
+        {monthlyDigest ? <><div className="monthly-digest-controls"><label>整理月份<select aria-label="月度摘要月份" value={monthlyDigestMonthKey} onChange={(event) => setMonthlyDigestMonthKey(event.target.value)}>{monthlyDigestMonths.map((month) => { const key = `${month.year}-${String(month.month).padStart(2, "0")}`; return <option value={key} key={key}>{month.year} 年 {month.month} 月</option>; })}</select></label><button type="button" onClick={openMonthlyDigestPrint}><FileDown size={15} /> 列印／另存摘要</button></div><article className="monthly-digest-card"><div className="monthly-digest-count"><b>{monthlyDigest.count.toString().padStart(2, "0")}</b><span>段私人事件</span></div><div><p>{monthlyDigest.lead}</p><div className="monthly-digest-stats"><span>回憶 {monthlyDigest.typeCounts.memory}</span><span>學習 {monthlyDigest.typeCounts.learning}</span><span>成就 {monthlyDigest.typeCounts.achievement}</span><span>章節 {monthlyDigest.typeCounts.chapter}</span>{monthlyDigest.lockedCount ? <span>未解鎖 {monthlyDigest.lockedCount}</span> : null}</div>{monthlyDigest.tags.length ? <div className="monthly-digest-tags">{monthlyDigest.tags.map((tag) => <span key={tag}>#{tag}</span>)}</div> : null}</div></article></> : <div className="monthly-digest-empty"><CalendarDays size={20} /><p>還沒有可整理的私人月份。先寫下一筆具日期的事件，之後可在這裡建立摘要。</p></div>}
+      </section> : null}
 
       <section className="annual-review-studio" aria-labelledby="annual-review-title">
         <div className="annual-review-heading"><p className="editor-kicker"><span /> YEAR IN REVIEW</p><h2 id="annual-review-title">把一年，整理成下一段故事的起點。</h2><p>從已經寫下的事件建立年度回顧。模板只重組你的日記內容，不會虛構新的經歷。</p></div>

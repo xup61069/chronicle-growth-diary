@@ -251,6 +251,26 @@
 .on-this-day-locked p { margin: 3px 0 0; }
 .on-this-day-empty { display: flex; align-items: center; gap: 10px; min-height: 68px; margin-top: 15px; color: var(--ink-soft); border-top: 1px solid rgba(20,38,58,.18); font-size: 12px; line-height: 1.65; }
 .on-this-day-empty p { margin: 0; }
+.monthly-digest-studio { margin: 18px 0; border: 1px solid rgba(20,38,58,.24); background: #f5f0e6; padding: 19px; }
+.monthly-digest-studio > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
+.monthly-digest-studio h2 { margin: 3px 0 6px; font: 400 clamp(26px,3vw,36px)/1.05 "DM Serif Display", serif; letter-spacing: -.03em; }
+.monthly-digest-studio header > div > p:last-child { max-width: 680px; margin: 0; color: var(--ink-soft); font-size: 12px; line-height: 1.65; }
+.monthly-digest-studio > header > svg { flex: 0 0 auto; color: var(--cinnabar); }
+.monthly-digest-controls { display: flex; align-items: end; justify-content: space-between; gap: 12px; margin-top: 16px; }
+.monthly-digest-controls label { display: grid; gap: 5px; color: var(--ink-soft); font: 500 9px "IBM Plex Mono", monospace; letter-spacing: .06em; }
+.monthly-digest-controls select { min-height: 35px; border: 1px solid rgba(20,38,58,.28); border-radius: 0; background: #fffdf8; color: var(--ink); padding: 0 8px; font: 12px "Noto Sans TC", sans-serif; }
+.monthly-digest-controls button { display: inline-flex; align-items: center; gap: 6px; min-height: 35px; border: 1px solid var(--ink); background: var(--ink); color: #fff; padding: 0 11px; font: 600 10px "IBM Plex Mono", monospace; }
+.monthly-digest-controls button:hover { border-color: var(--cinnabar); background: var(--cinnabar); }
+.monthly-digest-card { display: grid; grid-template-columns: 110px minmax(0,1fr); gap: 16px; margin-top: 11px; padding: 15px; border: 1px solid rgba(20,38,58,.19); background: rgba(255,253,248,.68); }
+.monthly-digest-count { display: grid; align-content: center; border-right: 1px solid rgba(20,38,58,.18); }
+.monthly-digest-count b { font: 500 34px/1 "IBM Plex Mono", monospace; }
+.monthly-digest-count span { margin-top: 4px; color: var(--ink-soft); font: 500 9px "IBM Plex Mono", monospace; }
+.monthly-digest-card p { margin: 0; color: var(--ink-soft); font-size: 12px; line-height: 1.7; }
+.monthly-digest-stats, .monthly-digest-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 11px; }
+.monthly-digest-stats span, .monthly-digest-tags span { color: var(--ink-soft); background: #e8e2d5; padding: 4px 6px; font: 500 9px "IBM Plex Mono", monospace; }
+.monthly-digest-tags span { color: #52616d; background: transparent; border-bottom: 1px solid rgba(20,38,58,.28); }
+.monthly-digest-empty { display: flex; align-items: center; gap: 10px; min-height: 75px; margin-top: 14px; border-top: 1px solid rgba(20,38,58,.18); color: var(--ink-soft); font-size: 12px; line-height: 1.65; }
+.monthly-digest-empty p { margin: 0; }
 .preview-card.is-capsule-locked > :not(.capsule-lock-notice) { display: none; }
 .capsule-lock-notice { display: grid; justify-items: center; gap: 7px; padding: 34px 18px; text-align: center; color: var(--ink); }
 .capsule-lock-notice svg { color: var(--cinnabar); }
@@ -286,6 +306,11 @@
   .life-progress-ring { grid-template-columns: 1fr; justify-items: start; gap: 14px; }
   .on-this-day-card { padding: 17px; }
   .on-this-day-card > header { gap: 10px; }
+  .monthly-digest-studio { padding: 17px; }
+  .monthly-digest-controls { align-items: stretch; flex-direction: column; }
+  .monthly-digest-controls button { justify-content: center; }
+  .monthly-digest-card { grid-template-columns: 1fr; gap: 12px; }
+  .monthly-digest-count { border-right: 0; border-bottom: 1px solid rgba(20,38,58,.18); padding-bottom: 10px; }
   .spatial-footprint-map { min-height: 150px; }
   .spatial-footprint-node span { max-width: 66px; }
 }
