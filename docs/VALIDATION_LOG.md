@@ -6,9 +6,10 @@
 
 | 範圍 | 狀態 | 可重現方法 |
 | --- | --- | --- |
-| 型別、單元測試與正式建置 | 通過 | `pnpm check && pnpm test && pnpm build`。目前基準為 **55 個測試檔、156 項 Vitest**。 |
+| 格式、型別、單元測試與正式建置 | 通過 | `pnpm lint && pnpm check && pnpm test`，再分別執行 `./node_modules/.bin/vite build` 與 `pnpm exec esbuild server/_core/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist`。目前基準為 **56 個測試檔、157 項 Vitest**。 |
 | 公開首頁 375px | 通過 | 設定 HTTPS `CHRONICLE_E2E_BASE_URL` 後執行 `pnpm test:e2e:mobile-nav`。覆蓋跳至主要內容、行動導覽、故事案例、時間帶鍵盤探索、篩選狀態、減少動態與離線快速記事入口。 |
 | 路由載入邊界 | 通過 | Vite 將資料客戶端、圖表、文件匯出、圖示庫與僅工作台使用的 UI 套件分離為可快取 chunk；公開首頁入口產物由 **151.74 KiB** 降至 **128.53 KiB**（減少 **23.21 KiB／15.00%**）。`RouteLoadingState` 提供 `aria-busy` 與 live status；公開首頁 375px、以及隔離 local-auth 的 375px／桌面 `/editor`、`/dashboard` 與返回導覽回歸均通過。 |
+| 按需文件匯出邊界 | 通過 | `diaryExport.ts` 僅以 `import("html2canvas")` 與 `import("jspdf")` 載入大型依賴；`diaryExportCodeSplitting.test.ts` 禁止回歸為靜態 import，`diaryExport.test.ts` 覆蓋多頁 PDF 與長圖片下載的封裝流程。壓縮 Vite 產物確認 `DiaryEditor` 以動態 `import()` 指向 **593.38 KiB** 的 `document-export` chunk，而公開首頁入口沒有此 chunk 參照；`route-preload` 則先於一般 `node_modules` 規則獨立分割。 |
 | 隔離 local-auth 編輯器 | 通過 | 設定 HTTPS `CHRONICLE_E2E_BASE_URL` 後執行 `pnpm test:e2e:isolated`。腳本會建立並清除暫時帳號，覆蓋 375px 日記載入、分頁、事件選取、private 語音日記入口與本機優先狀態、家庭反應切換、A5 私人書冊預覽、年度 AI 同意與 private 事件 Markdown 匯出、成長數據儀表板，以及 `diary.get` 逾時／失敗恢復。 |
 | 公開故事閱讀版型 | 通過 | `SharedStory` 測試覆蓋 `editorial`、`gallery` 與 `minimal`；隔離 local-auth 已完成三種版型的 375px 視覺回歸。 |
 | 社群分享中繼資料 | 通過 | `socialMetadata.test.ts` 驗證 Open Graph 與 Twitter 圖片皆採 Chronicle 品牌時間帶視覺與替代文字。 |
@@ -24,6 +25,10 @@
 公開預覽的登入按鈕會以既有 nonce、`state`、`appId` 與 callback 契約導向 `https://manus.im/app-auth`。然而，2026-08-20 的檢查顯示：帶參數的導向及不帶參數直接造訪該入口都回傳 CloudFront 403。拒絕在 Chronicle callback 之前發生，因此不是本專案的 state 驗證或 `diary.get` 邏輯所造成。
 
 正式 Manus OAuth 工作階段的 `diary.get` 成功載入仍待外部登入入口恢復後驗證。隔離 local-auth 證據不替代此項正式整合驗證。
+
+## 瀏覽器文件匯出驗證邊界
+
+2026-08-20 進行隔離 local-auth 的實際 PDF／長圖片下載整合嘗試時，headless Chromium 在不同時點發生 `Target crashed` 或 `Page crashed`；一度在觸發 PDF 下載後中斷。公開首頁瀏覽器回歸可正常完成，且型別、單元測試、壓縮前端產物及伺服器打包均通過，但這些結果**不替代**真實下載驗證。因此，PDF／長圖片的瀏覽器實際輸出暫列為 current sprint 待辦，待資源穩定的瀏覽器工作階段可用時重試。
 
 ## 驗證規則
 

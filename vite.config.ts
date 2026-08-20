@@ -203,6 +203,7 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
+          if (id.includes("preload-helper")) return "route-preload";
           if (!id.includes("node_modules")) return;
           if (id.includes("/recharts/")) return "charts";
           if (id.includes("/jspdf/") || id.includes("/html2canvas/")) return "document-export";
