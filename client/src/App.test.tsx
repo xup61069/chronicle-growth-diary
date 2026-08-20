@@ -8,5 +8,7 @@ describe("RouteLoadingState", () => {
     const html = renderToStaticMarkup(<RouteLoadingState />);
     expect(html).toContain("正在整理閱讀頁面…");
     expect(html).toContain("min-h-screen");
+    expect(html).toContain('role="status"');
+    expect(html).toContain('aria-busy="true"');
   });
 });

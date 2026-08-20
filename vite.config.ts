@@ -200,6 +200,19 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return;
+          if (id.includes("/recharts/")) return "charts";
+          if (id.includes("/jspdf/") || id.includes("/html2canvas/")) return "document-export";
+          if (id.includes("/@trpc/") || id.includes("/@tanstack/react-query/") || id.includes("/superjson/")) return "data-client";
+          if (id.includes("/lucide-react/")) return "icon-library";
+          if (id.includes("/@radix-ui/") || id.includes("/react-hook-form/") || id.includes("/@hookform/") || id.includes("/framer-motion/") || id.includes("/react-resizable-panels/") || id.includes("/react-day-picker/") || id.includes("/vaul/") || id.includes("/cmdk/")) return "workspace-ui";
+          if (/[/\\]node_modules[/\\](react|react-dom|scheduler)[/\\]/.test(id)) return "react-runtime";
+        },
+      },
+    },
   },
   server: {
     host: true,

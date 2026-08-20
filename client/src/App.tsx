@@ -15,7 +15,7 @@ const SharedStory = lazy(() => import("@/pages/SharedStory"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
 export function RouteLoadingState() {
-  return <main className="grid min-h-screen place-items-center bg-[#f7f4ec] px-6 text-center text-[#14263a]"><p className="font-mono text-xs tracking-[0.14em]">正在整理閱讀頁面…</p></main>;
+  return <main className="grid min-h-screen place-items-center bg-[#f7f4ec] px-6 text-center text-[#14263a]" aria-busy="true"><p className="font-mono text-xs tracking-[0.14em]" role="status" aria-live="polite">正在整理閱讀頁面…</p></main>;
 }
 
 function Router() {
