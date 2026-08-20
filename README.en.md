@@ -17,12 +17,28 @@ Chronicle is a private, timeline-first journal for preserving childhood memories
 | Recovery | Keep event revision snapshots, restore an earlier version, or permanently delete the account through an explicit confirmation phrase. |
 | Public homepage | Explore a focusable interactive timeboard, exposed filter state, a keyboard skip link, mobile navigation, reduced-motion support, branded social previews, and clear routes into examples or the editor. |
 | Offline quick notes | `/quick-note` keeps a draft in the current device’s browser, works offline, and lets a person copy the draft into the full editor when ready. |
+| Growth dashboard | The diary owner can view monthly writing density, life chapters, keywords, and writing streaks in `/dashboard`, aggregated from private events only and without returning event bodies, media, or locations. |
+| Voice diary | Record on a private event and keep the recording on the current device first. Every upload requires renewed consent before transcription; original audio and transcripts can be removed individually, and shared stories never return voice fields. |
+| A5 private book | The diary owner can open an A5 preview arranged by life chapter, then choose to print or save as PDF. Locked time capsules are redacted. |
+| Family event reactions | Diary owners and invited members can leave real heart, resonance, celebration, or support reactions on private events. The UI exposes only aggregate counts and the current member’s state; public and link stories are isolated from them. |
+| Route loading boundaries | The public homepage does not preload workspace charts, document export, or collaboration UI. Non-home routes announce an accessible loading state while their chunks load. |
 
 ## Privacy commitments
 
 Chronicle treats a diary as private by default. API procedures scope data to the authenticated owner, and public reading pages expose only events explicitly marked for sharing. Media bytes live in object storage; database rows retain only their keys, URLs, and metadata. Share passwords are not stored in plain text.
 
 AI chapter reflections are optional. Turning off the diary-level AI preference blocks new generation requests on the server, while saved reflections can be deleted without changing the underlying events. The editor’s writing-guide buttons run entirely in the browser and add editable prompt text to the local draft; they do not call an AI service or transmit diary content.
+
+## Private-feature data boundaries
+
+| Feature | When data is processed | Visibility and removal |
+| --- | --- | --- |
+| Annual AI review | The owner must confirm each generation; the server selects only private events from the requested year. | Public and link events never enter the prompt. Only the owner can generate or export the review. |
+| Voice diary | Audio is sent to transcription only after the person checks consent for that upload; offline recordings never auto-upload in the background. | Original audio lives in protected object storage and its table stores location plus metadata. Audio and transcript can be removed, and shared stories exclude both. |
+| Family reactions | A member explicitly clicks to add or remove a reaction. | Only diary members can read or write reactions on private events. There are no seeded or synthetic reactions, and sharing removes the field. |
+| A5 private book | The owner presses the preview control in the workspace. | Printing and saving are browser-initiated. Locked capsules redact body text, media, and transcripts. |
+
+The reproducible scope, sharing-redaction, and cross-viewport evidence lives in [`docs/VALIDATION_LOG.md`](./docs/VALIDATION_LOG.md).
 
 ## Current public validation status
 
@@ -55,6 +71,13 @@ To run the 375px public-homepage browser regression, start an HTTPS preview and 
 CHRONICLE_E2E_BASE_URL=https://your-preview.example corepack pnpm test:e2e:mobile-nav
 ```
 
+The private workspace regression uses local authentication. Start an HTTPS development service with both `AUTH_DRIVER=local` and `VITE_AUTH_DRIVER=local`, then run:
+
+```bash
+CHRONICLE_E2E_BASE_URL=https://your-local-auth-preview.example corepack pnpm test:e2e:isolated
+CHRONICLE_E2E_BASE_URL=https://your-local-auth-preview.example CHRONICLE_E2E_VIEWPORT=desktop corepack pnpm test:e2e:isolated
+```
+
 For local authentication, S3/MinIO-compatible storage, OpenAI-compatible LLM configuration, and environment-variable details, see [Local development](./docs/LOCAL_DEVELOPMENT.md). For MySQL, object storage, backups, restores, and deployment operations, see [Self-hosting](./docs/SELF_HOSTING.md).
 
 ## Project map
@@ -63,6 +86,10 @@ For local authentication, S3/MinIO-compatible storage, OpenAI-compatible LLM con
 client/src/pages/DiaryEditor.tsx   Private journal editor
 client/src/pages/SharedStory.tsx   Public and secret-link story reader
 client/src/lib/                    Browser-only export, import, filter, and writing helpers
+client/src/lib/printBook.ts         A5 private-book composition and capsule redaction
+client/src/lib/voiceDrafts.ts       Browser-side offline voice-draft queue
+server/db/voiceNotes.ts             Private audio and transcript coordination
+server/db/familyCollaboration.ts    Member, comment, and event-reaction authorization
 server/routers/diary.ts            Protected diary and public sharing contracts
 server/db.ts                       Data access, ownership checks, and storage coordination
 drizzle/schema.ts                  MySQL/TiDB-compatible data model
