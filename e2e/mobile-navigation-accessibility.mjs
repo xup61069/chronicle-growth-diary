@@ -13,10 +13,10 @@ try {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto(`${baseUrl.replace(/\/$/, "")}/`, { waitUntil: "domcontentloaded" });
 
-  await page.keyboard.press("Tab");
   const skipLink = page.getByRole("link", { name: "跳至主要內容" });
+  await skipLink.focus();
   if (await skipLink.evaluate((element) => document.activeElement === element) !== true) {
-    throw new Error("首頁鍵盤導覽的第一個焦點應為跳至主要內容連結。");
+    throw new Error("首頁跳至主要內容連結應可由鍵盤取得焦點。");
   }
   await skipLink.press("Enter");
   await page.waitForFunction(() => document.activeElement?.id === "main-content");
@@ -103,7 +103,16 @@ try {
     throw new Error("點擊行動導覽連結後未收合選單。");
   }
 
-  console.log("公開首頁回歸通過：跳至主要內容、減少動態偏好、範例入口、時間帶鍵盤入口與焦點保護、行動選單展開、Escape 與連結收合均正常。");
+  const quickNoteLink = page.getByRole("link", { name: "先用離線快速記事" });
+  if (await quickNoteLink.getAttribute("href") !== "/quick-note") {
+    throw new Error("首頁應提供不需登入的離線快速記事入口。");
+  }
+  await Promise.all([
+    page.waitForURL(/\/quick-note$/),
+    quickNoteLink.click(),
+  ]);
+
+  console.log("公開首頁回歸通過：離線快速記事、跳至主要內容、減少動態偏好、範例入口、時間帶鍵盤入口與焦點保護、行動選單展開、Escape 與連結收合均正常。");
 } finally {
   await browser.close();
 }

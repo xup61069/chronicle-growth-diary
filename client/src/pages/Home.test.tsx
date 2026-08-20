@@ -27,6 +27,13 @@ describe("Home", () => {
     expect(html).not.toContain("已開啟一份範例時間軸");
   });
 
+  it("keeps a public offline quick-note entry available alongside the full editor", () => {
+    const html = renderToStaticMarkup(<Home />);
+    expect(html).toContain('class="text-button offline-note-link" href="/quick-note"');
+    expect(html).toContain("先用離線快速記事");
+    expect(html).toContain('class="solid-button" href="/editor"');
+  });
+
   it("routes the timeboard and story examples to the editor instead of showing temporary notices", () => {
     const html = renderToStaticMarkup(<Home />);
     expect(html).toContain('class="timeline-detail"');
@@ -45,7 +52,9 @@ describe("Home", () => {
 
   it("provides a skip link that moves keyboard focus to the main content landmark", () => {
     const html = renderToStaticMarkup(<Home />);
-    expect(html).toContain('class="skip-link" href="#main-content"');
+    const skipLinkIndex = html.indexOf('class="skip-link" href="#main-content"');
+    expect(skipLinkIndex).toBeGreaterThan(-1);
+    expect(skipLinkIndex).toBeLessThan(html.indexOf("<header"));
     expect(html).toContain('<main id="main-content" tabindex="-1">');
   });
 });

@@ -11,6 +11,7 @@ import {
   Check,
   ChevronRight,
   Eye,
+  FilePenLine,
   GripHorizontal,
   Layers3,
   Menu,
@@ -251,6 +252,7 @@ export default function Home() {
             </p>
             <div className="hero-actions">
               <a className="solid-button" href="/editor">開始書寫成長故事 <ArrowUpRight size={17} /></a>
+              <a className="text-button offline-note-link" href="/quick-note">先用離線快速記事 <FilePenLine size={16} /></a>
               <a className="text-button" href="#stories">觀看範例 <ChevronRight size={17} /></a>
             </div>
           </div>
