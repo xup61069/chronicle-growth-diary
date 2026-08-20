@@ -80,6 +80,17 @@ try {
     }
     findings.checks.push('desktop private voice diary privacy entry');
 
+    const printPreviewPromise = context.waitForEvent('page');
+    await page.getByRole('button', { name: 'A5 書冊預覽' }).click();
+    const printPreview = await printPreviewPromise;
+    await printPreview.getByRole('button', { name: '列印／另存 PDF' }).waitFor({ timeout: 10_000 });
+    assert(await printPreview.getByText(eventTitle, { exact: true }).isVisible(), 'A5 書冊未編排目前的私有事件。');
+    if (process.env.CHRONICLE_E2E_PRINT_SCREENSHOT_PATH) {
+      await printPreview.screenshot({ path: process.env.CHRONICLE_E2E_PRINT_SCREENSHOT_PATH, fullPage: true });
+    }
+    await printPreview.close();
+    findings.checks.push('desktop private A5 print book preview');
+
     await page.goto(`${baseUrl}/dashboard`, { waitUntil: 'domcontentloaded' });
     await page.getByRole('heading', { name: '成長數據索引' }).waitFor({ timeout: 10_000 });
     await page.getByRole('img', { name: '私有事件的每月紀錄密度圖' }).waitFor({ timeout: 10_000 });
@@ -114,6 +125,14 @@ try {
     await voiceDiary.screenshot({ path: process.env.CHRONICLE_E2E_VOICE_SCREENSHOT_PATH });
   }
   findings.checks.push('375px private voice diary privacy entry');
+
+  const mobilePrintPreviewPromise = context.waitForEvent('page');
+  await page.getByRole('button', { name: 'A5 書冊預覽' }).click();
+  const mobilePrintPreview = await mobilePrintPreviewPromise;
+  await mobilePrintPreview.getByRole('button', { name: '列印／另存 PDF' }).waitFor({ timeout: 10_000 });
+  assert(await mobilePrintPreview.getByText(eventTitle, { exact: true }).isVisible(), '行動版 A5 書冊未編排目前的私有事件。');
+  await mobilePrintPreview.close();
+  findings.checks.push('375px private A5 print book preview');
 
   await page.getByRole('tab', { name: '索引' }).click();
   await page.getByRole('button', { name: '新增一段記憶' }).click();

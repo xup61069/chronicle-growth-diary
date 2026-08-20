@@ -18,6 +18,7 @@ import { getComparisonPair } from "@/lib/beforeAfter";
 import { formatCapsuleCountdown, getLifeProgress, getTimeCapsuleStatus } from "@/lib/lifeProgress";
 import { getVisualExportRecord } from "@/lib/visualExport";
 import { createChronicleFrontmatter, downloadChronicleFrontmatter, parseChronicleFrontmatter } from "@/lib/diaryFrontmatter";
+import { openPrintBook } from "@/lib/printBook";
 import { downloadMilestoneCard } from "@/lib/socialMilestoneCard";
 import { buildAnnualShareCardData, downloadAnnualShareCard } from "@/lib/annualSocialCard";
 import { parseSocialDraftCsv, parseSocialDraftJson, type SocialDraftCandidate } from "@/lib/socialDraftImport";
@@ -876,6 +877,17 @@ function DiaryEditorContent() {
     }
   };
 
+  const openA5PrintBook = () => {
+    if (!isOwner || !data) return toast.error("只有日記擁有者能建立私人成長書冊。");
+    if (!data.lifePhases.length) return toast.info("先寫下一段記憶，才能編排成 A5 書冊。");
+    try {
+      openPrintBook({ title: data.diary.title, subtitle: data.diary.subtitle, phases: data.lifePhases });
+      toast.success("A5 書冊預覽已開啟；請在新視窗選擇列印或另存 PDF。");
+    } catch (printError) {
+      toast.error(printError instanceof Error ? printError.message : "無法建立 A5 書冊預覽。");
+    }
+  };
+
   const exportMediaArchive = async () => {
     if (!canEdit) return toast.error("你目前只有註解權限，無法建立媒體封存。");
     if (!events.some((item) => item.media.length)) return toast.info("目前沒有事件圖片可打包。");
@@ -1004,7 +1016,7 @@ function DiaryEditorContent() {
       <section className="life-phase-overview" ref={exportRef} aria-labelledby="life-phase-title">
         <div className="phase-heading">
           <div><p className="editor-kicker"><span /> LIFE CHAPTERS / EDITABLE</p><h2 id="life-phase-title">人生階段總覽</h2><p>系統會先依事件時間與錨點編排階段；你也可以拖曳每個階段的起訖時間，讓分段更貼近自己的敘事。</p></div>
-          <div className="export-actions"><span>完整成長史備份<small>未解鎖時空膠囊在 PDF／長圖中會自動遮罩</small></span><input ref={importInputRef} type="file" accept="application/json,.json,text/markdown,.md" onChange={handleImportFile} hidden /><input ref={socialImportInputRef} type="file" accept="application/json,.json,text/csv,.csv" onChange={handleSocialImportFile} hidden /><input ref={mediaArchiveInputRef} type="file" accept="application/zip,.zip" onChange={handleMediaArchiveFile} hidden /><button onClick={() => exportArchive("pdf")}><FileDown size={15} /> 匯出 PDF</button><button onClick={() => exportArchive("image")}><ImageDown size={15} /> 匯出長圖片</button><button onClick={() => exportArchive("json")}><FileJson size={15} /> 匯出 JSON</button><button onClick={() => exportArchive("markdown")}><FilePenLine size={15} /> 匯出 Markdown</button><button onClick={() => exportArchive("frontmatter")}><FilePenLine size={15} /> 匯出 Frontmatter</button>{canEdit ? <><button onClick={exportMediaArchive} disabled={isMediaArchiveExporting}>{isMediaArchiveExporting ? <Loader2 size={15} className="animate-spin" /> : <Archive size={15} />} 匯出媒體 ZIP</button><button onClick={selectMediaArchiveFile}><Archive size={15} /> 匯入媒體 ZIP</button><button onClick={selectImportFile}><Archive size={15} /> 匯入 JSON／Frontmatter</button><button onClick={selectSocialImportFile}><Archive size={15} /> 匯入社群草稿</button></> : null}</div>
+          <div className="export-actions"><span>完整成長史備份<small>未解鎖時空膠囊在 PDF／長圖中會自動遮罩</small></span><input ref={importInputRef} type="file" accept="application/json,.json,text/markdown,.md" onChange={handleImportFile} hidden /><input ref={socialImportInputRef} type="file" accept="application/json,.json,text/csv,.csv" onChange={handleSocialImportFile} hidden /><input ref={mediaArchiveInputRef} type="file" accept="application/zip,.zip" onChange={handleMediaArchiveFile} hidden />{isOwner ? <button onClick={openA5PrintBook}><FileDown size={15} /> A5 書冊預覽</button> : null}<button onClick={() => exportArchive("pdf")}><FileDown size={15} /> 匯出 PDF</button><button onClick={() => exportArchive("image")}><ImageDown size={15} /> 匯出長圖片</button><button onClick={() => exportArchive("json")}><FileJson size={15} /> 匯出 JSON</button><button onClick={() => exportArchive("markdown")}><FilePenLine size={15} /> 匯出 Markdown</button><button onClick={() => exportArchive("frontmatter")}><FilePenLine size={15} /> 匯出 Frontmatter</button>{canEdit ? <><button onClick={exportMediaArchive} disabled={isMediaArchiveExporting}>{isMediaArchiveExporting ? <Loader2 size={15} className="animate-spin" /> : <Archive size={15} />} 匯出媒體 ZIP</button><button onClick={selectMediaArchiveFile}><Archive size={15} /> 匯入媒體 ZIP</button><button onClick={selectImportFile}><Archive size={15} /> 匯入 JSON／Frontmatter</button><button onClick={selectSocialImportFile}><Archive size={15} /> 匯入社群草稿</button></> : null}</div>
         </div>
         <div className="phase-grid">
           {data?.lifePhases.length ? data.lifePhases.map((phase) => {
