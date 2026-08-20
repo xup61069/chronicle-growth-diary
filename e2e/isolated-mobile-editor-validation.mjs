@@ -317,8 +317,17 @@ try {
   await page.getByRole('button', { name: '新增一段記憶' }).click();
   await page.getByRole('tab', { name: '撰寫' }).waitFor({ timeout: 10_000 });
   assert(await page.getByRole('tab', { name: '撰寫' }).getAttribute('aria-selected') === 'true', '新增事件入口未切換至撰寫分頁。');
-  await page.getByPlaceholder('例如：第一次站上舞台').waitFor({ timeout: 10_000 });
+  const titleInput = page.getByPlaceholder('例如：第一次站上舞台');
+  await titleInput.waitFor({ timeout: 10_000 });
+  const dateInput = page.locator('.event-form input[type="date"]').first();
+  const dateBeforeTemplate = await dateInput.inputValue();
+  const milestonePicker = page.locator('.milestone-template-picker');
+  await milestonePicker.getByRole('button', { name: '開始一項新練習' }).click();
+  assert(await titleInput.inputValue() === '開始練習＿＿＿', '里程碑範本未填入可編輯的建議標題。');
+  assert(await dateInput.inputValue() === dateBeforeTemplate, '里程碑範本不應改變使用者已選日期。');
+  assert((await page.locator('.event-form textarea').first().inputValue()).includes('為什麼想開始？'), '里程碑範本未加入本機寫作提示。');
   findings.checks.push('375px new event entry');
+  findings.checks.push('375px editable growth milestone template');
 
   const annualReview = page.locator('.annual-review-studio');
   await annualReview.scrollIntoViewIfNeeded();

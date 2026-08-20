@@ -23,6 +23,7 @@ import { downloadMilestoneCard } from "@/lib/socialMilestoneCard";
 import { buildAnnualShareCardData, downloadAnnualShareCard } from "@/lib/annualSocialCard";
 import { buildMonthlyDigest, getAvailablePrivateMonths } from "@/lib/monthlyDigest";
 import { getFutureLetters } from "@/lib/futureLetters";
+import { applyMilestoneTemplate, milestoneTemplates } from "@/lib/milestoneTemplates";
 import { parseSocialDraftCsv, parseSocialDraftJson, type SocialDraftCandidate } from "@/lib/socialDraftImport";
 import { buildTrackRows, filterEventsBySkill, getTimelineInsights, getTimelineSkills, isTimeCapsuleLocked, milestoneLabels } from "@/lib/multitrackTimeline";
 import { buildPlaceFootprints, buildSpatialFootprints, getBentoSpan, timelineViewOptions, type TimelineViewMode } from "@/lib/timelineViews";
@@ -474,6 +475,11 @@ function DiaryEditorContent() {
 
   const applyWritingGuide = (template: string) => {
     setForm((current) => ({ ...current, body: appendWritingGuide(current.body, template) }));
+  };
+
+  const applyGrowthMilestoneTemplate = (template: (typeof milestoneTemplates)[number]) => {
+    setForm((current) => applyMilestoneTemplate(current, template));
+    toast.success("已套用建議欄位；日期、地點、分享範圍與所有文字都可以繼續修改。");
   };
 
   const saveDiaryProfile = (event: FormEvent<HTMLFormElement>) => {
@@ -1275,6 +1281,12 @@ function DiaryEditorContent() {
               <span>這段記憶的標題</span>
               <input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} placeholder="例如：第一次站上舞台" maxLength={180} />
             </label>
+
+            <section className="milestone-template-picker" aria-labelledby="milestone-template-title">
+              <header><span id="milestone-template-title"><BookOpenCheck size={13} /> 成長里程碑範本</span><small>只填入建議草稿，不會自動建立事件或改動日期。</small></header>
+              <p>可從常見成長節點開始，套用後仍可自由改寫標題、內容、標籤和分類。</p>
+              <div>{milestoneTemplates.map((template) => <button type="button" key={template.key} onClick={() => applyGrowthMilestoneTemplate(template)}>{template.label}</button>)}</div>
+            </section>
 
             <div className="form-row">
               <label className="form-field">

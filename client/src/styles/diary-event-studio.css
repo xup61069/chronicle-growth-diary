@@ -32,6 +32,17 @@
 .writing-guide button:hover { color: #fff; border-color: var(--ink); background: var(--ink); }
 .writing-guide button:focus-visible { outline: 2px solid var(--cinnabar); outline-offset: 2px; }
 .writing-guide button:active { transform: scale(.97); }
+.milestone-template-picker { margin-top: 14px; padding: 12px 13px; border: 1px solid rgba(20,38,58,.24); background: #f1ede2; }
+.milestone-template-picker header { display: flex; align-items: center; justify-content: space-between; gap: 11px; }
+.milestone-template-picker header > span { display: inline-flex; align-items: center; gap: 6px; color: var(--ink); font: 500 10px "IBM Plex Mono", monospace; letter-spacing: .04em; }
+.milestone-template-picker header > span svg { color: var(--cinnabar); }
+.milestone-template-picker header small { color: var(--ink-soft); font-size: 9px; text-align: right; }
+.milestone-template-picker > p { margin: 8px 0 10px; color: var(--ink-soft); font-size: 10px; line-height: 1.6; }
+.milestone-template-picker > div { display: flex; flex-wrap: wrap; gap: 6px; }
+.milestone-template-picker button { border: 1px solid rgba(20,38,58,.3); color: var(--ink); background: rgba(255,253,248,.66); padding: 6px 8px; font-size: 10px; transition: background .18s ease-out, color .18s ease-out, border-color .18s ease-out, transform .16s ease-out; }
+.milestone-template-picker button:hover { color: #fff; border-color: var(--ink); background: var(--ink); }
+.milestone-template-picker button:focus-visible { outline: 2px solid var(--cinnabar); outline-offset: 2px; }
+.milestone-template-picker button:active { transform: scale(.97); }
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .precision-field { margin: 19px 0 0; padding: 0; border: 0; }
 .precision-field > div { display: flex; height: 42px; border: 1px solid rgba(20,38,58,.36); }
