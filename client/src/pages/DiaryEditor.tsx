@@ -22,6 +22,7 @@ import { openPrintBook } from "@/lib/printBook";
 import { downloadMilestoneCard } from "@/lib/socialMilestoneCard";
 import { buildAnnualShareCardData, downloadAnnualShareCard } from "@/lib/annualSocialCard";
 import { buildMonthlyDigest, getAvailablePrivateMonths } from "@/lib/monthlyDigest";
+import { getFutureLetters } from "@/lib/futureLetters";
 import { parseSocialDraftCsv, parseSocialDraftJson, type SocialDraftCandidate } from "@/lib/socialDraftImport";
 import { buildTrackRows, filterEventsBySkill, getTimelineInsights, getTimelineSkills, isTimeCapsuleLocked, milestoneLabels } from "@/lib/multitrackTimeline";
 import { buildPlaceFootprints, buildSpatialFootprints, getBentoSpan, timelineViewOptions, type TimelineViewMode } from "@/lib/timelineViews";
@@ -56,6 +57,7 @@ import {
   Link2,
   Loader2,
   LockKeyhole,
+  Mail,
   MapPin,
   Music,
   Mic,
@@ -339,6 +341,7 @@ function DiaryEditorContent() {
   const activeMonthlyDigestMonth = useMemo(() => monthlyDigestMonths.find((month) => `${month.year}-${String(month.month).padStart(2, "0")}` === monthlyDigestMonthKey) ?? monthlyDigestMonths[0], [monthlyDigestMonthKey, monthlyDigestMonths]);
   const monthlyDigest = useMemo(() => activeMonthlyDigestMonth ? buildMonthlyDigest(events, activeMonthlyDigestMonth) : null, [activeMonthlyDigestMonth, events]);
   const onThisDayMemories = onThisDayQuery.data ?? [];
+  const futureLetters = useMemo(() => getFutureLetters(events), [events]);
   const availableYears = useMemo(() => Array.from(new Set(privateAnnualEvents.map((event) => new Date(event.occurredAt).getFullYear()))).sort((left, right) => right - left), [privateAnnualEvents]);
   const annualReview = useMemo(() => buildAnnualReview(privateAnnualEvents, Number(annualYear || availableYears[0] || new Date().getFullYear()), annualTemplate), [annualTemplate, annualYear, availableYears, privateAnnualEvents]);
   const activeAnnualYear = Number(annualYear || availableYears[0] || new Date().getFullYear());
@@ -1071,6 +1074,14 @@ function DiaryEditorContent() {
           <div className="on-this-day-age"><b>{memory.yearsAgo}</b><span>年前</span></div>
           {memory.isLocked ? <div className="on-this-day-locked"><LockKeyhole size={16} /><div><b>時空膠囊尚未解鎖</b><p>{formatCapsuleCountdown(memory.daysRemaining)}；在解鎖前不顯示標題或內容。</p></div></div> : <div className="on-this-day-copy"><span>{new Date(memory.occurredAt).toLocaleDateString("zh-TW", { month: "long", day: "numeric" })} · {memory.eventType}</span><h3>{memory.title}</h3><button type="button" onClick={() => openOnThisDayMemory(memory.id)}>開啟這筆記錄 <ChevronRight size={14} /></button></div>}
         </article>)}</div> : <div className="on-this-day-empty"><History size={20} /><p>今天沒有同月同日的私人事件。日後寫下完整日期的記錄，回到工作台時會在這裡出現。</p></div>}
+      </section> : null}
+
+      {isOwner ? <section className="future-letters-studio" aria-labelledby="future-letters-title">
+        <header><div><p className="editor-kicker"><span /> FUTURE LETTERS / PRIVATE</p><h2 id="future-letters-title">寫給以後的自己</h2><p>將有解鎖日期的私人事件整理為信件索引。尚未到期時不顯示標題；這是站內入口，不會寄送 Email 或背景通知。</p></div><Mail size={27} aria-hidden="true" /></header>
+        {futureLetters.length ? <div className="future-letters-list">{futureLetters.slice(0, 5).map((letter) => <article key={letter.id} className={letter.isLocked ? "is-locked" : "is-ready"}>
+          <div className="future-letter-date"><span>{letter.isLocked ? "解鎖日" : "已解鎖"}</span><b>{new Intl.DateTimeFormat("zh-TW", { year: "numeric", month: "short", day: "numeric" }).format(new Date(letter.unlocksAt))}</b></div>
+          {letter.isLocked ? <div className="future-letter-locked"><LockKeyhole size={16} /><div><b>{letter.isSoon ? "即將開啟的時空膠囊" : "時空膠囊尚未解鎖"}</b><p>{formatCapsuleCountdown(letter.daysRemaining)}；解鎖前不顯示信件標題或內容。</p></div></div> : <div className="future-letter-ready"><span>可以重新閱讀</span><h3>{letter.title}</h3><button type="button" onClick={() => openOnThisDayMemory(letter.id)}>開啟這封信 <ChevronRight size={14} /></button></div>}
+        </article>)}</div> : <div className="future-letters-empty"><Mail size={20} /><p>還沒有設定解鎖日期的私人事件。撰寫事件時加入時空膠囊日期，之後會在這裡依解鎖時間整理。</p></div>}
       </section> : null}
 
       <section className="life-phase-overview" ref={exportRef} aria-labelledby="life-phase-title">

@@ -9,6 +9,7 @@ const eventTitle = '375px 工作區驗證事件';
 const anniversaryTitle = '兩年前的同日驗證事件';
 const lockedAnniversaryTitle = '尚未解鎖的同日膠囊';
 const lockedMonthlyTitle = '尚未解鎖的月度膠囊';
+const readyFutureLetterTitle = '已解鎖的未來信件';
 const today = new Date();
 const anniversaryOccurredAt = new Date(today.getFullYear() - 2, today.getMonth(), today.getDate(), 12).getTime();
 const viewport = process.env.CHRONICLE_E2E_VIEWPORT === 'desktop' ? { width: 1280, height: 720 } : { width: 375, height: 812 };
@@ -148,9 +149,42 @@ try {
     shareScope: 'private',
   });
   assert(lockedMonthlyCreation.status === 200, '無法建立隔離鎖定月度膠囊。');
+  const readyFutureLetterCreation = await trpcMutation(page, 'diary.createEvent', {
+    occurredAt: Date.parse('2026-08-17T00:00:00.000Z'),
+    datePrecision: 'day',
+    eventType: 'memory',
+    title: readyFutureLetterTitle,
+    body: '這封信已可在私人工作台重新閱讀。',
+    ageLabel: null,
+    place: null,
+    color: '#EE623B',
+    tagNames: [],
+    skillNames: [],
+    track: 'life',
+    milestoneType: 'standard',
+    milestoneWeight: 1,
+    comparisonGroup: null,
+    unlocksAt: Date.now() - 24 * 60 * 60 * 1000,
+    phaseKeywords: [],
+    mapLatitudeE6: null,
+    mapLongitudeE6: null,
+    locationPrivacy: 'none',
+    soundtrackTitle: null,
+    soundtrackUrl: null,
+    shareScope: 'private',
+  });
+  assert(readyFutureLetterCreation.status === 200, '無法建立隔離已解鎖未來信件。');
 
   if (viewport.width > 375) {
     await page.reload({ waitUntil: 'domcontentloaded' });
+    const desktopFutureLetters = page.locator('.future-letters-studio');
+    await desktopFutureLetters.getByRole('heading', { name: '寫給以後的自己' }).waitFor({ timeout: 10_000 });
+    assert(await desktopFutureLetters.getByText(readyFutureLetterTitle, { exact: true }).isVisible(), '桌面未來信件索引未顯示已解鎖事件。');
+    assert(await desktopFutureLetters.getByText(lockedMonthlyTitle, { exact: true }).count() === 0, '桌面未來信件索引不應顯示鎖定膠囊標題。');
+    const desktopReadyLetter = desktopFutureLetters.getByText(readyFutureLetterTitle, { exact: true }).locator('..');
+    await desktopReadyLetter.getByRole('button', { name: '開啟這封信' }).click();
+    await page.locator('.preview-card h3').getByText(readyFutureLetterTitle, { exact: true }).waitFor({ timeout: 10_000 });
+    findings.checks.push('desktop private future letters index and capsule masking');
     const desktopMonthlyDigest = page.locator('.monthly-digest-studio');
     await desktopMonthlyDigest.getByRole('heading', { name: '這個月留下了什麼' }).waitFor({ timeout: 10_000 });
     await desktopMonthlyDigest.getByText('未解鎖 1', { exact: true }).waitFor({ timeout: 10_000 });
@@ -209,6 +243,14 @@ try {
     findings.checks.push('desktop private growth dashboard');
   } else {
   await page.reload({ waitUntil: 'domcontentloaded' });
+  const mobileFutureLetters = page.locator('.future-letters-studio');
+  await mobileFutureLetters.getByRole('heading', { name: '寫給以後的自己' }).waitFor({ timeout: 10_000 });
+  assert(await mobileFutureLetters.getByText(readyFutureLetterTitle, { exact: true }).isVisible(), '行動版未來信件索引未顯示已解鎖事件。');
+  assert(await mobileFutureLetters.getByText(lockedMonthlyTitle, { exact: true }).count() === 0, '行動版未來信件索引不應顯示鎖定膠囊標題。');
+  const mobileReadyLetter = mobileFutureLetters.getByText(readyFutureLetterTitle, { exact: true }).locator('..');
+  await mobileReadyLetter.getByRole('button', { name: '開啟這封信' }).click();
+  await page.locator('#mobile-workspace-preview').getByRole('heading', { name: readyFutureLetterTitle, exact: true }).waitFor({ timeout: 10_000 });
+  findings.checks.push('375px private future letters index and capsule masking');
   const mobileMonthlyDigest = page.locator('.monthly-digest-studio');
   await mobileMonthlyDigest.getByRole('heading', { name: '這個月留下了什麼' }).waitFor({ timeout: 10_000 });
   await mobileMonthlyDigest.getByText('未解鎖 1', { exact: true }).waitFor({ timeout: 10_000 });

@@ -271,6 +271,28 @@
 .monthly-digest-tags span { color: #52616d; background: transparent; border-bottom: 1px solid rgba(20,38,58,.28); }
 .monthly-digest-empty { display: flex; align-items: center; gap: 10px; min-height: 75px; margin-top: 14px; border-top: 1px solid rgba(20,38,58,.18); color: var(--ink-soft); font-size: 12px; line-height: 1.65; }
 .monthly-digest-empty p { margin: 0; }
+.future-letters-studio { margin: 18px 0; border: 1px solid rgba(20,38,58,.24); background: #172c43; color: #fffdf8; padding: 19px; }
+.future-letters-studio > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
+.future-letters-studio .editor-kicker { color: rgba(255,253,248,.66); }
+.future-letters-studio .editor-kicker span { background: var(--cinnabar); }
+.future-letters-studio h2 { margin: 3px 0 6px; font: 400 clamp(26px,3vw,36px)/1.05 "DM Serif Display", serif; letter-spacing: -.03em; }
+.future-letters-studio header > div > p:last-child { max-width: 680px; margin: 0; color: rgba(255,253,248,.72); font-size: 12px; line-height: 1.65; }
+.future-letters-studio > header > svg { flex: 0 0 auto; color: var(--cinnabar); }
+.future-letters-list { display: grid; gap: 8px; margin-top: 16px; }
+.future-letters-list article { display: grid; grid-template-columns: 125px minmax(0,1fr); min-height: 76px; border: 1px solid rgba(255,253,248,.18); background: rgba(255,253,248,.05); }
+.future-letter-date { display: grid; align-content: center; gap: 4px; padding: 12px; border-right: 1px solid rgba(255,253,248,.18); }
+.future-letter-date span { color: rgba(255,253,248,.58); font: 500 9px "IBM Plex Mono", monospace; letter-spacing: .05em; }
+.future-letter-date b { font: 500 11px "IBM Plex Mono", monospace; }
+.future-letter-locked, .future-letter-ready { padding: 12px 14px; }
+.future-letter-locked { display: flex; align-items: center; gap: 10px; color: rgba(255,253,248,.64); }
+.future-letter-locked b { display: block; color: #fffdf8; font-size: 12px; }
+.future-letter-locked p { margin: 3px 0 0; font: 500 9px/1.5 "IBM Plex Mono", monospace; }
+.future-letter-ready > span { color: var(--cinnabar); font: 500 9px "IBM Plex Mono", monospace; letter-spacing: .05em; }
+.future-letter-ready h3 { margin: 2px 0 7px; font: 400 19px/1.2 "DM Serif Display", serif; }
+.future-letter-ready button { display: inline-flex; align-items: center; gap: 4px; border: 0; padding: 0; color: #fffdf8; background: transparent; font: 600 10px "IBM Plex Mono", monospace; text-decoration: underline; text-underline-offset: 3px; }
+.future-letter-ready button:hover { color: var(--cinnabar); }
+.future-letters-empty { display: flex; align-items: center; gap: 10px; min-height: 75px; margin-top: 15px; border-top: 1px solid rgba(255,253,248,.18); color: rgba(255,253,248,.7); font-size: 12px; line-height: 1.65; }
+.future-letters-empty p { margin: 0; }
 .preview-card.is-capsule-locked > :not(.capsule-lock-notice) { display: none; }
 .capsule-lock-notice { display: grid; justify-items: center; gap: 7px; padding: 34px 18px; text-align: center; color: var(--ink); }
 .capsule-lock-notice svg { color: var(--cinnabar); }
@@ -311,6 +333,8 @@
   .monthly-digest-controls button { justify-content: center; }
   .monthly-digest-card { grid-template-columns: 1fr; gap: 12px; }
   .monthly-digest-count { border-right: 0; border-bottom: 1px solid rgba(20,38,58,.18); padding-bottom: 10px; }
+  .future-letters-studio { padding: 17px; }
+  .future-letters-list article { grid-template-columns: 102px minmax(0,1fr); }
   .spatial-footprint-map { min-height: 150px; }
   .spatial-footprint-node span { max-width: 66px; }
 }
