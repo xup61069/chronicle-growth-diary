@@ -74,6 +74,14 @@ a { color: inherit; text-decoration: none; }
 
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
+  .chronicle-site *, .chronicle-site *::before, .chronicle-site *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+  .chronicle-site .hero-workbench:hover { transform: none; }
+  .chronicle-site .method-item:hover { padding-left: 0; }
+  .chronicle-site .story-card:hover img { transform: none; }
 }
 
 .chronicle-site { overflow: hidden; background-color: var(--paper); background-image: radial-gradient(rgba(20,38,58,.05) .45px, transparent .6px); background-size: 5px 5px; }

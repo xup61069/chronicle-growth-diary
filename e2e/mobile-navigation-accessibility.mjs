@@ -10,7 +10,18 @@ const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 375, height: 812 } });
 
 try {
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto(`${baseUrl.replace(/\/$/, "")}/`, { waitUntil: "domcontentloaded" });
+
+  const heroTransitionDuration = await page.locator(".hero-workbench").evaluate((element) => getComputedStyle(element).transitionDuration);
+  if (!heroTransitionDuration.split(",").every((duration) => Number.parseFloat(duration) <= 0.001)) {
+    throw new Error("減少動態偏好下，首頁工作台的過場應縮短至近乎立即。 ");
+  }
+  const storyImage = page.locator(".story-card img").first();
+  await storyImage.hover();
+  if (await storyImage.evaluate((element) => getComputedStyle(element).transform) !== "none") {
+    throw new Error("減少動態偏好下，故事圖片 hover 不應產生縮放移動。");
+  }
 
   const exampleLink = page.getByRole("link", { name: "觀看範例" });
   if (await exampleLink.getAttribute("href") !== "#stories") {
@@ -84,7 +95,7 @@ try {
     throw new Error("點擊行動導覽連結後未收合選單。");
   }
 
-  console.log("公開首頁回歸通過：範例入口、時間帶鍵盤入口與焦點保護、行動選單展開、Escape 與連結收合均正常。");
+  console.log("公開首頁回歸通過：減少動態偏好、範例入口、時間帶鍵盤入口與焦點保護、行動選單展開、Escape 與連結收合均正常。");
 } finally {
   await browser.close();
 }
