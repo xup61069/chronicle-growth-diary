@@ -14,6 +14,19 @@ const today = new Date();
 const anniversaryOccurredAt = new Date(today.getFullYear() - 2, today.getMonth(), today.getDate(), 12).getTime();
 const viewport = process.env.CHRONICLE_E2E_VIEWPORT === 'desktop' ? { width: 1280, height: 720 } : { width: 375, height: 812 };
 
+function makeExifJpeg(date = '2026:08:20 09:30:00') {
+  const dateBytes = new TextEncoder().encode(`${date}\0`);
+  const tiff = new Uint8Array([
+    0x4d, 0x4d, 0x00, 0x2a, 0x00, 0x00, 0x00, 0x08,
+    0x00, 0x01, 0x87, 0x69, 0x00, 0x04, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x1a, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x01, 0x90, 0x03, 0x00, 0x02, 0x00, 0x00, 0x00, 0x14, 0x00, 0x00, 0x00, 0x2c, 0x00, 0x00, 0x00, 0x00,
+    ...dateBytes,
+  ]);
+  const payload = new Uint8Array([0x45, 0x78, 0x69, 0x66, 0x00, 0x00, ...tiff]);
+  const length = payload.length + 2;
+  return Buffer.from(new Uint8Array([0xff, 0xd8, 0xff, 0xe1, length >> 8, length & 0xff, ...payload, 0xff, 0xd9]));
+}
+
 function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
@@ -32,6 +45,7 @@ async function trpcMutation(page, path, input) {
 const browser = await chromium.launch({
   executablePath: '/usr/bin/chromium',
   headless: true,
+  args: ['--disable-gpu', '--disable-software-rasterizer', '--disable-dev-shm-usage'],
 });
 const context = await browser.newContext({ viewport });
 const page = await context.newPage();
@@ -177,6 +191,30 @@ try {
 
   if (viewport.width > 375) {
     await page.reload({ waitUntil: 'domcontentloaded' });
+    const photoExifEntry = page.locator('.import-studio').filter({ has: page.getByRole('heading', { name: '從照片日期開始整理' }) });
+    await photoExifEntry.getByRole('heading', { name: '從照片日期開始整理' }).waitFor({ timeout: 10_000 });
+    await page.locator('input[accept="image/jpeg"]').setInputFiles([
+      { name: 'unsupported.png', mimeType: 'image/png', buffer: Buffer.from([0x89, 0x50, 0x4e, 0x47]) },
+      { name: 'too-large.jpg', mimeType: 'image/jpeg', buffer: Buffer.alloc(4 * 1024 * 1024 + 1) },
+      { name: 'without-exif.jpg', mimeType: 'image/jpeg', buffer: Buffer.from([0xff, 0xd8, 0xff, 0xd9]) },
+    ]);
+    const skippedPhotoExifPreview = page.locator('.import-studio').filter({ has: page.getByRole('heading', { name: '依照片拍攝日期建立記錄' }) });
+    await skippedPhotoExifPreview.getByText('unsupported.png', { exact: true }).waitFor({ timeout: 10_000 });
+    assert(await skippedPhotoExifPreview.getByText('目前只讀取 JPEG 的拍攝日期', { exact: true }).isVisible(), '格式不符的照片應顯示 JPEG 限制原因。');
+    assert(await skippedPhotoExifPreview.getByText('too-large.jpg', { exact: true }).isVisible(), '超過大小限制的照片應完整列在略過預覽。');
+    assert(await skippedPhotoExifPreview.getByText('單張照片超過 4MB', { exact: true }).isVisible(), '超過大小限制的照片應顯示 4MB 原因。');
+    assert(await skippedPhotoExifPreview.getByText('without-exif.jpg', { exact: true }).isVisible(), '缺少日期的照片應完整列在略過預覽。');
+    assert(await skippedPhotoExifPreview.getByText(/無法讀取拍攝日期|找不到可用的拍攝日期/).isVisible(), '缺少日期的照片應顯示可讀的略過原因。');
+    assert(await skippedPhotoExifPreview.getByText('沒有可建立的事件。請保留這份結果檢查每張照片的略過原因，或取消後重新選擇。', { exact: true }).isVisible(), '全數略過的照片應保留缺失原因預覽。');
+    assert(await skippedPhotoExifPreview.getByRole('button', { name: /確認建立/ }).count() === 0, '全數略過的照片不應提供建立事件的確認按鈕。');
+    await skippedPhotoExifPreview.getByRole('button', { name: '取消' }).click();
+    await page.locator('input[accept="image/jpeg"]').setInputFiles({ name: 'captured.jpg', mimeType: 'image/jpeg', buffer: makeExifJpeg() });
+    const photoExifPreview = page.locator('.import-studio').filter({ has: page.getByRole('heading', { name: '依照片拍攝日期建立記錄' }) });
+    await photoExifPreview.getByText('2026-08-20', { exact: true }).waitFor({ timeout: 10_000 });
+    assert(await photoExifPreview.getByText(/不讀取位置資訊.*確認前不會上傳/).isVisible(), '照片 EXIF 匯入預覽未明確說明位置與確認前不上傳的隱私邊界。');
+    await photoExifPreview.getByRole('button', { name: '確認建立 1 段私人記錄' }).click();
+    await page.getByText('已建立 1 段私人照片記錄。', { exact: true }).waitFor({ timeout: 10_000 });
+    findings.checks.push('desktop photo EXIF local preview, privacy boundary and private event creation');
     const desktopFutureLetters = page.locator('.future-letters-studio');
     await desktopFutureLetters.getByRole('heading', { name: '寫給以後的自己' }).waitFor({ timeout: 10_000 });
     assert(await desktopFutureLetters.getByText(readyFutureLetterTitle, { exact: true }).isVisible(), '桌面未來信件索引未顯示已解鎖事件。');
@@ -243,6 +281,15 @@ try {
     findings.checks.push('desktop private growth dashboard');
   } else {
   await page.reload({ waitUntil: 'domcontentloaded' });
+  const mobilePhotoExifEntry = page.locator('.import-studio').filter({ has: page.getByRole('heading', { name: '從照片日期開始整理' }) });
+  await mobilePhotoExifEntry.getByRole('heading', { name: '從照片日期開始整理' }).waitFor({ timeout: 10_000 });
+  await page.locator('input[accept="image/jpeg"]').setInputFiles({ name: 'captured-mobile.jpg', mimeType: 'image/jpeg', buffer: makeExifJpeg() });
+  const mobilePhotoExifPreview = page.locator('.import-studio').filter({ has: page.getByRole('heading', { name: '依照片拍攝日期建立記錄' }) });
+  await mobilePhotoExifPreview.getByText('2026-08-20', { exact: true }).waitFor({ timeout: 10_000 });
+  assert(await mobilePhotoExifPreview.getByText(/不讀取位置資訊.*確認前不會上傳/).isVisible(), '行動版照片 EXIF 匯入預覽未明確說明位置與確認前不上傳的隱私邊界。');
+  await mobilePhotoExifPreview.getByRole('button', { name: '確認建立 1 段私人記錄' }).click();
+  await page.getByText('已建立 1 段私人照片記錄。', { exact: true }).waitFor({ timeout: 20_000 });
+  findings.checks.push('375px photo EXIF local preview, privacy boundary and private event creation');
   const mobileFutureLetters = page.locator('.future-letters-studio');
   await mobileFutureLetters.getByRole('heading', { name: '寫給以後的自己' }).waitFor({ timeout: 10_000 });
   assert(await mobileFutureLetters.getByText(readyFutureLetterTitle, { exact: true }).isVisible(), '行動版未來信件索引未顯示已解鎖事件。');

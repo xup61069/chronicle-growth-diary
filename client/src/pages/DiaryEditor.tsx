@@ -11,6 +11,7 @@ import { filterDiaryEvents, type DiarySortOrder } from "@/lib/diaryFilters";
 import { getDiaryLoadStatus } from "@/lib/diaryLoadState";
 import { exportDiaryAsLongImage, exportDiaryAsPdf } from "@/lib/diaryExport";
 import { createMediaArchive, downloadMediaArchive, readMediaArchive, type ImportedMediaArchive } from "@/lib/diaryMediaArchive";
+import { preparePhotoExifImport, type PhotoExifImportPreview } from "@/lib/photoExifImport";
 import { createPortableDiaryExport, downloadPortableDiary } from "@/lib/diaryPortable";
 import { parseChronicleImport, type ChronicleImportPreview } from "@/lib/diaryImport";
 import { appendWritingGuide, getLocalWritingGuides } from "@/lib/writingGuide";
@@ -160,8 +161,10 @@ function DiaryEditorContent() {
   const [showRevisions, setShowRevisions] = useState(false);
   const [accountDeleteConfirmation, setAccountDeleteConfirmation] = useState("");
   const [mediaArchivePreview, setMediaArchivePreview] = useState<ImportedMediaArchive | null>(null);
+  const [photoExifPreview, setPhotoExifPreview] = useState<PhotoExifImportPreview | null>(null);
   const [isMediaArchiveExporting, setIsMediaArchiveExporting] = useState(false);
   const [isMediaArchiveImporting, setIsMediaArchiveImporting] = useState(false);
+  const [isPhotoExifImporting, setIsPhotoExifImporting] = useState(false);
   const [voiceDrafts, setVoiceDrafts] = useState<QueuedVoiceDraft[]>([]);
   const [voiceAiConsent, setVoiceAiConsent] = useState(false);
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
@@ -170,6 +173,7 @@ function DiaryEditorContent() {
   const importInputRef = useRef<HTMLInputElement>(null);
   const socialImportInputRef = useRef<HTMLInputElement>(null);
   const mediaArchiveInputRef = useRef<HTMLInputElement>(null);
+  const photoExifInputRef = useRef<HTMLInputElement>(null);
   const voiceRecorderRef = useRef<MediaRecorder | null>(null);
   const voiceStreamRef = useRef<MediaStream | null>(null);
   const voiceStartedAtRef = useRef(0);
@@ -968,6 +972,22 @@ function DiaryEditorContent() {
   const selectImportFile = () => importInputRef.current?.click();
   const selectSocialImportFile = () => socialImportInputRef.current?.click();
   const selectMediaArchiveFile = () => mediaArchiveInputRef.current?.click();
+  const selectPhotoExifFiles = () => photoExifInputRef.current?.click();
+
+  const handlePhotoExifFiles = async (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? []);
+    event.target.value = "";
+    if (!isOwner || !files.length) return;
+    try {
+      const preview = await preparePhotoExifImport(files);
+      setPhotoExifPreview(preview);
+      if (!preview.groups.length) {
+        toast.error("這批照片沒有可建立的拍攝日期；略過原因已保留在下方預覽。 ");
+      }
+    } catch (photoError) {
+      toast.error(photoError instanceof Error ? photoError.message : "無法整理這批照片的拍攝日期。");
+    }
+  };
 
   const handleImportFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -1033,6 +1053,36 @@ function DiaryEditorContent() {
     }
   };
 
+  const confirmPhotoExifImport = async () => {
+    if (!isOwner || !photoExifPreview) return;
+    setIsPhotoExifImporting(true);
+    try {
+      let createdCount = 0;
+      for (const group of photoExifPreview.groups) {
+        const saved = await saveMutation.mutateAsync({
+          occurredAt: toTimestamp(group.date, "day"), datePrecision: "day", eventType: "memory", title: group.title,
+          body: "從使用者確認的照片拍攝日期建立。可再補上事件文字與圖片說明。", ageLabel: null, place: null,
+          color: "#EE623B", tagNames: ["照片匯入"], skillNames: [], phaseKeywords: ["照片"], track: "life",
+          milestoneType: "standard", milestoneWeight: 1, comparisonGroup: null, unlocksAt: null,
+          mapLatitudeE6: null, mapLongitudeE6: null, locationPrivacy: "none", soundtrackTitle: null, soundtrackUrl: null,
+          shareScope: "private", ...(requestedDiaryId ? { diaryId: requestedDiaryId } : {}),
+        });
+        for (const file of group.files) {
+          const image = await readImage(file);
+          await uploadMutation.mutateAsync({ eventId: saved.id, fileName: image.name, mimeType: image.type, base64: image.base64 });
+        }
+        createdCount += 1;
+      }
+      await utils.diary.get.invalidate();
+      setPhotoExifPreview(null);
+      toast.success(`已建立 ${createdCount} 段私人照片記錄。`);
+    } catch (photoError) {
+      toast.error(photoError instanceof Error ? photoError.message : "照片匯入未完成；已建立的私人事件與圖片會保留。");
+    } finally {
+      setIsPhotoExifImporting(false);
+    }
+  };
+
   const handleSocialImportFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = "";
@@ -1068,6 +1118,7 @@ function DiaryEditorContent() {
   return (
     <div className="diary-editor">
       <DiaryEditorHeader title={data?.diary.title ?? "我的成長史"} eventCountLabel={eventCountLabel} mediaCount={hasMedia} />
+      <input ref={photoExifInputRef} type="file" accept="image/jpeg" multiple onChange={handlePhotoExifFiles} hidden />
       {!isOwner ? <section className="family-access-notice" aria-label="家庭共寫權限"><ShieldCheck size={17} /><div><b>{accessRole === "editor" ? "共同編輯權限" : "註解權限"}</b><p>{accessRole === "editor" ? "你可新增、編輯、排序事件與圖片，也可與家人以註解交流；分享、AI、階段設定與成員管理仍只由日記擁有者控制。" : "你可閱讀事件並新增註解；日記內容、圖片、排序、分享與帳號設定均維持由日記擁有者管理。"}</p></div></section> : null}
 
       {isOwner ? <section className="diary-profile-studio" aria-labelledby="diary-profile-title"><div><p className="editor-kicker"><span /> PERSONAL ARCHIVE / OWNER ONLY</p><h2 id="diary-profile-title">為這本成長史留下側寫</h2><p>以標題和短句定義這段人生的閱讀方式。側寫預設只留在私人日記中；此處不蒐集聯絡方式、完整出生日期或其他敏感個資。</p></div><form className="diary-profile-form" onSubmit={saveDiaryProfile}><label>成長史標題<input value={profileTitle} onChange={(event) => setProfileTitle(event.target.value)} maxLength={160} required /></label><label>副標題（選填）<textarea value={profileSubtitle} onChange={(event) => setProfileSubtitle(event.target.value)} maxLength={240} placeholder="例如：把重要轉折、學習與日常心緒慢慢編成一條時間帶。" /></label><footer><span>{profileSubtitle.length}/240 · 僅日記擁有者可修改</span><button type="submit" disabled={profileMutation.isPending}>{profileMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} 保存側寫</button></footer></form></section> : null}
@@ -1134,6 +1185,8 @@ function DiaryEditorContent() {
         <div className="import-warning"><Archive size={15} /> {importPreview.warnings[0]}</div>
         <div className="import-actions"><button type="button" onClick={() => setImportPreview(null)} disabled={importMutation.isPending}>取消</button><button type="button" onClick={confirmImport} disabled={importMutation.isPending}>{importMutation.isPending ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />} 確認建立 {importPreview.events.length} 段事件</button></div>
       </section> : null}
+      {isOwner ? <section className="import-studio" aria-labelledby="photo-exif-entry-title"><div><p className="editor-kicker"><span /> PHOTO DATE / PRIVATE</p><h2 id="photo-exif-entry-title">從照片日期開始整理</h2><p>選取 JPEG 後，拍攝日期只在目前瀏覽器讀取並分組預覽；不讀取位置資訊，確認前不會上傳任何照片或建立事件。</p></div><div className="import-warning"><LockKeyhole size={15} /> 每次最多 24 張、每張 4MB。沒有拍攝日期或不是 JPEG 的檔案會留在裝置上並列為略過。</div><div className="import-actions"><button type="button" onClick={selectPhotoExifFiles}><ImagePlus size={15} /> 選擇 JPEG 照片</button></div></section> : null}
+      {photoExifPreview ? <section className="import-studio" aria-labelledby="photo-exif-import-title"><div><p className="editor-kicker"><span /> PHOTO DATE / LOCAL REVIEW</p><h2 id="photo-exif-import-title">依照片拍攝日期建立記錄</h2><p>拍攝日期只在這個瀏覽器讀取。系統不讀取位置資訊；確認前不會上傳照片或建立事件。</p></div><div className="import-preview-list">{photoExifPreview.groups.map((group) => <article key={group.id}><span>{group.date}</span><b>{group.title}</b><small>{group.files.length} 張 JPEG · 將建立為 private 事件</small></article>)}{photoExifPreview.skipped.map((item, index) => <article key={`${item.name}-${index}`}><span>略過</span><b>{item.name}</b><small>{item.reason}</small></article>)}{!photoExifPreview.groups.length ? <p>沒有可建立的事件。請保留這份結果檢查每張照片的略過原因，或取消後重新選擇。</p> : null}</div><div className="import-warning"><LockKeyhole size={15} /> {photoExifPreview.groups.length ? "送出後才會上傳所列照片，並建立私人事件。你可再修改標題、內文、日期與圖片說明。" : "這批照片不會上傳，也不會建立事件。"}</div><div className="import-actions"><button type="button" onClick={() => setPhotoExifPreview(null)} disabled={isPhotoExifImporting}>取消</button>{photoExifPreview.groups.length ? <button type="button" onClick={confirmPhotoExifImport} disabled={isPhotoExifImporting}>{isPhotoExifImporting ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />} 確認建立 {photoExifPreview.groups.length} 段私人記錄</button> : null}</div></section> : null}
       {mediaArchivePreview ? <section className="import-studio" aria-labelledby="media-import-title"><div><p className="editor-kicker"><span /> MEDIA ARCHIVE / VERIFIED</p><h2 id="media-import-title">確認要還原的事件圖片</h2><p>已驗證媒體封存的 manifest、事件標題與發生時間。這次將把 {mediaArchivePreview.items.length} 張圖片加回目前相符的事件；不會接受外部 URL、儲存金鑰、分享設定或帳號資料。</p></div><div className="import-warning"><Archive size={15} /> 只接受 JPG、PNG、WebP、GIF；單張最大 4MB，封存與解壓後總量皆受 25MB 上限保護。</div><div className="import-actions"><button type="button" onClick={() => setMediaArchivePreview(null)} disabled={isMediaArchiveImporting}>取消</button><button type="button" onClick={confirmMediaArchiveImport} disabled={isMediaArchiveImporting}>{isMediaArchiveImporting ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />} 匯入 {mediaArchivePreview.items.length} 張圖片</button></div></section> : null}
       {socialPreview ? <section className="import-studio" aria-labelledby="social-import-title"><div><p className="editor-kicker"><span /> SOCIAL DRAFT / LOCAL ONLY</p><h2 id="social-import-title">先檢視，再帶進成長史</h2><p>已在此裝置解析 {socialPreview.length} 則候選；系統已依來源 ID 去重。確認前不會寫入日記，也不會連接社群帳號。</p></div><div className="import-preview-list">{socialPreview.slice(0, 5).map((candidate) => <article key={candidate.sourceId}><span>{formatDate(candidate.occurredAt, "day")}</span><b>{candidate.title}</b><small>{candidate.isSignificant ? "重大事件候選" : "一般候選"}</small></article>)}</div><div className="import-warning"><Archive size={15} /> 確認後一律建立為私人事件，並標記「社群匯入」。請先檢視原始內容。</div><div className="import-actions"><button type="button" onClick={() => setSocialPreview(null)} disabled={importMutation.isPending}>取消</button><button type="button" onClick={confirmSocialImport} disabled={importMutation.isPending}>{importMutation.isPending ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />} 確認建立 {socialPreview.length} 段事件</button></div></section> : null}
 

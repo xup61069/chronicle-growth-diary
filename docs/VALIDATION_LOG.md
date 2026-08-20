@@ -6,11 +6,12 @@
 
 | 範圍 | 狀態 | 可重現方法 |
 | --- | --- | --- |
-| 格式、型別、單元測試與正式建置 | 通過 | `pnpm lint && pnpm check && pnpm test`，再分別執行 `./node_modules/.bin/vite build` 與 `pnpm exec esbuild server/_core/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist`。目前基準為 **56 個測試檔、157 項 Vitest**。 |
+| 格式、型別、單元測試與正式建置 | 通過 | `pnpm lint && pnpm check && pnpm test`，再分別執行 `./node_modules/.bin/vite build` 與 `pnpm exec esbuild server/_core/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist`。目前基準為 **61 個測試檔、169 項 Vitest**。 |
 | 公開首頁 375px | 通過 | 設定 HTTPS `CHRONICLE_E2E_BASE_URL` 後執行 `pnpm test:e2e:mobile-nav`。覆蓋跳至主要內容、行動導覽、範例入口、時間帶鍵盤探索、事件類型篩選的 `aria-pressed`、僅公開欄位的關鍵字搜尋、自動完成的 Escape／Arrow／Enter 選取、搜尋命中 `mark`、日期與類型交集篩選、由新到舊／由舊到新排序、搜尋欄一鍵清除、網址參數同步與分享連結還原、每批三筆的載入更多、零結果插圖、近期事件建議、零結果清除、減少動態下無結果過渡與離線紀錄入口。首頁改採事件、日期、資料可見範圍與操作流程等直接產品文案，已以桌面與 375px 檢查可讀性。 |
 | 路由載入邊界 | 通過 | Vite 將資料客戶端、圖表、文件匯出、圖示庫與僅工作台使用的 UI 套件分離為可快取 chunk；公開首頁入口產物由 **151.74 KiB** 降至 **128.53 KiB**（減少 **23.21 KiB／15.00%**）。`RouteLoadingState` 提供 `aria-busy` 與 live status；公開首頁 375px、以及隔離 local-auth 的 375px／桌面 `/editor`、`/dashboard` 與返回導覽回歸均通過。 |
 | 按需文件匯出邊界與下載 | 通過 | `diaryExport.ts` 僅以 `import("html2canvas")` 與 `import("jspdf")` 載入大型依賴；`diaryExportCodeSplitting.test.ts` 禁止回歸為靜態 import，`diaryExport.test.ts` 覆蓋多頁 PDF 與長圖片下載的封裝流程。壓縮 Vite 產物確認 `DiaryEditor` 以動態 `import()` 指向 **593.38 KiB** 的 `document-export` chunk，而公開首頁入口沒有此 chunk 參照；`route-preload` 則先於一般 `node_modules` 規則獨立分割。隔離 local-auth 的 `pnpm test:e2e:editor-document-export` 已以真實的「匯出 PDF／匯出長圖片」按鈕確認兩種非空下載；無登入的 `pnpm test:e2e:document-export` 則以小型內容夾具保護動態依賴與下載檔案，並納入 CI。 |
 | 隔離 local-auth 編輯器 | 通過 | 設定 HTTPS `CHRONICLE_E2E_BASE_URL` 後執行 `pnpm test:e2e:isolated`。腳本會建立並清除暫時帳號，覆蓋 375px 日記載入、分頁、事件選取、private 語音日記入口與本機優先狀態、家庭反應切換、A5 私人書冊預覽、年度 AI 同意與 private 事件 Markdown 匯出、成長數據儀表板，以及 `diary.get` 逾時／失敗恢復。 |
+| 照片 EXIF 批次匯入 | 通過 | 僅接受每批最多 24 張、單張不超過 4MB 的 JPEG；瀏覽器端動態載入 EXIF 解析器，且只選取 `DateTimeOriginal`／`CreateDate`，不請求或呈現 GPS。確認前，照片不會上傳，事件也不會建立；確認後每個日期群組以 private 事件與既有受保護媒體上傳流程寫入。若全數略過，工作台仍會完整保留每張照片與原因、明示不會上傳或建立事件，且不顯示確認操作。`photoExifImport.test.ts` 包含標準 JPEG `DateTimeOriginal` 夾具、分批與略過規則；HTTPS local-auth 隔離回歸已於 1280px 與 375px 實際選取 JPEG、確認日期預覽的隱私提示並建立私人事件，並在桌面覆蓋非 JPEG、超過 4MB 及缺少 EXIF 日期三種全數略過原因。 |
 | 公開故事閱讀版型 | 通過 | `SharedStory` 測試覆蓋 `editorial`、`gallery` 與 `minimal`；隔離 local-auth 已完成三種版型的 375px 視覺回歸。 |
 | 社群分享中繼資料 | 通過 | `socialMetadata.test.ts` 驗證 Open Graph 與 Twitter 圖片皆採 Chronicle 品牌時間帶視覺與替代文字。 |
 | 離線快速記事 | 通過 | `/quick-note` 使用目前瀏覽器的 localStorage 保存草稿；單元與 375px 回歸覆蓋儲存、還原、清除與複製行為。 |
