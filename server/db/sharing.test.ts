@@ -123,7 +123,7 @@ describe("sharing data access", () => {
   it("never exposes private voice audio metadata or transcripts in a shared story", async () => {
     const { db } = createDb([sharedDiary]);
     mocks.getEnrichedDiaryEvents.mockResolvedValueOnce([
-      { id: 12, occurredAt: Date.UTC(2025, 0, 1), locationPrivacy: "none", tags: [], media: [], voiceNotes: [{ id: 5, url: "/manus-storage/private.webm", transcript: "這段話只留給自己。" }] },
+      { id: 12, occurredAt: Date.UTC(2025, 0, 1), locationPrivacy: "none", tags: [], media: [], voiceNotes: [{ id: 5, url: "/manus-storage/private.webm", transcript: "這段話只留給自己。" }], reactions: [{ reaction: "heart", authorUserId: 5 }] },
     ]);
 
     const result = await readSharedDiary(db, "story-growth-file");
@@ -131,6 +131,7 @@ describe("sharing data access", () => {
     expect(result).toMatchObject({ status: "ok", events: [{ id: 12, voiceNotes: [] }] });
     expect(JSON.stringify(result)).not.toContain("這段話只留給自己。");
     expect(JSON.stringify(result)).not.toContain("private.webm");
+    expect(result.status === "ok" && result.events[0]).not.toHaveProperty("reactions");
   });
 
   it("masks every private field of an unexpired time capsule before returning shared events", async () => {

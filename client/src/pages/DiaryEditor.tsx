@@ -83,6 +83,12 @@ type PublicStoryLayout = "editorial" | "gallery" | "minimal";
 type PhaseKey = "childhood" | "education" | "career";
 type PhaseBoundaries = Record<PhaseKey, { start: string; end: string }>;
 type MobileWorkspacePanel = "index" | "compose" | "preview";
+const familyReactionOptions = [
+  { reaction: "heart" as const, label: "心意" },
+  { reaction: "spark" as const, label: "共鳴" },
+  { reaction: "celebrate" as const, label: "慶祝" },
+  { reaction: "support" as const, label: "支持" },
+];
 
 function DiaryEditorContent() {
   const utils = trpc.useUtils();
@@ -253,6 +259,12 @@ function DiaryEditorContent() {
     },
     onError: (error) => toast.error(error.message),
   });
+  const toggleEventReactionMutation = trpc.diary.toggleEventReaction.useMutation({
+    onSuccess: async () => {
+      await utils.diary.getEventReactions.invalidate();
+    },
+    onError: (error) => toast.error(error.message),
+  });
   const familyMembersQuery = trpc.diary.getFamilyMembers.useQuery(undefined, { enabled: isOwner });
   const familyAuditQuery = trpc.diary.getFamilyAudit.useQuery(undefined, { enabled: isOwner });
   const removeFamilyMemberMutation = trpc.diary.removeFamilyMember.useMutation({
@@ -291,6 +303,10 @@ function DiaryEditorContent() {
   const placeFootprints = useMemo(() => buildPlaceFootprints(visibleEvents), [visibleEvents]);
   const spatialFootprints = useMemo(() => buildSpatialFootprints(visibleEvents), [visibleEvents]);
   const selectedEvent = events.find((event) => event.id === (selectedId ?? editingId)) ?? visibleEvents[0] ?? events[0];
+  const eventReactionsQuery = trpc.diary.getEventReactions.useQuery(
+    { eventId: selectedEvent?.id ?? 0 },
+    { enabled: Boolean(selectedEvent && selectedEvent.shareScope === "private"), staleTime: 0 },
+  );
   const comparisonPair = useMemo(() => getComparisonPair(events, selectedEvent), [events, selectedEvent]);
   const selectedCapsuleStatus = useMemo(() => getTimeCapsuleStatus(selectedEvent?.unlocksAt), [selectedEvent?.unlocksAt]);
   const lifeProgress = useMemo(() => getLifeProgress(data?.diary.birthYear), [data?.diary.birthYear]);
@@ -1460,6 +1476,14 @@ function DiaryEditorContent() {
                 {canEdit ? <section className="event-revisions" aria-label="事件版本歷程">
                   <button type="button" className="event-revisions-toggle" onClick={() => setShowRevisions((visible) => !visible)}><History size={13} /> {showRevisions ? "收起版本歷程" : "查看版本歷程"}</button>
                   {showRevisions ? <div className="event-revisions-list">{revisionsQuery.isLoading ? <p><Loader2 size={13} className="animate-spin" /> 載入版本中…</p> : revisionsQuery.error ? <p>無法讀取版本：{revisionsQuery.error.message}</p> : revisionsQuery.data?.length ? revisionsQuery.data.map((revision) => <article key={revision.id}><div><b>第 {revision.version} 版</b><span>{revision.changeType === "create" ? "初始建立" : revision.changeType === "restore" ? "還原版本" : "內容更新"} · {new Date(revision.createdAt).toLocaleString("zh-TW")}</span></div><p>{revision.snapshot.title}</p>{canEdit ? <button type="button" onClick={() => restoreEventRevision(revision.id, revision.version)} disabled={restoreRevisionMutation.isPending}><RotateCcw size={12} /> 還原此版</button> : null}</article>) : <p>這段事件尚未有可顯示的版本。</p>}</div> : null}
+                </section> : null}
+                {selectedEvent.shareScope === "private" ? <section className="event-reactions" aria-labelledby="event-reactions-title">
+                  <header><span id="event-reactions-title"><Sparkles size={13} /> 家庭反應</span><small>只有日記擁有者與受邀成員可查看或建立。</small></header>
+                  {eventReactionsQuery.isLoading ? <p role="status"><Loader2 size={13} className="animate-spin" /> 載入成員反應中…</p> : eventReactionsQuery.error ? <p role="status">目前無法讀取家庭反應。</p> : <div className="event-reaction-options" role="group" aria-label="為這段私人記憶留下反應">{familyReactionOptions.map((option) => {
+                    const reaction = eventReactionsQuery.data?.find((item) => item.reaction === option.reaction);
+                    return <button type="button" key={option.reaction} aria-pressed={reaction?.reactedByCurrentUser ?? false} onClick={() => toggleEventReactionMutation.mutate({ eventId: selectedEvent.id, reaction: option.reaction })} disabled={toggleEventReactionMutation.isPending}><span>{option.label}</span>{reaction?.count ? <b>{reaction.count}</b> : null}</button>;
+                  })}</div>}
+                  <p className="event-reaction-note" role="status" aria-live="polite">反應只代表目前日記成員的選擇，不會出現在任何公開或私密連結分享頁。</p>
                 </section> : null}
                 <section className="event-comments" aria-label="家庭共寫註解">
                   <header><span><BookOpenCheck size={13} /> 家庭註解</span><small>只有日記擁有者與受邀成員可查看。</small></header>

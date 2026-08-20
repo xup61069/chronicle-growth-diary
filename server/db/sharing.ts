@@ -139,8 +139,9 @@ export async function readSharedDiary(db: DbClient, slug: string, token?: string
 
   const sharedEvents = events.map((event) => {
     const sharedEvent = maskLockedSharedCapsule(event);
+    const { voiceNotes: _voiceNotes, reactions: _reactions, ...shareableEvent } = sharedEvent as typeof sharedEvent & { reactions?: unknown };
     return {
-      ...sharedEvent,
+      ...shareableEvent,
       place: sharedEvent.isTimeCapsuleLocked ? null : event.locationPrivacy === "city" ? event.place : null,
       mapLatitudeE6: null,
       mapLongitudeE6: null,

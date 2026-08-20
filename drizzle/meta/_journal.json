@@ -106,6 +106,20 @@
       "when": 1787197026796,
       "tag": "0014_steady_the_hood",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "5",
+      "when": 1787198814762,
+      "tag": "0015_early_quasimodo",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "5",
+      "when": 1787198957659,
+      "tag": "0016_wet_magus",
+      "breakpoints": true
     }
   ]
 }

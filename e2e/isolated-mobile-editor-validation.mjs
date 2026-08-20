@@ -80,6 +80,13 @@ try {
     }
     findings.checks.push('desktop private voice diary privacy entry');
 
+    const desktopHeartReaction = page.locator('.event-reaction-options button').filter({ hasText: '心意' });
+    await desktopHeartReaction.waitFor({ timeout: 10_000 });
+    assert(await desktopHeartReaction.getAttribute('aria-pressed') === 'false', '桌面家庭反應不應預設選取。');
+    await desktopHeartReaction.click();
+    await page.waitForFunction(() => Array.from(document.querySelectorAll('.event-reaction-options button')).some((button) => button.textContent?.includes('心意') && button.getAttribute('aria-pressed') === 'true'), undefined, { timeout: 10_000 });
+    findings.checks.push('desktop private family reaction toggle');
+
     const printPreviewPromise = context.waitForEvent('page');
     await page.getByRole('button', { name: 'A5 書冊預覽' }).click();
     const printPreview = await printPreviewPromise;
@@ -125,6 +132,17 @@ try {
     await voiceDiary.screenshot({ path: process.env.CHRONICLE_E2E_VOICE_SCREENSHOT_PATH });
   }
   findings.checks.push('375px private voice diary privacy entry');
+
+  const heartReaction = page.locator('.event-reaction-options button').filter({ hasText: '心意' });
+  await heartReaction.waitFor({ timeout: 10_000 });
+  assert(await heartReaction.getAttribute('aria-pressed') === 'false', '家庭反應不應在沒有真實使用者動作時預設選取。');
+  await heartReaction.click();
+  await page.waitForFunction(() => Array.from(document.querySelectorAll('.event-reaction-options button')).some((button) => button.textContent?.includes('心意') && button.getAttribute('aria-pressed') === 'true'), undefined, { timeout: 10_000 });
+  assert(await heartReaction.getAttribute('aria-pressed') === 'true', '私人事件的家庭反應未保存目前帳號的選擇。');
+  if (process.env.CHRONICLE_E2E_REACTION_SCREENSHOT_PATH) {
+    await page.locator('.event-reactions').screenshot({ path: process.env.CHRONICLE_E2E_REACTION_SCREENSHOT_PATH });
+  }
+  findings.checks.push('375px private family reaction toggle');
 
   const mobilePrintPreviewPromise = context.waitForEvent('page');
   await page.getByRole('button', { name: 'A5 書冊預覽' }).click();

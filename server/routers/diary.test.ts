@@ -24,6 +24,7 @@ const diaryDb = vi.hoisted(() => {
     getDiaryAuditLogs: vi.fn(async () => [{ id: 1, action: "invite_created", actorName: "Test User", createdAt: new Date() }]),
     getDiaryMembers: vi.fn(async () => [{ id: 7, userId: 2, role: "commenter", name: "Family", email: "family@example.com", createdAt: new Date() }]),
     getEventComments: vi.fn(async () => [{ id: 11, body: "我也記得這一天。", authorName: "Test User", createdAt: new Date() }]),
+    getEventReactions: vi.fn(async () => [{ reaction: "heart", count: 1, reactedByCurrentUser: true }]),
     uploadDiaryCoverImage,
     createDiaryEvent: vi.fn(),
     deleteDiaryEvent: vi.fn(),
@@ -46,6 +47,7 @@ const diaryDb = vi.hoisted(() => {
     updateDiaryProfile: vi.fn(async () => ({ title: "閱讀中的成長史", subtitle: "把轉折留在時間帶上。" })),
     updateDiarySharing: vi.fn(async () => ({ mode: "public", slug: "story-test-cover", shareToken: null, hasPassword: false, expiresAt: null })),
     updateDiaryMemberRole: vi.fn(async () => ({ id: 7, role: "editor" })),
+    toggleEventReaction: vi.fn(async () => ({ reaction: "heart", reacted: true })),
     updatePhaseReflection: vi.fn(),
     uploadDiaryEventImage: vi.fn(),
     uploadDiaryVoiceNote: vi.fn(),
@@ -267,6 +269,17 @@ describe("diary router validation", () => {
     expect(comment.id).toBe(11);
     expect(diaryDb.getEventComments).toHaveBeenCalledWith(1, 8);
     expect(comments).toHaveLength(1);
+  });
+
+  it("reads and toggles family reactions only through protected account-scoped helpers", async () => {
+    const caller = diaryRouter.createCaller(authenticatedContext);
+    const reactions = await caller.getEventReactions({ eventId: 8 });
+    const result = await caller.toggleEventReaction({ eventId: 8, reaction: "heart" });
+
+    expect(diaryDb.getEventReactions).toHaveBeenCalledWith(1, 8);
+    expect(diaryDb.toggleEventReaction).toHaveBeenCalledWith(1, 8, "heart");
+    expect(reactions).toEqual([{ reaction: "heart", count: 1, reactedByCurrentUser: true }]);
+    expect(result).toEqual({ reaction: "heart", reacted: true });
   });
 
   it("rejects expired family invites and empty event comments before persistence", async () => {

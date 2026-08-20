@@ -7,6 +7,7 @@ import {
   growthDiaryInvites,
   growthDiaryMembers,
   growthEventComments,
+  growthEventReactions,
   growthEvents,
   users,
 } from "../../drizzle/schema";
@@ -14,7 +15,9 @@ import { hashShareToken } from "../shareAccess";
 
 type DbClient = MySql2Database<Record<string, unknown>>;
 export type DiaryMemberRole = "editor" | "commenter";
-type AuditAction = "invite_created" | "invite_accepted" | "member_role_updated" | "member_removed" | "comment_created";
+type AuditAction = "invite_created" | "invite_accepted" | "member_role_updated" | "member_removed" | "comment_created" | "reaction_added" | "reaction_removed";
+export const EVENT_REACTION_TYPES = ["heart", "spark", "celebrate", "support"] as const;
+export type EventReactionType = (typeof EVENT_REACTION_TYPES)[number];
 
 async function writeDiaryAudit(db: DbClient, diaryId: number, actorUserId: number, action: AuditAction, targetType: string, targetId?: number, metadata?: Record<string, unknown>) {
   await db.insert(growthDiaryAuditLogs).values({
@@ -28,15 +31,15 @@ async function writeDiaryAudit(db: DbClient, diaryId: number, actorUserId: numbe
 }
 
 async function getEventAccess(db: DbClient, userId: number, eventId: number) {
-  const event = await db.select({ diaryId: growthEvents.diaryId }).from(growthEvents).where(eq(growthEvents.id, eventId)).limit(1);
+  const event = await db.select({ diaryId: growthEvents.diaryId, shareScope: growthEvents.shareScope }).from(growthEvents).where(eq(growthEvents.id, eventId)).limit(1);
   if (!event[0]) throw new Error("找不到這筆成長事件。");
   const owner = await db.select({ id: growthDiaries.id }).from(growthDiaries)
     .where(and(eq(growthDiaries.id, event[0].diaryId), eq(growthDiaries.userId, userId))).limit(1);
-  if (owner[0]) return { diaryId: event[0].diaryId, role: "owner" as const };
+  if (owner[0]) return { diaryId: event[0].diaryId, shareScope: event[0].shareScope, role: "owner" as const };
   const member = await db.select().from(growthDiaryMembers)
     .where(and(eq(growthDiaryMembers.diaryId, event[0].diaryId), eq(growthDiaryMembers.userId, userId))).limit(1);
   if (!member[0]) throw new Error("你沒有檢視或註解這段成長史的權限。");
-  return { diaryId: event[0].diaryId, role: member[0].role };
+  return { diaryId: event[0].diaryId, shareScope: event[0].shareScope, role: member[0].role };
 }
 
 export async function createDiaryInviteForDiary(db: DbClient, diaryId: number, userId: number, input: { email: string; role: DiaryMemberRole; expiresAt: number }) {
@@ -81,6 +84,36 @@ export async function getEventCommentsForUser(db: DbClient, userId: number, even
   return db.select({ id: growthEventComments.id, body: growthEventComments.body, createdAt: growthEventComments.createdAt, authorName: users.name })
     .from(growthEventComments).innerJoin(users, eq(growthEventComments.authorUserId, users.id))
     .where(eq(growthEventComments.eventId, eventId)).orderBy(asc(growthEventComments.createdAt));
+}
+
+async function getPrivateEventMemberAccess(db: DbClient, userId: number, eventId: number) {
+  const access = await getEventAccess(db, userId, eventId);
+  if (access.shareScope !== "private") throw new Error("家庭反應只可用於完全私人的事件。");
+  return access;
+}
+
+export async function getEventReactionsForUser(db: DbClient, userId: number, eventId: number) {
+  await getPrivateEventMemberAccess(db, userId, eventId);
+  const reactions = await db.select({ reaction: growthEventReactions.reaction, authorUserId: growthEventReactions.authorUserId })
+    .from(growthEventReactions).where(eq(growthEventReactions.eventId, eventId));
+  return EVENT_REACTION_TYPES.map((reaction) => {
+    const matching = reactions.filter((item) => item.reaction === reaction);
+    return { reaction, count: matching.length, reactedByCurrentUser: matching.some((item) => item.authorUserId === userId) };
+  });
+}
+
+export async function toggleEventReactionForUser(db: DbClient, userId: number, eventId: number, reaction: EventReactionType) {
+  const access = await getPrivateEventMemberAccess(db, userId, eventId);
+  const existing = await db.select({ id: growthEventReactions.id }).from(growthEventReactions)
+    .where(and(eq(growthEventReactions.eventId, eventId), eq(growthEventReactions.authorUserId, userId), eq(growthEventReactions.reaction, reaction))).limit(1);
+  if (existing[0]) {
+    await db.delete(growthEventReactions).where(eq(growthEventReactions.id, existing[0].id));
+    await writeDiaryAudit(db, access.diaryId, userId, "reaction_removed", "reaction", existing[0].id, { eventId, reaction });
+    return { reaction, reacted: false };
+  }
+  await db.insert(growthEventReactions).values({ eventId, authorUserId: userId, reaction });
+  await writeDiaryAudit(db, access.diaryId, userId, "reaction_added", "reaction", undefined, { eventId, reaction });
+  return { reaction, reacted: true };
 }
 
 export async function getDiaryMembersForDiary(db: DbClient, diaryId: number) {

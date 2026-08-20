@@ -245,6 +245,22 @@ export const growthEventComments = mysqlTable(
   (table) => [index("growth_event_comments_event_idx").on(table.eventId, table.createdAt)],
 );
 
+/** Private, member-created reactions attached to a single timeline event. */
+export const growthEventReactions = mysqlTable(
+  "growth_event_reactions",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    eventId: int("eventId").notNull().references(() => growthEvents.id, { onDelete: "cascade" }),
+    authorUserId: int("authorUserId").notNull().references(() => users.id, { onDelete: "cascade" }),
+    reaction: mysqlEnum("reaction", ["heart", "spark", "celebrate", "support"]).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (table) => [
+    index("growth_event_reactions_event_idx").on(table.eventId, table.createdAt),
+    uniqueIndex("growth_event_reactions_unique_idx").on(table.eventId, table.authorUserId, table.reaction),
+  ],
+);
+
 /** Append-only accountability record for family collaboration actions. */
 export const growthDiaryAuditLogs = mysqlTable(
   "growth_diary_audit_logs",
@@ -252,7 +268,7 @@ export const growthDiaryAuditLogs = mysqlTable(
     id: int("id").autoincrement().primaryKey(),
     diaryId: int("diaryId").notNull().references(() => growthDiaries.id, { onDelete: "cascade" }),
     actorUserId: int("actorUserId").notNull().references(() => users.id, { onDelete: "cascade" }),
-    action: mysqlEnum("action", ["invite_created", "invite_accepted", "member_role_updated", "member_removed", "comment_created"]).notNull(),
+    action: mysqlEnum("action", ["invite_created", "invite_accepted", "member_role_updated", "member_removed", "comment_created", "reaction_added", "reaction_removed"]).notNull(),
     targetType: varchar("targetType", { length: 32 }).notNull(),
     targetId: int("targetId"),
     metadata: text("metadata"),
@@ -273,4 +289,5 @@ export type GrowthPhaseReflection = typeof growthPhaseReflections.$inferSelect;
 export type GrowthDiaryMember = typeof growthDiaryMembers.$inferSelect;
 export type GrowthDiaryInvite = typeof growthDiaryInvites.$inferSelect;
 export type GrowthEventComment = typeof growthEventComments.$inferSelect;
+export type GrowthEventReaction = typeof growthEventReactions.$inferSelect;
 export type GrowthDiaryAuditLog = typeof growthDiaryAuditLogs.$inferSelect;

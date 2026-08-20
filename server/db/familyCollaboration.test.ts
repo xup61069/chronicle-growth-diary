@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { acceptDiaryInviteForUser } from "./familyCollaboration";
+import { acceptDiaryInviteForUser, getEventReactionsForUser } from "./familyCollaboration";
 
 function createDbWithInvite(invite: unknown) {
   const limit = vi.fn().mockResolvedValue([invite]);
@@ -28,5 +28,26 @@ describe("family collaboration data access", () => {
       .rejects.toThrow("這個家庭邀請不屬於目前帳號。");
     expect(insert).not.toHaveBeenCalled();
     expect(update).not.toHaveBeenCalled();
+  });
+
+  it("returns only aggregate member reactions for a private event and rejects shared events", async () => {
+    const privateSelect = vi.fn()
+      .mockReturnValueOnce({ from: vi.fn(() => ({ where: vi.fn(() => ({ limit: vi.fn().mockResolvedValue([{ diaryId: 7, shareScope: "private" }]) })) })) })
+      .mockReturnValueOnce({ from: vi.fn(() => ({ where: vi.fn(() => ({ limit: vi.fn().mockResolvedValue([{ id: 7 }]) })) })) })
+      .mockReturnValueOnce({ from: vi.fn(() => ({ where: vi.fn().mockResolvedValue([{ reaction: "heart", authorUserId: 12 }, { reaction: "heart", authorUserId: 33 }, { reaction: "spark", authorUserId: 12 }]) })) });
+    const privateDb = { select: privateSelect } as never;
+
+    await expect(getEventReactionsForUser(privateDb, 12, 8)).resolves.toEqual([
+      { reaction: "heart", count: 2, reactedByCurrentUser: true },
+      { reaction: "spark", count: 1, reactedByCurrentUser: true },
+      { reaction: "celebrate", count: 0, reactedByCurrentUser: false },
+      { reaction: "support", count: 0, reactedByCurrentUser: false },
+    ]);
+
+    const sharedSelect = vi.fn()
+      .mockReturnValueOnce({ from: vi.fn(() => ({ where: vi.fn(() => ({ limit: vi.fn().mockResolvedValue([{ diaryId: 7, shareScope: "link" }]) })) })) })
+      .mockReturnValueOnce({ from: vi.fn(() => ({ where: vi.fn(() => ({ limit: vi.fn().mockResolvedValue([{ id: 7 }]) })) })) });
+    await expect(getEventReactionsForUser({ select: sharedSelect } as never, 12, 8)).rejects.toThrow("完全私人的事件");
+    expect(sharedSelect).toHaveBeenCalledTimes(2);
   });
 });

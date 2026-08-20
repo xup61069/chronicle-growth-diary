@@ -13,11 +13,13 @@ import {
   getDiaryAuditLogsForDiary,
   getDiaryMembersForDiary,
   getEventCommentsForUser,
+  getEventReactionsForUser,
   removeDiaryMemberForDiary,
+  toggleEventReactionForUser,
   updateDiaryMemberRoleForDiary,
 } from "./db/familyCollaboration";
-export type { DiaryMemberRole } from "./db/familyCollaboration";
-import type { DiaryMemberRole } from "./db/familyCollaboration";
+export type { DiaryMemberRole, EventReactionType } from "./db/familyCollaboration";
+import type { DiaryMemberRole, EventReactionType } from "./db/familyCollaboration";
 import { persistDiarySharing, readSharedDiary } from "./db/sharing";
 export type { DiarySharingInput } from "./db/sharing";
 import type { DiarySharingInput } from "./db/sharing";
@@ -310,6 +312,16 @@ export async function createEventComment(userId: number, eventId: number, body: 
 export async function getEventComments(userId: number, eventId: number) {
   const db = await requireDb();
   return getEventCommentsForUser(db, userId, eventId);
+}
+
+export async function getEventReactions(userId: number, eventId: number) {
+  const db = await requireDb();
+  return getEventReactionsForUser(db, userId, eventId);
+}
+
+export async function toggleEventReaction(userId: number, eventId: number, reaction: EventReactionType) {
+  const db = await requireDb();
+  return toggleEventReactionForUser(db, userId, eventId, reaction);
 }
 
 export async function getDiaryMembers(userId: number) {
