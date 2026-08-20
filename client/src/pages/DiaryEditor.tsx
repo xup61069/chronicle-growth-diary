@@ -11,7 +11,7 @@ import { filterDiaryEvents, type DiarySortOrder } from "@/lib/diaryFilters";
 import { getDiaryLoadStatus } from "@/lib/diaryLoadState";
 import { exportDiaryAsLongImage, exportDiaryAsPdf } from "@/lib/diaryExport";
 import { createMediaArchive, downloadMediaArchive, readMediaArchive, type ImportedMediaArchive } from "@/lib/diaryMediaArchive";
-import { applyPhotoCapturedAt, preparePhotoExifImport, updatePhotoCapturedAt, updatePhotoLocation, type PhotoExifImportPreview } from "@/lib/photoExifImport";
+import { applyPhotoCapturedAt, hasValidPhotoLocation, preparePhotoExifImport, staticMapPointToCoordinate, updatePhotoCapturedAt, updatePhotoLocation, type PhotoExifImportCandidate, type PhotoExifImportPreview } from "@/lib/photoExifImport";
 import { createPortableDiaryExport, downloadPortableDiary } from "@/lib/diaryPortable";
 import { parseChronicleImport, type ChronicleImportPreview } from "@/lib/diaryImport";
 import { appendWritingGuide, getLocalWritingGuides } from "@/lib/writingGuide";
@@ -79,7 +79,7 @@ import {
   WandSparkles,
   X,
 } from "lucide-react";
-import { ChangeEvent, FormEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
+import { ChangeEvent, FormEvent, KeyboardEvent, MouseEvent, PointerEvent, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
 
@@ -164,6 +164,9 @@ function DiaryEditorContent() {
   const [photoExifPreview, setPhotoExifPreview] = useState<PhotoExifImportPreview | null>(null);
   const [selectedPhotoExifIds, setSelectedPhotoExifIds] = useState<string[]>([]);
   const [photoExifBatchCapturedAt, setPhotoExifBatchCapturedAt] = useState("");
+  const [photoExifBatchIncrementSeconds, setPhotoExifBatchIncrementSeconds] = useState("0");
+  const [photoExifMapPreview, setPhotoExifMapPreview] = useState<{ photoId: string; dataUrl: string; latitude: string; longitude: string } | null>(null);
+  const [photoExifMapDrag, setPhotoExifMapDrag] = useState<{ photoId: string; x: number; y: number } | null>(null);
   const [photoExifUploadProgress, setPhotoExifUploadProgress] = useState<{ total: number; uploaded: number; currentFileName: string | null } | null>(null);
   const [isMediaArchiveExporting, setIsMediaArchiveExporting] = useState(false);
   const [isMediaArchiveImporting, setIsMediaArchiveImporting] = useState(false);
@@ -177,6 +180,7 @@ function DiaryEditorContent() {
   const socialImportInputRef = useRef<HTMLInputElement>(null);
   const mediaArchiveInputRef = useRef<HTMLInputElement>(null);
   const photoExifInputRef = useRef<HTMLInputElement>(null);
+  const photoExifMapPointerRef = useRef<{ photoId: string; pointerId: number } | null>(null);
   const voiceRecorderRef = useRef<MediaRecorder | null>(null);
   const voiceStreamRef = useRef<MediaStream | null>(null);
   const voiceStartedAtRef = useRef(0);
@@ -215,6 +219,7 @@ function DiaryEditorContent() {
   const saveMutation = trpc.diary.createEvent.useMutation();
   const updateMutation = trpc.diary.updateEvent.useMutation();
   const uploadMutation = trpc.diary.uploadImage.useMutation();
+  const photoMapPreviewMutation = trpc.photoMap.preview.useMutation();
   const deleteMutation = trpc.diary.deleteEvent.useMutation();
   const deleteImageMutation = trpc.diary.deleteImage.useMutation();
   const updateImageMutation = trpc.diary.updateImage.useMutation();
@@ -977,6 +982,58 @@ function DiaryEditorContent() {
   const selectMediaArchiveFile = () => mediaArchiveInputRef.current?.click();
   const selectPhotoExifFiles = () => photoExifInputRef.current?.click();
 
+  const previewPhotoExifMap = async (photo: PhotoExifImportCandidate) => {
+    if (!hasValidPhotoLocation(photo)) return toast.error("請先填入完整且有效的緯度與經度，再更新地圖。 ");
+    try {
+      const data = await photoMapPreviewMutation.mutateAsync({ latitude: Number(photo.latitude), longitude: Number(photo.longitude) });
+      setPhotoExifMapPreview({ photoId: photo.id, dataUrl: data.dataUrl, latitude: photo.latitude, longitude: photo.longitude });
+    } catch (mapError) {
+      toast.error(mapError instanceof Error ? mapError.message : "無法載入此座標的地圖預覽。 ");
+    }
+  };
+
+  const adjustPhotoExifMapByClick = (photo: PhotoExifImportCandidate, event: MouseEvent<HTMLButtonElement>) => {
+    if (!photoExifMapPreview || photoExifMapPreview.photoId !== photo.id) return;
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const coordinate = staticMapPointToCoordinate({
+      centerLatitude: Number(photoExifMapPreview.latitude), centerLongitude: Number(photoExifMapPreview.longitude), zoom: 14,
+      width: bounds.width, height: bounds.height, x: event.clientX - bounds.left, y: event.clientY - bounds.top,
+    });
+    setPhotoExifMapPreview(null);
+    setPhotoExifPreview((current) => current ? updatePhotoLocation(current, photo.id, String(coordinate.latitude), String(coordinate.longitude)) : current);
+  };
+
+  const updatePhotoExifMapDrag = (photo: PhotoExifImportCandidate, element: HTMLButtonElement, clientX: number, clientY: number, commit: boolean) => {
+    if (!photoExifMapPreview || photoExifMapPreview.photoId !== photo.id) return;
+    const bounds = element.getBoundingClientRect();
+    const x = Math.min(Math.max(clientX - bounds.left, 0), bounds.width);
+    const y = Math.min(Math.max(clientY - bounds.top, 0), bounds.height);
+    if (!commit) return setPhotoExifMapDrag({ photoId: photo.id, x: bounds.width ? x / bounds.width * 100 : 50, y: bounds.height ? y / bounds.height * 100 : 50 });
+    const coordinate = staticMapPointToCoordinate({ centerLatitude: Number(photoExifMapPreview.latitude), centerLongitude: Number(photoExifMapPreview.longitude), zoom: 14, width: bounds.width, height: bounds.height, x, y });
+    setPhotoExifMapDrag(null);
+    setPhotoExifMapPreview(null);
+    setPhotoExifPreview((current) => current ? updatePhotoLocation(current, photo.id, String(coordinate.latitude), String(coordinate.longitude)) : current);
+  };
+
+  const startPhotoExifMapDrag = (photo: PhotoExifImportCandidate, event: PointerEvent<HTMLButtonElement>) => {
+    if (!photoExifMapPreview || photoExifMapPreview.photoId !== photo.id) return;
+    photoExifMapPointerRef.current = { photoId: photo.id, pointerId: event.pointerId };
+    try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* synthetic browser tests do not own a native pointer */ }
+    updatePhotoExifMapDrag(photo, event.currentTarget, event.clientX, event.clientY, false);
+  };
+
+  const movePhotoExifMapDrag = (photo: PhotoExifImportCandidate, event: PointerEvent<HTMLButtonElement>) => {
+    if (photoExifMapPointerRef.current?.photoId !== photo.id || photoExifMapPointerRef.current.pointerId !== event.pointerId) return;
+    updatePhotoExifMapDrag(photo, event.currentTarget, event.clientX, event.clientY, false);
+  };
+
+  const finishPhotoExifMapDrag = (photo: PhotoExifImportCandidate, event: PointerEvent<HTMLButtonElement>) => {
+    if (photoExifMapPointerRef.current?.photoId !== photo.id || photoExifMapPointerRef.current.pointerId !== event.pointerId) return;
+    photoExifMapPointerRef.current = null;
+    try { if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); } catch { /* synthetic browser tests do not own a native pointer */ }
+    updatePhotoExifMapDrag(photo, event.currentTarget, event.clientX, event.clientY, true);
+  };
+
   const handlePhotoExifFiles = async (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []);
     event.target.value = "";
@@ -986,6 +1043,8 @@ function DiaryEditorContent() {
       setPhotoExifPreview(preview);
       setSelectedPhotoExifIds([]);
       setPhotoExifBatchCapturedAt("");
+      setPhotoExifBatchIncrementSeconds("0");
+      setPhotoExifMapPreview(null);
       if (!preview.photos.length) {
         toast.error("沒有可用的 JPEG 照片；略過原因已保留在下方預覽。 ");
       } else if (!preview.groups.length) {
@@ -1094,6 +1153,8 @@ function DiaryEditorContent() {
       setPhotoExifPreview(null);
       setSelectedPhotoExifIds([]);
       setPhotoExifBatchCapturedAt("");
+      setPhotoExifBatchIncrementSeconds("0");
+      setPhotoExifMapPreview(null);
       toast.success(`已建立 ${createdCount} 段私人照片記錄。`);
     } catch (photoError) {
       toast.error(photoError instanceof Error ? photoError.message : "照片匯入未完成；已建立的私人事件與圖片會保留。");
@@ -1206,7 +1267,28 @@ function DiaryEditorContent() {
         <div className="import-actions"><button type="button" onClick={() => setImportPreview(null)} disabled={importMutation.isPending}>取消</button><button type="button" onClick={confirmImport} disabled={importMutation.isPending}>{importMutation.isPending ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />} 確認建立 {importPreview.events.length} 段事件</button></div>
       </section> : null}
       {isOwner ? <section className="import-studio" aria-labelledby="photo-exif-entry-title"><div><p className="editor-kicker"><span /> PHOTO DATE + GPS / PRIVATE</p><h2 id="photo-exif-entry-title">從照片資料開始整理</h2><p>選取 JPEG 後，拍攝日期與內嵌 GPS 只在目前瀏覽器讀取並分組預覽；確認前不會上傳任何照片或建立事件。</p></div><div className="import-warning"><LockKeyhole size={15} /> 每次最多 24 張、每張 4MB。你可在確認前校正日期時間與座標；位置只會隨 private 事件保存。</div><div className="import-actions"><button type="button" onClick={selectPhotoExifFiles}><ImagePlus size={15} /> 選擇 JPEG 照片</button></div></section> : null}
-      {photoExifPreview ? <section className="import-studio" aria-labelledby="photo-exif-import-title"><div><p className="editor-kicker"><span /> PHOTO DATA / LOCAL REVIEW</p><h2 id="photo-exif-import-title">確認照片的時間與位置</h2><p>拍攝日期與 GPS 只在這個瀏覽器讀取。你可在確認前逐張微調日期、時間與座標；沒有 EXIF 的 JPEG 也可手動補填。確認前不會上傳任何照片或建立事件。</p></div><div className="photo-exif-batch-controls"><div><b>批次套用日期</b><small>先勾選多張照片，再以相同日期時間覆寫選取項目。</small></div><label>共用拍攝日期與時間<input aria-label="批次套用的拍攝日期與時間" type="datetime-local" value={photoExifBatchCapturedAt} onChange={(event) => setPhotoExifBatchCapturedAt(event.target.value)} disabled={isPhotoExifImporting} /></label><button type="button" disabled={isPhotoExifImporting || !selectedPhotoExifIds.length || !photoExifBatchCapturedAt} onClick={() => setPhotoExifPreview((current) => current ? applyPhotoCapturedAt(current, selectedPhotoExifIds, photoExifBatchCapturedAt) : current)}>套用至 {selectedPhotoExifIds.length} 張</button></div><div className="photo-exif-adjustments" aria-label="照片拍攝日期與位置"><p>日期相同的照片會整理為同一段記錄。若填入完整緯經度，系統只會以 private precise 位置隨該段事件保存。</p>{photoExifPreview.photos.map((photo) => <article key={photo.id}><header><span><b>{photo.file.name}</b><small>{photo.source === "exif" ? "拍攝時間已從照片讀取，可自行微調" : "尚未讀到 EXIF 時間，請手動輸入"} · {photo.gpsSource === "exif" ? "GPS 已從照片讀取，可自行微調" : photo.gpsSource === "manual" ? "座標已手動校正" : "未讀到 GPS，可選擇手動填入"}</small></span><label className="photo-exif-select"><input type="checkbox" aria-label={`選取 ${photo.file.name} 以批次套用日期`} checked={selectedPhotoExifIds.includes(photo.id)} onChange={(event) => setSelectedPhotoExifIds((ids) => event.target.checked ? [...ids, photo.id] : ids.filter((id) => id !== photo.id))} disabled={isPhotoExifImporting} /> 批次選取</label></header><div className="photo-exif-fields"><label>拍攝日期與時間<input aria-label={`${photo.file.name} 的拍攝日期與時間`} type="datetime-local" value={photo.capturedAt} onChange={(event) => setPhotoExifPreview((current) => current ? updatePhotoCapturedAt(current, photo.id, event.target.value) : current)} disabled={isPhotoExifImporting} /></label><label>緯度<input aria-label={`${photo.file.name} 的緯度`} type="number" step="0.000001" min="-90" max="90" value={photo.latitude} onChange={(event) => setPhotoExifPreview((current) => current ? updatePhotoLocation(current, photo.id, event.target.value, photo.longitude) : current)} disabled={isPhotoExifImporting} /></label><label>經度<input aria-label={`${photo.file.name} 的經度`} type="number" step="0.000001" min="-180" max="180" value={photo.longitude} onChange={(event) => setPhotoExifPreview((current) => current ? updatePhotoLocation(current, photo.id, photo.latitude, event.target.value) : current)} disabled={isPhotoExifImporting} /></label></div></article>)}</div><div className="import-preview-list">{photoExifPreview.groups.map((group) => <article key={group.id}><span>{group.date}</span><b>{group.title}</b><small>{group.files.length} 張 JPEG · 將建立為 private 事件{group.mapLatitudeE6 !== null ? " · 私有座標已帶入" : ""}</small></article>)}{photoExifPreview.skipped.map((item, index) => <article key={`${item.name}-${index}`}><span>略過</span><b>{item.name}</b><small>{item.reason}</small></article>)}{!photoExifPreview.groups.length ? <p>填入至少一張可用照片的日期與時間後，才會出現可建立的事件。</p> : null}</div>{photoExifUploadProgress ? <div className="photo-exif-progress" role="status" aria-live="polite"><div><b>正在上傳 {photoExifUploadProgress.uploaded}／{photoExifUploadProgress.total} 張</b><small>{photoExifUploadProgress.currentFileName ? `目前處理：${photoExifUploadProgress.currentFileName}` : "正在建立私人事件…"}</small></div><div role="progressbar" aria-label="照片上傳進度" aria-valuemin={0} aria-valuemax={photoExifUploadProgress.total} aria-valuenow={photoExifUploadProgress.uploaded}><span style={{ width: `${photoExifUploadProgress.total ? (photoExifUploadProgress.uploaded / photoExifUploadProgress.total) * 100 : 0}%` }} /></div></div> : null}<div className="import-warning"><LockKeyhole size={15} /> {photoExifPreview.photos.some((photo) => !photo.capturedAt) ? "請先補齊每張 JPEG 的日期與時間；在此之前不會上傳或建立事件。GPS 與手動座標只留在目前瀏覽器。" : photoExifPreview.groups.length ? "確認後才會上傳所列照片，並建立 private 事件；完整座標只會以 precise private 位置隨事件保存。" : "這批照片不會上傳，也不會建立事件。"}</div><div className="import-actions"><button type="button" onClick={() => { setPhotoExifPreview(null); setSelectedPhotoExifIds([]); setPhotoExifBatchCapturedAt(""); }} disabled={isPhotoExifImporting}>取消</button>{photoExifPreview.groups.length ? <button type="button" onClick={confirmPhotoExifImport} disabled={isPhotoExifImporting || photoExifPreview.photos.some((photo) => !photo.capturedAt)}>{isPhotoExifImporting ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />} 確認建立 {photoExifPreview.groups.length} 段私人記錄</button> : null}</div></section> : null}
+      {photoExifPreview ? <section className="import-studio" aria-labelledby="photo-exif-import-title">
+        <div><p className="editor-kicker"><span /> PHOTO DATA / LOCAL REVIEW</p><h2 id="photo-exif-import-title">確認照片的時間與位置</h2><p>拍攝日期與 GPS 只在這個瀏覽器讀取。你可在確認前逐張微調日期、時間與座標；沒有 EXIF 的 JPEG 也可手動補填。地圖只在你按下更新時依目前座標載入；確認前不會上傳任何照片或建立事件。</p></div>
+        <div className="photo-exif-batch-controls">
+          <div><b>批次套用日期</b><small>先勾選多張照片，再以共同的開始時間覆寫選取項目；可設定每張相隔秒數。</small></div>
+          <label>共用拍攝日期與時間<input aria-label="批次套用的拍攝日期與時間" type="datetime-local" value={photoExifBatchCapturedAt} onChange={(event) => setPhotoExifBatchCapturedAt(event.target.value)} disabled={isPhotoExifImporting} /></label>
+          <label>每張遞增秒數<input aria-label="批次套用的遞增秒數" type="number" min="0" max="86400" step="1" value={photoExifBatchIncrementSeconds} onChange={(event) => setPhotoExifBatchIncrementSeconds(event.target.value)} disabled={isPhotoExifImporting} /></label>
+          <button type="button" disabled={isPhotoExifImporting || !selectedPhotoExifIds.length || !photoExifBatchCapturedAt} onClick={() => setPhotoExifPreview((current) => current ? applyPhotoCapturedAt(current, selectedPhotoExifIds, photoExifBatchCapturedAt, Number(photoExifBatchIncrementSeconds)) : current)}>套用至 {selectedPhotoExifIds.length} 張</button>
+        </div>
+        <div className="photo-exif-adjustments" aria-label="照片拍攝日期與位置">
+          <p>日期相同的照片會整理為同一段記錄。若填入完整緯經度，系統只會以 private precise 位置隨該段事件保存。</p>
+          {photoExifPreview.photos.map((photo) => <article key={photo.id}>
+            <header><span><b>{photo.file.name}</b><small>{photo.source === "exif" ? "拍攝時間已從照片讀取，可自行微調" : "尚未讀到 EXIF 時間，請手動輸入"} · {photo.gpsSource === "exif" ? "GPS 已從照片讀取，可自行微調" : photo.gpsSource === "manual" ? "座標已手動校正" : "未讀到 GPS，可選擇手動填入"}</small></span><label className="photo-exif-select"><input type="checkbox" aria-label={`選取 ${photo.file.name} 以批次套用日期`} checked={selectedPhotoExifIds.includes(photo.id)} onChange={(event) => setSelectedPhotoExifIds((ids) => event.target.checked ? [...ids, photo.id] : ids.filter((id) => id !== photo.id))} disabled={isPhotoExifImporting} /> 批次選取</label></header>
+            <div className="photo-exif-fields"><label>拍攝日期與時間<input aria-label={`${photo.file.name} 的拍攝日期與時間`} type="datetime-local" step="1" value={photo.capturedAt} onChange={(event) => setPhotoExifPreview((current) => current ? updatePhotoCapturedAt(current, photo.id, event.target.value) : current)} disabled={isPhotoExifImporting} /></label><label>緯度<input aria-label={`${photo.file.name} 的緯度`} type="number" step="0.000001" min="-90" max="90" value={photo.latitude} onChange={(event) => { setPhotoExifMapPreview(null); setPhotoExifPreview((current) => current ? updatePhotoLocation(current, photo.id, event.target.value, photo.longitude) : current); }} disabled={isPhotoExifImporting} /></label><label>經度<input aria-label={`${photo.file.name} 的經度`} type="number" step="0.000001" min="-180" max="180" value={photo.longitude} onChange={(event) => { setPhotoExifMapPreview(null); setPhotoExifPreview((current) => current ? updatePhotoLocation(current, photo.id, photo.latitude, event.target.value) : current); }} disabled={isPhotoExifImporting} /></label></div>
+            <div className="photo-exif-map-tools"><button type="button" onClick={() => previewPhotoExifMap(photo)} disabled={isPhotoExifImporting || photoMapPreviewMutation.isPending || !hasValidPhotoLocation(photo)}>{photoMapPreviewMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : null}{photoExifMapPreview?.photoId === photo.id ? "重新整理位置地圖" : "確認位置地圖"}</button><small>{hasValidPhotoLocation(photo) ? "地圖依目前緯經度顯示，調整座標後請重新整理。" : "填入完整緯度與經度後可確認位置地圖。"}</small></div>
+            {photoExifMapPreview?.photoId === photo.id && photoExifMapPreview.latitude === photo.latitude && photoExifMapPreview.longitude === photo.longitude ? <figure className="photo-exif-map-preview"><button type="button" className="photo-exif-map-canvas" aria-label={`點選或拖曳 ${photo.file.name} 的地圖標記以調整 GPS 位置`} onClick={(event) => adjustPhotoExifMapByClick(photo, event)} onPointerDown={(event) => startPhotoExifMapDrag(photo, event)} onPointerMove={(event) => movePhotoExifMapDrag(photo, event)} onPointerUp={(event) => finishPhotoExifMapDrag(photo, event)}><img src={photoExifMapPreview.dataUrl} alt={`${photo.file.name} 的 GPS 位置地圖預覽`} /><span aria-hidden="true" style={photoExifMapDrag?.photoId === photo.id ? { left: `${photoExifMapDrag.x}%`, top: `${photoExifMapDrag.y}%` } : undefined} /></button><figcaption>點選地圖，或拖曳標記後放開，可直接更新本機緯經度；更新後請重新整理地圖確認位置。確認建立後才會以 private precise 位置保存。</figcaption></figure> : null}
+          </article>)}
+        </div>
+        <div className="import-preview-list">{photoExifPreview.groups.map((group) => <article key={group.id}><span>{group.date}</span><b>{group.title}</b><small>{group.files.length} 張 JPEG · 將建立為 private 事件{group.mapLatitudeE6 !== null ? " · 私有座標已帶入" : ""}</small></article>)}{photoExifPreview.skipped.map((item, index) => <article key={`${item.name}-${index}`}><span>略過</span><b>{item.name}</b><small>{item.reason}</small></article>)}{!photoExifPreview.groups.length ? <p>填入至少一張可用照片的日期與時間後，才會出現可建立的事件。</p> : null}</div>
+        {photoExifUploadProgress ? <div className="photo-exif-progress" role="status" aria-live="polite"><div><b>正在上傳 {photoExifUploadProgress.uploaded}／{photoExifUploadProgress.total} 張</b><small>{photoExifUploadProgress.currentFileName ? `目前處理：${photoExifUploadProgress.currentFileName}` : "正在建立私人事件…"}</small></div><div role="progressbar" aria-label="照片上傳進度" aria-valuemin={0} aria-valuemax={photoExifUploadProgress.total} aria-valuenow={photoExifUploadProgress.uploaded}><span style={{ width: `${photoExifUploadProgress.total ? (photoExifUploadProgress.uploaded / photoExifUploadProgress.total) * 100 : 0}%` }} /></div></div> : null}
+        <div className="import-warning"><LockKeyhole size={15} /> {photoExifPreview.photos.some((photo) => !photo.capturedAt) ? "請先補齊每張 JPEG 的日期與時間；在此之前不會上傳或建立事件。GPS、地圖與手動座標只留在目前瀏覽器。" : photoExifPreview.groups.length ? "確認後才會上傳所列照片，並建立 private 事件；完整座標只會以 precise private 位置隨事件保存。" : "這批照片不會上傳，也不會建立事件。"}</div>
+        <div className="import-actions"><button type="button" onClick={() => { setPhotoExifPreview(null); setSelectedPhotoExifIds([]); setPhotoExifBatchCapturedAt(""); setPhotoExifBatchIncrementSeconds("0"); setPhotoExifMapPreview(null); }} disabled={isPhotoExifImporting}>取消</button>{photoExifPreview.groups.length ? <button type="button" onClick={confirmPhotoExifImport} disabled={isPhotoExifImporting || photoExifPreview.photos.some((photo) => !photo.capturedAt)}>{isPhotoExifImporting ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />} 確認建立 {photoExifPreview.groups.length} 段私人記錄</button> : null}</div>
+      </section> : null}
       {mediaArchivePreview ? <section className="import-studio" aria-labelledby="media-import-title"><div><p className="editor-kicker"><span /> MEDIA ARCHIVE / VERIFIED</p><h2 id="media-import-title">確認要還原的事件圖片</h2><p>已驗證媒體封存的 manifest、事件標題與發生時間。這次將把 {mediaArchivePreview.items.length} 張圖片加回目前相符的事件；不會接受外部 URL、儲存金鑰、分享設定或帳號資料。</p></div><div className="import-warning"><Archive size={15} /> 只接受 JPG、PNG、WebP、GIF；單張最大 4MB，封存與解壓後總量皆受 25MB 上限保護。</div><div className="import-actions"><button type="button" onClick={() => setMediaArchivePreview(null)} disabled={isMediaArchiveImporting}>取消</button><button type="button" onClick={confirmMediaArchiveImport} disabled={isMediaArchiveImporting}>{isMediaArchiveImporting ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />} 匯入 {mediaArchivePreview.items.length} 張圖片</button></div></section> : null}
       {socialPreview ? <section className="import-studio" aria-labelledby="social-import-title"><div><p className="editor-kicker"><span /> SOCIAL DRAFT / LOCAL ONLY</p><h2 id="social-import-title">先檢視，再帶進成長史</h2><p>已在此裝置解析 {socialPreview.length} 則候選；系統已依來源 ID 去重。確認前不會寫入日記，也不會連接社群帳號。</p></div><div className="import-preview-list">{socialPreview.slice(0, 5).map((candidate) => <article key={candidate.sourceId}><span>{formatDate(candidate.occurredAt, "day")}</span><b>{candidate.title}</b><small>{candidate.isSignificant ? "重大事件候選" : "一般候選"}</small></article>)}</div><div className="import-warning"><Archive size={15} /> 確認後一律建立為私人事件，並標記「社群匯入」。請先檢視原始內容。</div><div className="import-actions"><button type="button" onClick={() => setSocialPreview(null)} disabled={importMutation.isPending}>取消</button><button type="button" onClick={confirmSocialImport} disabled={importMutation.isPending}>{importMutation.isPending ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />} 確認建立 {socialPreview.length} 段事件</button></div></section> : null}
 

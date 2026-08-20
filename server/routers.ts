@@ -9,6 +9,7 @@ import { hashLocalPassword, localOpenIdForEmail, normalizeLocalEmail, verifyLoca
 import { getAuthProvider } from "./providers/auth";
 import { diaryRouter, shareRouter } from "./routers/diary";
 import { statsRouter } from "./routers/stats";
+import { photoMapRouter } from "./routers/photoMap";
 
 const localCredentialInput = z.object({
   email: z.string().trim().email("請輸入有效的 email。").max(320),
@@ -77,6 +78,7 @@ export const appRouter = router({
   diary: diaryRouter,
   share: shareRouter,
   stats: statsRouter,
+  photoMap: photoMapRouter,
 });
 
 export type AppRouter = typeof appRouter;

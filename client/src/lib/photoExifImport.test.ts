@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyPhotoCapturedAt, preparePhotoExifImport, updatePhotoCapturedAt, updatePhotoLocation } from "./photoExifImport";
+import { applyPhotoCapturedAt, preparePhotoExifImport, staticMapPointToCoordinate, updatePhotoCapturedAt, updatePhotoLocation } from "./photoExifImport";
 
 const file = (name: string, type = "image/jpeg", size = 100) => ({ name, type, size } as File);
 
@@ -99,5 +99,21 @@ describe("photo EXIF import", () => {
       { date: "2026-08-22", count: 2, latitude: 25_047_800, longitude: 121_531_900 },
     ]);
     expect(corrected.photos[2].capturedAt).toBe("");
+  });
+
+  it("increments the selected photos by the requested seconds when batch-applying a captured time", async () => {
+    const preview = await preparePhotoExifImport([file("one.jpg"), file("two.jpg"), file("three.jpg")], async () => null, async () => null);
+    const incremented = applyPhotoCapturedAt(preview, [preview.photos[0].id, preview.photos[2].id], "2026-08-22T14:20", 7);
+    expect(incremented.photos.map((photo) => photo.capturedAt)).toEqual(["2026-08-22T14:20", "", "2026-08-22T14:20:07"]);
+    expect(incremented.groups[0].files.map((file) => file.name)).toEqual(["one.jpg", "three.jpg"]);
+  });
+
+  it("converts static-map clicks into bounded GPS coordinates around the displayed center", () => {
+    const center = staticMapPointToCoordinate({ centerLatitude: 25.034, centerLongitude: 121.551, zoom: 14, width: 640, height: 280, x: 320, y: 140 });
+    const right = staticMapPointToCoordinate({ centerLatitude: 25.034, centerLongitude: 121.551, zoom: 14, width: 640, height: 280, x: 520, y: 140 });
+    expect(center).toEqual({ latitude: 25.034, longitude: 121.551 });
+    expect(right.latitude).toBeCloseTo(25.034, 4);
+    expect(right.longitude).toBeGreaterThan(center.longitude);
+    expect(right.longitude).toBeLessThanOrEqual(180);
   });
 });

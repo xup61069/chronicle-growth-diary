@@ -44,7 +44,8 @@ function toLocalDateTimeInput(value: Date | string | null | undefined) {
   const day = String(date.getDate()).padStart(2, "0");
   const hour = String(date.getHours()).padStart(2, "0");
   const minute = String(date.getMinutes()).padStart(2, "0");
-  return `${year}-${month}-${day}T${hour}:${minute}`;
+  const second = String(date.getSeconds()).padStart(2, "0");
+  return second === "00" ? `${year}-${month}-${day}T${hour}:${minute}` : `${year}-${month}-${day}T${hour}:${minute}:${second}`;
 }
 
 function toCoordinateInput(value: unknown, maximumAbsoluteValue: number) {
@@ -66,11 +67,27 @@ function dateLabel(date: string) {
 }
 
 export function isValidCapturedAt(value: string) {
-  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value) && !Number.isNaN(new Date(value).getTime());
+  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?$/.test(value) && !Number.isNaN(new Date(value).getTime());
 }
 
 export function hasValidPhotoLocation(photo: Pick<PhotoExifImportCandidate, "latitude" | "longitude">) {
   return coordinateE6(photo.latitude, 90) !== null && coordinateE6(photo.longitude, 180) !== null;
+}
+
+/** Convert a click inside a north-up Web Mercator static-map viewport into a rounded latitude/longitude. */
+export function staticMapPointToCoordinate(input: { centerLatitude: number; centerLongitude: number; zoom: number; width: number; height: number; x: number; y: number }) {
+  const zoom = Math.min(Math.max(input.zoom, 1), 20);
+  const worldSize = 256 * 2 ** zoom;
+  const clampLatitude = (latitude: number) => Math.min(Math.max(latitude, -85.05112878), 85.05112878);
+  const latToY = (latitude: number) => (1 - Math.asinh(Math.tan(clampLatitude(latitude) * Math.PI / 180)) / Math.PI) / 2 * worldSize;
+  const centerX = (input.centerLongitude + 180) / 360 * worldSize;
+  const centerY = latToY(input.centerLatitude);
+  const x = centerX - input.width / 2 + Math.min(Math.max(input.x, 0), input.width);
+  const y = centerY - input.height / 2 + Math.min(Math.max(input.y, 0), input.height);
+  const longitude = ((x / worldSize * 360 - 180 + 540) % 360) - 180;
+  const mercatorY = Math.PI - 2 * Math.PI * y / worldSize;
+  const latitude = 180 / Math.PI * Math.atan(Math.sinh(mercatorY));
+  return { latitude: Math.round(latitude * 1_000_000) / 1_000_000, longitude: Math.round(longitude * 1_000_000) / 1_000_000 };
 }
 
 export function buildPhotoExifImportGroups(photos: PhotoExifImportCandidate[]): PhotoExifImportGroup[] {
@@ -107,9 +124,16 @@ export function updatePhotoCapturedAt(preview: PhotoExifImportPreview, photoId: 
   return { ...preview, photos, groups: buildPhotoExifImportGroups(photos) };
 }
 
-export function applyPhotoCapturedAt(preview: PhotoExifImportPreview, photoIds: string[], capturedAt: string): PhotoExifImportPreview {
+export function applyPhotoCapturedAt(preview: PhotoExifImportPreview, photoIds: string[], capturedAt: string, incrementSeconds = 0): PhotoExifImportPreview {
   const selected = new Set(photoIds);
-  const photos = preview.photos.map((photo) => selected.has(photo.id) ? { ...photo, capturedAt, source: "manual" as const } : photo);
+  const safeIncrementSeconds = Number.isInteger(incrementSeconds) && incrementSeconds >= 0 ? incrementSeconds : 0;
+  let selectedIndex = 0;
+  const photos = preview.photos.map((photo) => {
+    if (!selected.has(photo.id)) return photo;
+    const nextCapturedAt = safeIncrementSeconds ? toLocalDateTimeInput(new Date(new Date(capturedAt).getTime() + selectedIndex * safeIncrementSeconds * 1_000)) : capturedAt;
+    selectedIndex += 1;
+    return { ...photo, capturedAt: nextCapturedAt, source: "manual" as const };
+  });
   return { ...preview, photos, groups: buildPhotoExifImportGroups(photos) };
 }
 

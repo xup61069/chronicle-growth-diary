@@ -89,6 +89,28 @@ export async function makeRequest<T = unknown>(
   return (await response.json()) as T;
 }
 
+/** Generate a small static map data URL through the authenticated Maps proxy for an explicit user preview. */
+export async function makeStaticMapDataUrl(params: { latitude: number; longitude: number; zoom?: number; width?: number; height?: number }) {
+  const { baseUrl, apiKey } = getMapsConfig();
+  const width = Math.min(Math.max(Math.round(params.width ?? 640), 240), 640);
+  const height = Math.min(Math.max(Math.round(params.height ?? 280), 160), 360);
+  const zoom = Math.min(Math.max(Math.round(params.zoom ?? 14), 1), 20);
+  const location = `${params.latitude},${params.longitude}`;
+  const url = new URL(`${baseUrl}/v1/maps/proxy/maps/api/staticmap`);
+  url.searchParams.set("key", apiKey);
+  url.searchParams.set("center", location);
+  url.searchParams.set("zoom", String(zoom));
+  url.searchParams.set("size", `${width}x${height}`);
+  url.searchParams.set("scale", "2");
+  url.searchParams.set("maptype", "roadmap");
+  url.searchParams.set("markers", `color:0xee623b|${location}`);
+  const response = await fetch(url.toString());
+  if (!response.ok) throw new Error(`Google Maps static preview failed (${response.status} ${response.statusText})`);
+  const contentType = response.headers.get("content-type")?.split(";")[0] || "image/png";
+  const data = Buffer.from(await response.arrayBuffer()).toString("base64");
+  return `data:${contentType};base64,${data}`;
+}
+
 // ============================================================================
 // Type Definitions
 // ============================================================================
@@ -313,7 +335,6 @@ export type RoadsResult = {
  * Output: Image URL (not JSON) - use directly in <img src={url} />
  * Note: Construct URL manually with getMapsConfig() for auth
  */
-
 
 
 
