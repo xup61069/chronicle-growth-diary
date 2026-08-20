@@ -23,9 +23,40 @@ jobs:
         run: corepack enable
       - name: Install locked dependencies
         run: pnpm install --frozen-lockfile
+      - name: Lint formatting
+        run: pnpm lint
       - name: Type check
         run: pnpm check
       - name: Run unit tests
         run: pnpm test
       - name: Build production bundle
         run: pnpm build
+  public-homepage-e2e:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Enable Corepack
+        run: corepack enable
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Run public homepage browser regression
+        env:
+          CHRONICLE_E2E_BASE_URL: http://127.0.0.1:4173
+        run: |
+          pnpm exec vite --host 127.0.0.1 --port 4173 > /tmp/chronicle-vite.log 2>&1 &
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:4173/ > /dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          curl --fail --silent http://127.0.0.1:4173/ > /dev/null
+          pnpm test:e2e:mobile-nav

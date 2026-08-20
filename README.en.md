@@ -1,6 +1,6 @@
 # Chronicle — Personal Growth Timeline
 
-[繁體中文](./README.md) · [Local development](./docs/LOCAL_DEVELOPMENT.md) · [Self-hosting](./docs/SELF_HOSTING.md) · [Media archive format](./docs/MEDIA_ARCHIVE.md) · [Contributing](./CONTRIBUTING.md) · [Security](./SECURITY.md)
+[繁體中文 / Traditional Chinese](./README.md) · [English](./README.en.md) · [Local development](./docs/LOCAL_DEVELOPMENT.md) · [Self-hosting](./docs/SELF_HOSTING.md) · [Media archive format](./docs/MEDIA_ARCHIVE.md) · [Roadmap](./docs/roadmap/README.md) · [Contributing](./CONTRIBUTING.md) · [Security](./SECURITY.md)
 
 Chronicle is a private, timeline-first journal for preserving childhood memories, learning, milestones, turning points, and the chapters that connect them. Its editorial workspace lets people arrange lived experience into a long-term personal archive rather than a feed.
 
@@ -29,6 +29,8 @@ AI chapter reflections are optional. Turning off the diary-level AI preference b
 The public homepage and `/quick-note` can be used without sign-in. The 375px public-browser regression covers the skip link, reduced-motion preference, keyboard timeboard exploration, filter selection state, mobile navigation, story examples, and the offline quick-note entry. Open Graph and Twitter previews now use a branded Chronicle timeboard visual rather than a logo-only image.
 
 > Formal Manus OAuth is currently blocked outside the application: both the public-preview redirect and a direct visit to `https://manus.im/app-auth` returned a CloudFront 403. The formal `diary.get` success proof on the primary development site therefore remains deferred; the rejection occurs before Chronicle’s callback. See [`docs/VALIDATION_LOG.md`](./docs/VALIDATION_LOG.md) for the documented boundary and the separate local-auth evidence.
+
+The validation baseline is intentionally concise. Use [GitHub Releases](https://github.com/xup61069/chronicle-growth-diary/releases) for version notes and [GitHub Discussions](https://github.com/xup61069/chronicle-growth-diary/discussions) for longer design and planning conversations rather than using commits as a work log.
 
 ## Local development
 
@@ -68,7 +70,7 @@ drizzle/schema.ts                  MySQL/TiDB-compatible data model
 
 ## Contributing and community
 
-Read [AGENTS.md](./AGENTS.md) before changing the application. It defines architecture, privacy, migration, and visual-system rules. The repository includes [contribution guidance](./CONTRIBUTING.md), a [code of conduct](./CODE_OF_CONDUCT.md), a [security reporting policy](./SECURITY.md), and CI checks for TypeScript, Vitest, and production builds.
+Read [AGENTS.md](./AGENTS.md) before changing the application. It defines architecture, privacy, migration, and visual-system rules. The repository includes [contribution guidance](./CONTRIBUTING.md), [test placement rules](./docs/TESTING.md), [router boundaries](./docs/ARCHITECTURE.md), a [feature roadmap](./docs/roadmap/README.md), a [code of conduct](./CODE_OF_CONDUCT.md), and a [security reporting policy](./SECURITY.md). CI checks formatting, TypeScript, Vitest, production builds, and the public-homepage browser regression.
 
 ## License
 

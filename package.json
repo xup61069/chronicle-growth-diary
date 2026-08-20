@@ -8,6 +8,7 @@
     "build": "vite build && esbuild server/_core/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
     "start": "NODE_ENV=production node dist/index.js",
     "check": "tsc --noEmit",
+    "lint": "prettier --check package.json .github/workflows/ci.yml",
     "format": "prettier --write .",
     "test": "vitest run",
     "test:e2e:isolated": "node e2e/isolated-mobile-editor-validation.mjs",
