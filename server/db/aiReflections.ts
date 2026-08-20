@@ -81,7 +81,9 @@ export async function generatePhaseReflectionForDiary(db: DbClient, diary: Diary
 
 export async function generateAnnualReflectionForDiary(db: DbClient, diary: Diary, year: number) {
   assertAiEnabled(diary.aiEnabled);
-  const events = (await getEnrichedDiaryEvents(db, diary.id)).filter((event) => new Date(event.occurredAt).getFullYear() === year);
+  const events = (await getEnrichedDiaryEvents(db, diary.id)).filter(
+    (event) => new Date(event.occurredAt).getFullYear() === year && event.shareScope === "private",
+  );
   if (!events.length) throw new Error("這一年還沒有事件可供回顧。請先寫下至少一段記憶。");
 
   const result = await invokeLLM({

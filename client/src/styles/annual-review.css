@@ -29,6 +29,8 @@
 .annual-ai-reflection > span, .annual-ai-reflection > strong, .annual-ai-reflection > em { display: block; margin-top: 9px; color: var(--ink-soft); font-size: 12px; line-height: 1.7; font-style: normal; }
 .annual-ai-reflection > strong { color: var(--ink); font-weight: 500; }
 .annual-ai-reflection > div { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 11px; }
+.annual-ai-consent { display: flex; align-items: flex-start; gap: 7px; margin-top: 11px; color: var(--ink-soft); font-size: 10px; line-height: 1.5; }
+.annual-ai-consent input { width: 14px; height: 14px; margin-top: 1px; accent-color: var(--cinnabar); }
 .annual-ai-reflection button { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--ink); background: var(--ink); color: #fff; padding: 7px 9px; font-size: 10px; }
 .annual-ai-reflection button:hover:not(:disabled) { border-color: var(--cinnabar); background: var(--cinnabar); }
 .annual-ai-reflection .annual-ai-delete { color: var(--cinnabar); border-color: rgba(238,98,59,.55); background: transparent; }

@@ -47,6 +47,25 @@ describe("AI reflection data access", () => {
         body: "只應交給年度回顧的片段",
         tags: [{ name: "學習" }],
         media: [],
+        shareScope: "private",
+      },
+      {
+        id: 3,
+        occurredAt: Date.UTC(2025, 5, 1),
+        title: "不應送出的公開事件",
+        body: "公開範圍不應自動送給年度 AI。",
+        tags: [],
+        media: [],
+        shareScope: "public",
+      },
+      {
+        id: 4,
+        occurredAt: Date.UTC(2025, 6, 1),
+        title: "不應送出的連結事件",
+        body: "連結分享範圍不應自動送給年度 AI。",
+        tags: [],
+        media: [],
+        shareScope: "link",
       },
       {
         id: 2,
@@ -55,6 +74,7 @@ describe("AI reflection data access", () => {
         body: "這段文字不屬於指定年度",
         tags: [],
         media: [],
+        shareScope: "private",
       },
     ]);
     mocks.invokeLLM.mockResolvedValueOnce({
@@ -74,6 +94,8 @@ describe("AI reflection data access", () => {
     const prompt = llmInput.messages[1].content as string;
     expect(prompt).toContain("本年度的突破");
     expect(prompt).not.toContain("不應送出的舊事件");
+    expect(prompt).not.toContain("不應送出的公開事件");
+    expect(prompt).not.toContain("不應送出的連結事件");
     expect(values).toHaveBeenCalledWith(expect.objectContaining({
       diaryId: 9,
       phaseKey: "annual-2025",

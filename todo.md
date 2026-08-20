@@ -4,6 +4,15 @@
 
 ## Active
 
+- [ ] 將年度回顧的 private 範圍、每次 AI 同意、owner-only 控制項與 Markdown 匯出改善同步至 GitHub `main`。
+
+- [x] 完成年度回顧 MVP 的私有資料範圍：以明確 AI 同意為前提，僅彙整擁有者指定年份的 private 日記事件生成回顧，並提供 Chronicle frontmatter Markdown 匯出與隱私回歸測試。
+
+- [x] 完成 P0/P1/P2 儲存庫治理基準：README 整併、文件治理、測試分層、CI、安全貢獻文件與功能 roadmap。
+
+- [x] 完成年度回顧 MVP 的路由、介面、匯出與資料擁有權驗證。
+
+- [x] 新增年度 AI 回顧隱私回歸：驗證 public/link 事件不會送往 AI，且非擁有者無法生成或匯出他人年度回顧。
 - [x] 整併 README 為中文主版與單一英文版，刪除分叉的 README_EN.md，並加入雙向語言切換連結。
 - [x] 移除不必要的根目錄 .gitkeep，將驗證文件重整為可重現基準。
 - [x] 建立測試檔案的 co-location 與分層規範，整理 client/src 與 server 根層測試的可維護結構。

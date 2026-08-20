@@ -8,6 +8,10 @@ export function canManageFamilyDiarySettings(role: FamilyDiaryAccessRole) {
   return role === "owner";
 }
 
+export function canManageAnnualReview(role: FamilyDiaryAccessRole) {
+  return role === "owner";
+}
+
 export function describeFamilyAuditAction(action: string) {
   switch (action) {
     case "invite_created": return "建立邀請";

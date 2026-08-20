@@ -138,11 +138,19 @@ describe("diary router validation", () => {
 
   it("將年度 AI 回顧限制為合理年份並透過受保護 helper 生成與刪除", async () => {
     const caller = diaryRouter.createCaller(authenticatedContext);
-    await expect(caller.generateAnnualReflection({ year: 2025 })).resolves.toMatchObject({ year: 2025, recap: "年度回顧" });
+    await expect(caller.generateAnnualReflection({ year: 2025, confirmAiProcessing: true })).resolves.toMatchObject({ year: 2025, recap: "年度回顧" });
     await expect(caller.deleteAnnualReflection({ year: 2025 })).resolves.toEqual({ year: 2025 });
     expect(diaryDb.generateAnnualReflection).toHaveBeenCalledWith(1, 2025);
     expect(diaryDb.deleteAnnualReflection).toHaveBeenCalledWith(1, 2025);
-    await expect(caller.generateAnnualReflection({ year: 1800 })).rejects.toThrow();
+    await expect(caller.generateAnnualReflection({ year: 1800, confirmAiProcessing: true })).rejects.toThrow();
+    await expect(caller.generateAnnualReflection({ year: 2025, confirmAiProcessing: false })).rejects.toThrow("請先確認只會將此年度事件內容送往 AI 生成回顧");
+    expect(diaryDb.generateAnnualReflection).toHaveBeenCalledTimes(1);
+  });
+
+  it("拒絕未登入者生成任何年度 AI 回顧", async () => {
+    const caller = diaryRouter.createCaller({ ...authenticatedContext, user: null });
+    await expect(caller.generateAnnualReflection({ year: 2025, confirmAiProcessing: true })).rejects.toThrow();
+    expect(diaryDb.generateAnnualReflection).not.toHaveBeenCalled();
   });
 
   it("preserves diary snapshot read errors so the client recovery state can respond", async () => {

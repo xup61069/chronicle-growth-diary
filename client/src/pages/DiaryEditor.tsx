@@ -5,7 +5,7 @@
 import DashboardLayout from "@/components/DashboardLayout";
 import { DiaryEditorHeader } from "@/components/DiaryEditorHeader";
 import { DiaryLoadState } from "@/components/DiaryLoadState";
-import { annualReviewTemplates, buildAnnualReview, type AnnualReviewTemplate } from "@/lib/annualReview";
+import { annualReviewTemplates, buildAnnualReview, createAnnualReviewFrontmatter, type AnnualReviewTemplate } from "@/lib/annualReview";
 import { consumeTagInputEnter, diaryColors, eventTypes, formatDate, formatInputDate, makeEmptyForm, parseCoordinateE6, readImage, toTimestamp, type DatePrecision, type EventForm, type EventType, type PendingImage } from "@/lib/diaryEditor";
 import { filterDiaryEvents, type DiarySortOrder } from "@/lib/diaryFilters";
 import { getDiaryLoadStatus } from "@/lib/diaryLoadState";
@@ -24,7 +24,7 @@ import { parseSocialDraftCsv, parseSocialDraftJson, type SocialDraftCandidate } 
 import { buildTrackRows, filterEventsBySkill, getTimelineInsights, getTimelineSkills, isTimeCapsuleLocked, milestoneLabels } from "@/lib/multitrackTimeline";
 import { buildPlaceFootprints, buildSpatialFootprints, getBentoSpan, timelineViewOptions, type TimelineViewMode } from "@/lib/timelineViews";
 import { trpc } from "@/lib/trpc";
-import { canEditFamilyDiary, canManageFamilyDiarySettings, describeFamilyAuditAction, type FamilyDiaryAccessRole } from "@/lib/familyCollaboration";
+import { canEditFamilyDiary, canManageAnnualReview, canManageFamilyDiarySettings, describeFamilyAuditAction, type FamilyDiaryAccessRole } from "@/lib/familyCollaboration";
 import "@/styles/family-collaboration.css";
 import "@/styles/diary-profile.css";
 import "@/styles/annual-review.css";
@@ -91,6 +91,7 @@ function DiaryEditorContent() {
   const accessRole = (data?.accessRole ?? "owner") as FamilyDiaryAccessRole;
   const canEdit = canEditFamilyDiary(accessRole);
   const isOwner = canManageFamilyDiarySettings(accessRole);
+  const canManageCurrentAnnualReview = canManageAnnualReview(accessRole);
   const [loadTimedOut, setLoadTimedOut] = useState(false);
   const [form, setForm] = useState<EventForm>(makeEmptyForm);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -129,6 +130,7 @@ function DiaryEditorContent() {
   const [profileSubtitle, setProfileSubtitle] = useState("");
   const [annualYear, setAnnualYear] = useState("");
   const [annualTemplate, setAnnualTemplate] = useState<AnnualReviewTemplate>("narrative");
+  const [annualAiConsent, setAnnualAiConsent] = useState(false);
   const [phaseBoundaries, setPhaseBoundaries] = useState<PhaseBoundaries>({ childhood: { start: "", end: "" }, education: { start: "", end: "" }, career: { start: "", end: "" } });
   const [draggedEventId, setDraggedEventId] = useState<number | null>(null);
   const [draggedMediaId, setDraggedMediaId] = useState<number | null>(null);
@@ -175,6 +177,7 @@ function DiaryEditorContent() {
   const aiPreferenceMutation = trpc.diary.updateAiPreference.useMutation();
   const annualReflectionMutation = trpc.diary.generateAnnualReflection.useMutation({
     onSuccess: async () => {
+      setAnnualAiConsent(false);
       await utils.diary.get.invalidate();
       toast.success("已保存 AI 年度回顧。你可隨時刪除這段文字。");
     },
@@ -272,12 +275,25 @@ function DiaryEditorContent() {
     return { min: Math.min(...years, 1900) - 2, max: Math.max(...years, new Date().getFullYear()) + 2 };
   }, [events]);
   const reflectionsByPhase = useMemo(() => new Map((data?.reflections ?? []).map((reflection) => [reflection.phaseKey, reflection])), [data?.reflections]);
-  const availableYears = useMemo(() => Array.from(new Set(events.map((event) => new Date(event.occurredAt).getFullYear()))).sort((left, right) => right - left), [events]);
-  const annualReview = useMemo(() => buildAnnualReview(events, Number(annualYear || availableYears[0] || new Date().getFullYear()), annualTemplate), [annualTemplate, annualYear, availableYears, events]);
+  const privateAnnualEvents = useMemo(() => events.filter((event) => event.shareScope === "private"), [events]);
+  const availableYears = useMemo(() => Array.from(new Set(privateAnnualEvents.map((event) => new Date(event.occurredAt).getFullYear()))).sort((left, right) => right - left), [privateAnnualEvents]);
+  const annualReview = useMemo(() => buildAnnualReview(privateAnnualEvents, Number(annualYear || availableYears[0] || new Date().getFullYear()), annualTemplate), [annualTemplate, annualYear, availableYears, privateAnnualEvents]);
   const activeAnnualYear = Number(annualYear || availableYears[0] || new Date().getFullYear());
   const annualPublicReview = useMemo(() => buildAnnualReview(events.filter((event) => event.shareScope === "public"), activeAnnualYear, annualTemplate), [activeAnnualYear, annualTemplate, events]);
   const annualShareCard = useMemo(() => buildAnnualShareCardData(events, activeAnnualYear, annualPublicReview.lead), [activeAnnualYear, annualPublicReview.lead, events]);
   const annualAiReflection = data?.annualReflections.find((reflection) => reflection.year === activeAnnualYear);
+  const exportAnnualReviewMarkdown = () => {
+    if (!data) return;
+    const content = createAnnualReviewFrontmatter({
+      diaryTitle: data.diary.title,
+      year: activeAnnualYear,
+      template: annualTemplate,
+      review: annualReview,
+      aiReflection: annualAiReflection,
+    });
+    downloadChronicleFrontmatter(content, `year-review-${activeAnnualYear}`);
+    toast.success("已匯出年度回顧 Markdown。內容僅保存在此下載檔。 ");
+  };
   const writingGuides = useMemo(() => getLocalWritingGuides(form.eventType), [form.eventType]);
 
   useEffect(() => {
@@ -917,8 +933,19 @@ function DiaryEditorContent() {
 
       <section className="annual-review-studio" aria-labelledby="annual-review-title">
         <div className="annual-review-heading"><p className="editor-kicker"><span /> YEAR IN REVIEW</p><h2 id="annual-review-title">把一年，整理成下一段故事的起點。</h2><p>從已經寫下的事件建立年度回顧。模板只重組你的日記內容，不會虛構新的經歷。</p></div>
-        <div className="annual-review-controls"><label>回顧年份<select value={annualYear || String(availableYears[0] ?? new Date().getFullYear())} onChange={(event) => setAnnualYear(event.target.value)}>{(availableYears.length ? availableYears : [new Date().getFullYear()]).map((year) => <option value={year} key={year}>{year} 年</option>)}</select></label><div>{annualReviewTemplates.map((template) => <button type="button" key={template.key} className={annualTemplate === template.key ? "active" : ""} onClick={() => setAnnualTemplate(template.key)}><b>{template.label}</b><small>{template.description}</small></button>)}</div></div>
-        <article className={`annual-review-card annual-${annualTemplate}`}><div><p>{annualReview.title}</p><b>{annualReview.count.toString().padStart(2, "0")} <small>段日記</small></b></div><h3>{annualReview.lead}</h3><div className="annual-review-highlights">{annualReview.highlights.map((highlight) => <article key={highlight.id}><span>{highlight.label}</span><h4>{highlight.title}</h4><p>{highlight.body}</p></article>)}</div>{annualReview.tags.length ? <div className="annual-review-tags">{annualReview.tags.map((tag) => <span key={tag}>#{tag}</span>)}</div> : null}<blockquote>{annualReview.prompt}</blockquote>{isOwner ? <><section className="social-card-actions annual-social-card-actions" aria-label="年度總結社群卡"><div><span>YEAR SHARE CARD / PUBLIC ONLY</span><small>本卡只統計 {annualShareCard.count} 段公開事件；私人與連結限定內容不會納入。</small></div><div><button type="button" onClick={() => downloadAnnualShareCard(annualShareCard, "square")}>下載年度 1:1</button><button type="button" onClick={() => downloadAnnualShareCard(annualShareCard, "portrait")}>下載年度 9:16</button></div></section><div className="annual-ai-reflection"><p><BrainCircuit size={14} /> AI 年度回顧</p>{annualAiReflection ? <><strong>{annualAiReflection.recap}</strong><em>{annualAiReflection.reflection}</em><div><button type="button" onClick={() => annualReflectionMutation.mutate({ year: activeAnnualYear })} disabled={annualReflectionMutation.isPending || !data?.diary.aiEnabled}>{annualReflectionMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <WandSparkles size={14} />} 重新生成</button><button type="button" className="annual-ai-delete" onClick={() => deleteAnnualReflectionMutation.mutate({ year: activeAnnualYear })} disabled={deleteAnnualReflectionMutation.isPending}><Trash2 size={14} /> 刪除</button></div></> : <><span>{data?.diary.aiEnabled ? "只會使用此年度的事件內容生成文字；不會傳送其他年份、分享設定或帳號資料。" : "AI 已關閉。請先在上方資料控制區重新啟用。"}</span><button type="button" onClick={() => annualReflectionMutation.mutate({ year: activeAnnualYear })} disabled={!data?.diary.aiEnabled || annualReflectionMutation.isPending || annualReview.count === 0}>{annualReflectionMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <WandSparkles size={14} />} 生成 AI 年度回顧</button></>}</div></> : null}</article>
+        <div className="annual-review-controls"><label>回顧年份<select value={annualYear || String(availableYears[0] ?? new Date().getFullYear())} onChange={(event) => { setAnnualYear(event.target.value); setAnnualAiConsent(false); }}>{(availableYears.length ? availableYears : [new Date().getFullYear()]).map((year) => <option value={year} key={year}>{year} 年</option>)}</select></label><div>{annualReviewTemplates.map((template) => <button type="button" key={template.key} className={annualTemplate === template.key ? "active" : ""} onClick={() => setAnnualTemplate(template.key)}><b>{template.label}</b><small>{template.description}</small></button>)}</div></div>
+        <article className={`annual-review-card annual-${annualTemplate}`}>
+          <div><p>{annualReview.title}</p><b>{annualReview.count.toString().padStart(2, "0")} <small>段日記</small></b></div>
+          <h3>{annualReview.lead}</h3>
+          <div className="annual-review-highlights">{annualReview.highlights.map((highlight) => <article key={highlight.id}><span>{highlight.label}</span><h4>{highlight.title}</h4><p>{highlight.body}</p></article>)}</div>
+          {annualReview.tags.length ? <div className="annual-review-tags">{annualReview.tags.map((tag) => <span key={tag}>#{tag}</span>)}</div> : null}
+          <blockquote>{annualReview.prompt}</blockquote>
+          {canManageCurrentAnnualReview ? <>
+            <section className="social-card-actions annual-social-card-actions" aria-label="年度總結社群卡"><div><span>YEAR SHARE CARD / PUBLIC ONLY</span><small>本卡只統計 {annualShareCard.count} 段公開事件；私人與連結限定內容不會納入。</small></div><div><button type="button" onClick={() => downloadAnnualShareCard(annualShareCard, "square")}>下載年度 1:1</button><button type="button" onClick={() => downloadAnnualShareCard(annualShareCard, "portrait")}>下載年度 9:16</button></div></section>
+            <section className="social-card-actions annual-social-card-actions" aria-label="年度回顧 Markdown 匯出"><div><span>PORTABLE MARKDOWN / PRIVATE EXPORT</span><small>匯出只下載至目前裝置；可能包含本年度私人事件與已保存的 AI 回顧，但不包含 token、分享設定或帳號資料。</small></div><div><button type="button" onClick={exportAnnualReviewMarkdown} disabled={annualReview.count === 0}><FileJson size={14} /> 匯出年度 Markdown</button></div></section>
+            <div className="annual-ai-reflection"><p><BrainCircuit size={14} /> AI 年度回顧</p><span>{data?.diary.aiEnabled ? "只會使用此年度的事件內容生成文字；不會傳送其他年份、分享設定或帳號資料。" : "AI 已關閉。請先在上方資料控制區重新啟用。"}</span><label className="annual-ai-consent"><input type="checkbox" checked={annualAiConsent} onChange={(event) => setAnnualAiConsent(event.target.checked)} disabled={!data?.diary.aiEnabled || annualReflectionMutation.isPending} />我確認僅將 {activeAnnualYear} 年的事件內容送往 AI 生成回顧；這次生成後需要再次確認。</label>{annualAiReflection ? <><strong>{annualAiReflection.recap}</strong><em>{annualAiReflection.reflection}</em><div><button type="button" onClick={() => annualReflectionMutation.mutate({ year: activeAnnualYear, confirmAiProcessing: annualAiConsent })} disabled={annualReflectionMutation.isPending || !data?.diary.aiEnabled || !annualAiConsent}>{annualReflectionMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <WandSparkles size={14} />} 重新生成</button><button type="button" className="annual-ai-delete" onClick={() => deleteAnnualReflectionMutation.mutate({ year: activeAnnualYear })} disabled={deleteAnnualReflectionMutation.isPending}><Trash2 size={14} /> 刪除</button></div></> : <button type="button" onClick={() => annualReflectionMutation.mutate({ year: activeAnnualYear, confirmAiProcessing: annualAiConsent })} disabled={!data?.diary.aiEnabled || !annualAiConsent || annualReflectionMutation.isPending || annualReview.count === 0}>{annualReflectionMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <WandSparkles size={14} />} 生成 AI 年度回顧</button>}</div>
+          </> : null}
+        </article>
       </section>
 
       {isOwner ? <>

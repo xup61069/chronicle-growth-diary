@@ -87,6 +87,20 @@ try {
   await page.getByPlaceholder('例如：第一次站上舞台').waitFor({ timeout: 10_000 });
   findings.checks.push('375px new event entry');
 
+  const annualReview = page.locator('.annual-review-studio');
+  await annualReview.scrollIntoViewIfNeeded();
+  const annualConsent = annualReview.getByRole('checkbox');
+  const generateAnnualReview = annualReview.getByRole('button', { name: '生成 AI 年度回顧' });
+  await annualConsent.waitFor({ timeout: 10_000 });
+  assert(await annualConsent.isChecked() === false, '年度 AI 回顧同意不應預設勾選。');
+  assert(await generateAnnualReview.isDisabled(), '未同意時不應允許生成年度 AI 回顧。');
+  await annualConsent.check();
+  assert(await generateAnnualReview.isEnabled(), '勾選當次 AI 處理同意後應允許生成年度回顧。');
+  const annualDownload = page.waitForEvent('download');
+  await annualReview.getByRole('button', { name: '匯出年度 Markdown' }).click();
+  assert((await annualDownload).suggestedFilename() === 'year-review-2026.chronicle.md', '年度 Markdown 匯出檔名不符合 Chronicle 格式。');
+  findings.checks.push('annual review consent and Markdown export');
+
   let delayDiaryGet = true;
   await page.route('**/api/trpc/diary.get**', async (route) => {
     if (!delayDiaryGet) return route.continue();

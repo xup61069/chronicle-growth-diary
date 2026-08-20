@@ -96,7 +96,10 @@ export const diaryRouter = router({
     careerEndYear: year,
   })).mutation(({ ctx, input }) => updateDiaryPhaseBoundaries(ctx.user.id, input)),
   generatePhaseReflection: protectedProcedure.input(z.object({ phaseKey: z.enum(["childhood", "education", "career"]) })).mutation(({ ctx, input }) => generatePhaseReflection(ctx.user.id, input.phaseKey)),
-  generateAnnualReflection: protectedProcedure.input(z.object({ year: z.number().int().min(1900).max(2200) })).mutation(({ ctx, input }) => generateAnnualReflection(ctx.user.id, input.year)),
+  generateAnnualReflection: protectedProcedure.input(z.object({
+    year: z.number().int().min(1900).max(2200),
+    confirmAiProcessing: z.boolean().refine((value) => value, "請先確認只會將此年度事件內容送往 AI 生成回顧。"),
+  })).mutation(({ ctx, input }) => generateAnnualReflection(ctx.user.id, input.year)),
   updatePhaseReflection: protectedProcedure.input(z.object({ phaseKey: z.enum(["childhood", "education", "career"]), recap: z.string().trim().min(1).max(3000), reflection: z.string().trim().min(1).max(3000) })).mutation(({ ctx, input }) => updatePhaseReflection(ctx.user.id, input)),
   updateAiPreference: protectedProcedure.input(z.object({ aiEnabled: z.boolean() })).mutation(({ ctx, input }) => updateDiaryAiPreference(ctx.user.id, input.aiEnabled)),
   updateProfile: protectedProcedure.input(z.object({

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildAnnualReview } from "./annualReview";
+import { buildAnnualReview, createAnnualReviewFrontmatter } from "./annualReview";
 
 const events = [
   { id: 1, occurredAt: new Date(2024, 1, 1).getTime(), title: "完成作品", body: "整理一年的練習。", eventType: "achievement" as const, tags: [{ name: "作品" }] },
@@ -19,5 +19,20 @@ describe("annual review templates", () => {
     expect(review.count).toBe(0);
     expect(review.highlights).toEqual([]);
     expect(review.prompt).toContain("還沒寫進時間帶");
+  });
+
+  it("exports the selected year as portable Chronicle frontmatter without inventing an AI reflection", () => {
+    const review = buildAnnualReview(events, 2024, "milestones");
+    const markdown = createAnnualReviewFrontmatter({
+      diaryTitle: "我的成長史",
+      year: 2024,
+      template: "milestones",
+      review,
+      exportedAt: "2026-08-20T00:00:00.000Z",
+    });
+    expect(markdown).toContain('chronicle: "growth-diary-year-review"');
+    expect(markdown).toContain("aiGenerated: false");
+    expect(markdown).toContain("### 完成作品");
+    expect(markdown).not.toContain("## AI 年度回顧");
   });
 });

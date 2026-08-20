@@ -15,6 +15,12 @@ export const annualReviewTemplates = [
 
 export type AnnualReviewTemplate = (typeof annualReviewTemplates)[number]["key"];
 
+export type AnnualAiReflection = {
+  recap: string;
+  reflection: string;
+  model?: string | null;
+};
+
 function eventKindLabel(type: AnnualReviewEvent["eventType"]) {
   return type === "learning" ? "學習" : type === "achievement" ? "成就" : type === "chapter" ? "人生章節" : "回憶";
 }
@@ -35,4 +41,44 @@ export function buildAnnualReview(events: AnnualReviewEvent[], year: number, tem
   const first = records[0];
   const last = records[records.length - 1];
   return { title, count: records.length, tags: tagNames, highlights, lead: `${year} 從「${first.title}」展開，並在「${last.title}」留下新的註腳。這一年由 ${records.length} 段記憶構成，每一段都為你的成長敘事增加了可回看的證據。`, prompt: "當你再次閱讀這一年，最想對當時的自己保留哪一句溫柔而具體的話？" };
+}
+
+type AnnualReviewSummary = ReturnType<typeof buildAnnualReview>;
+
+function yamlValue(value: unknown) {
+  return JSON.stringify(value ?? null);
+}
+
+export function createAnnualReviewFrontmatter(input: {
+  diaryTitle: string;
+  year: number;
+  template: AnnualReviewTemplate;
+  review: AnnualReviewSummary;
+  aiReflection?: AnnualAiReflection | null;
+  exportedAt?: string;
+}) {
+  const exportedAt = input.exportedAt ?? new Date().toISOString();
+  const header = [
+    "---",
+    'chronicle: "growth-diary-year-review"',
+    "version: 1",
+    `title: ${yamlValue(input.review.title)}`,
+    `diaryTitle: ${yamlValue(input.diaryTitle)}`,
+    `year: ${input.year}`,
+    `template: ${yamlValue(input.template)}`,
+    `eventCount: ${input.review.count}`,
+    `tags: ${yamlValue(input.review.tags)}`,
+    `aiGenerated: ${Boolean(input.aiReflection)}`,
+    `aiModel: ${yamlValue(input.aiReflection?.model ?? null)}`,
+    `exportedAt: ${yamlValue(exportedAt)}`,
+    "---",
+    "",
+  ];
+  const highlights = input.review.highlights.length
+    ? ["## 精選事件", "", ...input.review.highlights.flatMap((item) => [`### ${item.title}`, "", `- 類型：${item.label}`, `- 標籤：${item.tags.length ? item.tags.map((tag) => `#${tag}`).join(" ") : "無"}`, "", item.body.trim(), ""])]
+    : [];
+  const ai = input.aiReflection
+    ? ["## AI 年度回顧", "", input.aiReflection.recap.trim(), "", "### 來年提問", "", input.aiReflection.reflection.trim(), ""]
+    : [];
+  return [...header, `# ${input.review.title}`, "", input.review.lead, "", "## 回望提問", "", input.review.prompt, "", ...highlights, ...ai].join("\n").trimEnd() + "\n";
 }
