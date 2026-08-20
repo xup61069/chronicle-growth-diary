@@ -12,6 +12,8 @@
     "format": "prettier --write .",
     "test": "vitest run",
     "test:e2e:isolated": "node e2e/isolated-mobile-editor-validation.mjs",
+    "test:e2e:document-export": "node e2e/document-export-browser-download.mjs",
+    "test:e2e:editor-document-export": "node e2e/editor-document-export-click.mjs",
     "test:e2e:login": "node e2e/home-login-redirect.mjs",
     "test:e2e:mobile-nav": "node e2e/mobile-navigation-accessibility.mjs",
     "db:push": "drizzle-kit generate && drizzle-kit migrate"

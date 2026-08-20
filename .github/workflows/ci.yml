@@ -60,3 +60,4 @@ jobs:
           done
           curl --fail --silent http://127.0.0.1:4173/ > /dev/null
           pnpm test:e2e:mobile-nav
+          pnpm test:e2e:document-export
