@@ -16,6 +16,7 @@ Chronicle 處理私人日記、影像、受控分享與可能涉及家庭成員�
 | 日記與媒體 | 所有私有讀寫均以擁有者篩選；資料庫只保存媒體 key、URL 與中繼資料，不保存影像位元組。 | 跨帳號、刪除、媒體與分享範圍回歸。 |
 | 分享與家庭協作 | 僅明確標記可分享的事件可離開私有邊界；密碼、invite 與 link token 不得以明文保存。 | public／link／private 範圍、到期、密碼和邀請 token 測試。 |
 | AI | AI 回顧必須有日記層級的明確啟用狀態；本機 writing guide 不傳送日記內容。 | AI 偏好、輸入最小化、失敗與刪除行為測試。 |
+| 精確位置與地圖 | EXIF GPS 僅在使用者明確開啟位置工具時於本機讀取；地圖只可由已登入使用者明確觸發並經受保護代理取得，影像不得持久化。 | 座標成對與範圍驗證、未觸發前無地圖請求、private precise 寫入、public／link 隔離與拖曳後 payload 一致性回歸。 |
 | 匯入／匯出 | 匯出不得包含 session、憑證、密碼雜湊、分享 token、存取紀錄或私有 storage key。 | portable、frontmatter、media archive 與分享資料測試。 |
 
 ## 家庭與兒童資料

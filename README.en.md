@@ -1,6 +1,6 @@
 # Chronicle — Personal Growth Timeline
 
-[繁體中文 / Traditional Chinese](./README.md) · [English](./README.en.md) · [Local development](./docs/LOCAL_DEVELOPMENT.md) · [Self-hosting](./docs/SELF_HOSTING.md) · [Media archive format](./docs/MEDIA_ARCHIVE.md) · [Roadmap](./docs/roadmap/README.md) · [Contributing](./CONTRIBUTING.md) · [Security](./SECURITY.md)
+[繁體中文 / Traditional Chinese](./README.md) · [English](./README.en.md) · [AI handoff](./docs/AI_HANDOFF.md) · [Local development](./docs/LOCAL_DEVELOPMENT.md) · [Self-hosting](./docs/SELF_HOSTING.md) · [Media archive format](./docs/MEDIA_ARCHIVE.md) · [Roadmap](./docs/roadmap/README.md) · [Contributing](./CONTRIBUTING.md) · [Security](./SECURITY.md)
 
 Chronicle is a private, timeline-first journal for preserving childhood memories, learning, milestones, turning points, and the chapters that connect them. Its editorial workspace lets people arrange lived experience into a long-term personal archive rather than a feed.
 
@@ -10,6 +10,7 @@ Chronicle is a private, timeline-first journal for preserving childhood memories
 | --- | --- |
 | Private timeline | Create, edit, delete, search, filter, and manually reorder dated events with day, month, or year precision. |
 | Media and tags | Attach multiple JPG, PNG, WebP, or GIF images, write captions, and change their order. |
+| Private photo time and place import | Inspect JPEG capture time locally before confirmation, manually fill missing EXIF, correct each date-time, and apply a shared or second-incremented time to selected photos. When a person explicitly opens the location tool, they can correct GPS, request a map, and click or drag its marker before private creation and media upload. |
 | Life chapters | Group events into childhood, education, and career chapters, with editable boundaries. |
 | Reflection | Build annual reviews in the browser and generate optional chapter reflections when AI is enabled. Local writing guides never send diary text to an external service. |
 | Controlled sharing | Share only explicitly public events through public or secret links, with optional passwords, expiry dates, and access counts. |
@@ -22,6 +23,7 @@ Chronicle is a private, timeline-first journal for preserving childhood memories
 | A5 private book | The diary owner can open an A5 preview arranged by life chapter, then choose to print or save as PDF. Locked time capsules are redacted. |
 | Family event reactions | Diary owners and invited members can leave real heart, resonance, celebration, or support reactions on private events. The UI exposes only aggregate counts and the current member’s state; public and link stories are isolated from them. |
 | Route loading boundaries | The public homepage does not preload workspace charts, document export, or collaboration UI. Non-home routes announce an accessible loading state while their chunks load. |
+| Dark-first theme | New sessions start in the dark workspace. The homepage offers a light/dark control and preserves the chosen mode after reload. |
 
 ## Privacy commitments
 
@@ -37,6 +39,7 @@ AI chapter reflections are optional. Turning off the diary-level AI preference b
 | Voice diary | Audio is sent to transcription only after the person checks consent for that upload; offline recordings never auto-upload in the background. | Original audio lives in protected object storage and its table stores location plus metadata. Audio and transcript can be removed, and shared stories exclude both. |
 | Family reactions | A member explicitly clicks to add or remove a reaction. | Only diary members can read or write reactions on private events. There are no seeded or synthetic reactions, and sharing removes the field. |
 | A5 private book | The owner presses the preview control in the workspace. | Printing and saving are browser-initiated. Locked capsules redact body text, media, and transcripts. |
+| Photo EXIF and GPS import | JPEG capture time is organised in the current browser. GPS is read and shown only when a person explicitly uses the location tool. | No media, event, or map image is persisted before confirmation; a map is requested only after an explicit action through the protected proxy. Confirmed coordinates are stored only as `precise`/`private` event locations and never returned to public or link stories. |
 
 The reproducible scope, sharing-redaction, and cross-viewport evidence lives in [`docs/VALIDATION_LOG.md`](./docs/VALIDATION_LOG.md).
 
@@ -60,10 +63,14 @@ corepack pnpm dev
 Run the quality gate before opening a pull request:
 
 ```bash
+corepack pnpm lint
 corepack pnpm check
 corepack pnpm test
-corepack pnpm build
+./node_modules/.bin/vite build
+corepack pnpm exec esbuild server/_core/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist
 ```
+
+`corepack pnpm build` remains suitable in a normal environment. In this sandbox, the combined build can occasionally receive an external SIGTERM after server bundling, so handoff and CI diagnosis should use the separate Vite and esbuild results above to determine the real build state.
 
 To run the 375px public-homepage browser regression, start an HTTPS preview and provide its URL:
 
@@ -76,6 +83,7 @@ The private workspace regression uses local authentication. Start an HTTPS devel
 ```bash
 CHRONICLE_E2E_BASE_URL=https://your-local-auth-preview.example corepack pnpm test:e2e:isolated
 CHRONICLE_E2E_BASE_URL=https://your-local-auth-preview.example CHRONICLE_E2E_VIEWPORT=desktop corepack pnpm test:e2e:isolated
+CHRONICLE_E2E_BASE_URL=https://your-preview.example node e2e/dark-mode-home-validation.mjs
 ```
 
 For local authentication, S3/MinIO-compatible storage, OpenAI-compatible LLM configuration, and environment-variable details, see [Local development](./docs/LOCAL_DEVELOPMENT.md). For MySQL, object storage, backups, restores, and deployment operations, see [Self-hosting](./docs/SELF_HOSTING.md).
@@ -97,7 +105,7 @@ drizzle/schema.ts                  MySQL/TiDB-compatible data model
 
 ## Contributing and community
 
-Read [AGENTS.md](./AGENTS.md) before changing the application. It defines architecture, privacy, migration, and visual-system rules. The repository includes [contribution guidance](./CONTRIBUTING.md), [test placement rules](./docs/TESTING.md), [router boundaries](./docs/ARCHITECTURE.md), a [feature roadmap](./docs/roadmap/README.md), a [code of conduct](./CODE_OF_CONDUCT.md), and a [security reporting policy](./SECURITY.md). CI checks formatting, TypeScript, Vitest, production builds, and the public-homepage browser regression.
+Read [AGENTS.md](./AGENTS.md) before changing the application. AI handoff begins with [docs/AI_HANDOFF.md](./docs/AI_HANDOFF.md), which records current boundaries, verification, blockers, and next priorities. The repository includes [contribution guidance](./CONTRIBUTING.md), [test placement rules](./docs/TESTING.md), [router boundaries](./docs/ARCHITECTURE.md), a [feature roadmap](./docs/roadmap/README.md), a [code of conduct](./CODE_OF_CONDUCT.md), and a [security reporting policy](./SECURITY.md). CI checks formatting, TypeScript, Vitest, production builds, and the public-homepage browser regression.
 
 ## License
 

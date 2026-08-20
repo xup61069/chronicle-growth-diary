@@ -15,3 +15,9 @@ Chronicle 採用「受測模組旁的單元測試優先、跨模組與基礎設�
 首先選擇 co-location：若測試只驗證單一函式、頁面或 router，請放在該模組旁。只有當測試跨越數個功能檔、需要 mock framework runtime，或是驗證文件／設定時，才放入 `__tests__` 的相應領域。
 
 每個公開介面變更至少需執行 `pnpm check`、`pnpm test` 與 `pnpm build`。公開首頁變更還必須執行 `CHRONICLE_E2E_BASE_URL=<https-preview> pnpm test:e2e:mobile-nav`，確認 375px 與減少動態偏好行為。涉及日記、分享、媒體或 AI 的測試須明確覆蓋擁有權、隱私範圍與失敗回復路徑。
+
+## 照片匯入、位置與地圖
+
+照片 EXIF、GPS、地圖或批次時間變更必須同時覆蓋純函式與隔離瀏覽器流程。`client/src/lib/photoExifImport.test.ts` 應涵蓋標準 JPEG 日期與 GPS fixture、缺失日期手動補填、位置成對範圍驗證、重分組、秒級遞增、未選取候選保留，以及靜態地圖投影。`server/routers/photoMap.test.ts` 應確認登入邊界、座標範圍與代理呼叫。
+
+在 `AUTH_DRIVER=local`、`VITE_AUTH_DRIVER=local` 的 HTTPS 隔離服務中，桌面與 375px `test:e2e:isolated` 必須確認：地圖在使用者明確動作前不會載入；點選或拖曳會更新本機 GPS 並使舊圖失效；確認後的 `diary.createEvent` private payload 使用更新座標；批次日期僅影響選取照片；延遲媒體請求期間可見進度。這些測試不能取代正式 OAuth 整合驗證。
