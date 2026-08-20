@@ -13,6 +13,14 @@ try {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto(`${baseUrl.replace(/\/$/, "")}/`, { waitUntil: "domcontentloaded" });
 
+  await page.keyboard.press("Tab");
+  const skipLink = page.getByRole("link", { name: "跳至主要內容" });
+  if (await skipLink.evaluate((element) => document.activeElement === element) !== true) {
+    throw new Error("首頁鍵盤導覽的第一個焦點應為跳至主要內容連結。");
+  }
+  await skipLink.press("Enter");
+  await page.waitForFunction(() => document.activeElement?.id === "main-content");
+
   const heroTransitionDuration = await page.locator(".hero-workbench").evaluate((element) => getComputedStyle(element).transitionDuration);
   if (!heroTransitionDuration.split(",").every((duration) => Number.parseFloat(duration) <= 0.001)) {
     throw new Error("減少動態偏好下，首頁工作台的過場應縮短至近乎立即。 ");
@@ -95,7 +103,7 @@ try {
     throw new Error("點擊行動導覽連結後未收合選單。");
   }
 
-  console.log("公開首頁回歸通過：減少動態偏好、範例入口、時間帶鍵盤入口與焦點保護、行動選單展開、Escape 與連結收合均正常。");
+  console.log("公開首頁回歸通過：跳至主要內容、減少動態偏好、範例入口、時間帶鍵盤入口與焦點保護、行動選單展開、Escape 與連結收合均正常。");
 } finally {
   await browser.close();
 }

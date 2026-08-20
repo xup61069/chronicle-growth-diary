@@ -191,8 +191,13 @@ export default function Home() {
     stepTimeline(event.key === "ArrowLeft" ? -1 : 1);
   };
 
+  const focusMainContent = () => {
+    window.requestAnimationFrame(() => document.getElementById("main-content")?.focus());
+  };
+
   return (
-    <div className="chronicle-site">
+    <div id="top" className="chronicle-site">
+      <a className="skip-link" href="#main-content" onClick={focusMainContent}>跳至主要內容</a>
       <header className="site-header">
         <a className="brand" href="#top" aria-label="Chronicle 首頁">
           <img src="/manus-storage/chronicle-mark_5e825172.png" alt="" />
@@ -230,7 +235,7 @@ export default function Home() {
         </button>
       </header>
 
-      <main id="top">
+      <main id="main-content" tabIndex={-1}>
         <section className="hero" aria-labelledby="hero-title">
           <div className="hero-index" aria-hidden="true">
             <span>CH</span>

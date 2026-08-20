@@ -42,4 +42,10 @@ describe("Home", () => {
     expect(html).toContain('role="region" aria-label="互動時間帶" aria-describedby="timeboard-instruction" tabindex="0"');
     expect(html).toContain("聚焦時間帶後");
   });
+
+  it("provides a skip link that moves keyboard focus to the main content landmark", () => {
+    const html = renderToStaticMarkup(<Home />);
+    expect(html).toContain('class="skip-link" href="#main-content"');
+    expect(html).toContain('<main id="main-content" tabindex="-1">');
+  });
 });
