@@ -206,9 +206,9 @@ export default function Home() {
         </a>
 
         <nav id="primary-navigation" className={`desktop-nav ${menuOpen ? "is-open" : ""}`} aria-label="主要導覽">
-          <a href="#how-it-works" onClick={() => setMenuOpen(false)}>如何運作</a>
-          <a href="#stories" onClick={() => setMenuOpen(false)}>故事案例</a>
-          <a href="#plans" onClick={() => setMenuOpen(false)}>方案</a>
+          <a href="#how-it-works" onClick={() => setMenuOpen(false)}>操作方式</a>
+          <a href="#stories" onClick={() => setMenuOpen(false)}>範例</a>
+          <a href="#plans" onClick={() => setMenuOpen(false)}>功能</a>
           <button
             type="button"
             className="nav-login"
@@ -220,7 +220,7 @@ export default function Home() {
             登入
           </button>
           <a className="nav-cta" href="/editor" onClick={() => setMenuOpen(false)}>
-            開始建立 <ArrowUpRight size={15} />
+            開啟工作台 <ArrowUpRight size={15} />
           </a>
         </nav>
 
@@ -244,16 +244,16 @@ export default function Home() {
           </div>
 
           <div className="hero-copy">
-            <p className="eyebrow"><span /> 個人成長日記</p>
-            <h1 id="hero-title">把今天發生的事，<br /><em>留給以後的你。</em></h1>
+            <p className="eyebrow"><span /> 個人事件時間帶</p>
+            <h1 id="hero-title">用時間軸整理<br /><em>你的事件紀錄。</em></h1>
             <p className="hero-lede">
-              例如第一份作品、換工作的那個月，或一張陪你長大的書桌。
-              Chronicle 把日期、文字、圖片和標籤放在同一條私人時間帶。
+              集中管理日期、文字、圖片和標籤。內容預設只供本人檢視；
+              需要時，再為個別事件設定分享範圍。
             </p>
             <div className="hero-actions">
-              <a className="solid-button" href="/editor">寫下第一件事 <ArrowUpRight size={17} /></a>
-              <a className="text-button offline-note-link" href="/quick-note" aria-describedby="offline-note-guidance">先用離線快速記事 <FilePenLine size={16} /></a>
-              <a className="text-button" href="#stories">觀看範例 <ChevronRight size={17} /></a>
+              <a className="solid-button" href="/editor">建立事件 <ArrowUpRight size={17} /></a>
+              <a className="text-button offline-note-link" href="/quick-note" aria-describedby="offline-note-guidance">離線紀錄 <FilePenLine size={16} /></a>
+              <a className="text-button" href="#stories">查看範例 <ChevronRight size={17} /></a>
             </div>
             <p id="offline-note-guidance" className="hero-offline-note">離線草稿只保存在目前裝置；準備好後可複製並整理成正式事件。</p>
           </div>
@@ -267,20 +267,20 @@ export default function Home() {
               <i className="focus"><b>02</b><small>第一份作品</small></i>
               <i><b>17</b><small>搬進新家</small></i>
             </span>
-            <span className="workbench-bottom"><GripHorizontal size={15} /> 拖曳查看同一段日子的變化 <ArrowRight size={14} /></span>
+            <span className="workbench-bottom"><GripHorizontal size={15} /> 拖曳查看不同日期的事件 <ArrowRight size={14} /></span>
           </button>
 
           <aside className="hero-side-note">
             <span>ARCHIVE NOTE / 001</span>
-            <p>第一張課表、第一份作品、第一次搬家；不用一次寫完，只要先記下一天。</p>
+            <p>可先建立一筆事件，再逐步補上日期、附件、標籤與說明。</p>
           </aside>
         </section>
 
         <section id="timeboard" className="timeboard" aria-labelledby="timeboard-title">
           <div className="timeboard-topline">
             <div>
-              <p className="eyebrow inverted"><span /> 即時預覽</p>
-              <h2 id="timeboard-title">拖曳時間帶，<br />查看同一段日子的變化。</h2>
+              <p className="eyebrow inverted"><span /> 示範資料</p>
+              <h2 id="timeboard-title">依日期排序事件，<br />查看相關內容。</h2>
             </div>
             <div id="timeboard-instruction" className="timeboard-instruction">
               <GripHorizontal size={18} />
@@ -356,9 +356,9 @@ export default function Home() {
         <section id="how-it-works" className="method-section" aria-labelledby="method-title">
           <div className="section-marker"><span>02</span><i /></div>
           <div className="method-intro">
-            <p className="eyebrow"><span /> 從一則小事開始</p>
-            <h2 id="method-title">不是替人生下結論，<br />只是把日期放回事情旁邊。</h2>
-            <p className="method-archive-note"><b>INDEX 02.1</b> 從一張照片、一段心情或一個完成的作品開始，再慢慢補上前後的日子。</p>
+            <p className="eyebrow"><span /> 操作流程</p>
+            <h2 id="method-title">建立事件，補充資料，<br />再設定分享範圍。</h2>
+            <p className="method-archive-note"><b>INDEX 02.1</b> 可從文字、圖片、日期或既有筆記開始；缺少的資訊可以之後再補。</p>
           </div>
           <div className="method-list">
             {featureNotes.map(([letter, title, copy]) => (
@@ -374,10 +374,10 @@ export default function Home() {
         <section id="stories" className="stories-section" aria-labelledby="stories-title">
           <div className="stories-heading">
             <div>
-              <p className="eyebrow"><span /> 使用情境</p>
-              <h2 id="stories-title">可以從一個人開始寫。</h2>
+              <p className="eyebrow"><span /> 使用範例</p>
+              <h2 id="stories-title">整理不同類型的事件紀錄。</h2>
             </div>
-            <p>把自己的成長日記、創作過程或一次長途搬遷整理成時間帶。等你想分享時，再決定哪些事件要讓別人看見。</p>
+            <p>可用於成長日記、創作紀錄、學習過程或搬遷整理。公開內容與私人事件分開設定。</p>
           </div>
 
           <div className="story-ruler" aria-hidden="true"><span>STORY INDEX</span><i /><b>01</b><i /><b>02</b><i /><b>03</b></div>
@@ -397,24 +397,24 @@ export default function Home() {
         <section id="plans" className="plan-section" aria-labelledby="plans-title">
           <div className="plan-art" aria-hidden="true"><img src="/manus-storage/chronicle-hero-archive_9be1bd7c.jpg" alt="" /></div>
           <div className="plan-content">
-            <p className="eyebrow"><span /> 從一則紀錄開始</p>
-            <h2 id="plans-title">先寫下今天，<br /><em>再慢慢看見時間。</em></h2>
-            <p>建立事件、加上日期和標籤。要不要分享、何時整理成一條故事，都由你決定。</p>
+            <p className="eyebrow"><span /> 功能範圍</p>
+            <h2 id="plans-title">從建立事件開始。</h2>
+            <p>建立事件、加入日期與標籤、設定可見範圍，並依需要輸出或分享。</p>
             <div className="plan-ruler" aria-hidden="true"><span>YOUR ARCHIVE</span><i /><b>01</b><i /><b>02</b><i /><b>03</b><i /></div>
             <div className="plan-columns">
               <div className="plan-card plan-free">
-                <span>INDIVIDUAL</span>
-                <h3>個人整理</h3>
-                <p>適合私人日記與正在累積的成長事件。</p>
-                <ul><li><Check size={15} /> 1 條時間帶</li><li><Check size={15} /> 50 個事件</li><li><Check size={15} /> 公開分享連結</li></ul>
-                <a href="/editor">免費開始 <ArrowUpRight size={16} /></a>
+                <span>PERSONAL</span>
+                <h3>個人紀錄</h3>
+                <p>用於保存私人事件與補充資料。</p>
+                <ul><li><Check size={15} /> 日期、圖片、標籤與技能</li><li><Check size={15} /> 人生階段與多軌分類</li><li><Check size={15} /> PDF、長圖片與 Markdown 匯出</li></ul>
+                <a href="/editor">前往工作台 <ArrowUpRight size={16} /></a>
               </div>
               <div className="plan-card plan-team">
-                <span>STUDIO</span>
-                <h3>分享與協作</h3>
-                <p>適合整理後想分享給家人或夥伴的故事。</p>
-                <ul><li><Check size={15} /> 多條時間帶</li><li><Check size={15} /> 成員協作與標註</li><li><Check size={15} /> 嵌入與品牌設定</li></ul>
-                <a href="/editor">開啟我的檔案 <ArrowUpRight size={16} /></a>
+                <span>SHARING</span>
+                <h3>分享設定</h3>
+                <p>用於整理可公開或指定對象閱讀的內容。</p>
+                <ul><li><Check size={15} /> 公開與私密連結</li><li><Check size={15} /> 封面與閱讀版型</li><li><Check size={15} /> 家庭事件反應</li></ul>
+                <a href="/editor">管理分享設定 <ArrowUpRight size={16} /></a>
               </div>
             </div>
           </div>
@@ -423,15 +423,15 @@ export default function Home() {
         <section className="closing-note">
           <span className="closing-index">END NOTE / 2026</span>
           <div className="closing-symbol"><Sparkles size={20} /></div>
-          <p>留下一個日期，讓以後的你知道它曾經發生。</p>
-          <button onClick={scrollToTimeline}>回到時間帶 <ArrowUpRight size={17} /></button>
+          <p>事件會依日期保留在你的時間帶中。</p>
+          <button onClick={scrollToTimeline}>查看時間帶 <ArrowUpRight size={17} /></button>
         </section>
       </main>
 
       <footer className="site-footer">
         <a className="brand" href="#top"><img src="/manus-storage/chronicle-mark_5e825172.png" alt="" /><span>CHRONICLE</span></a>
-        <p>© 2026 Chronicle Studio. 為個人成長日記而製。</p>
-        <div><a href="#how-it-works">指南</a><a href="#stories">案例</a><a href="#plans">聯絡</a></div>
+        <p>© 2026 Chronicle Studio. 個人事件時間帶工具。</p>
+        <div><a href="#how-it-works">操作</a><a href="#stories">範例</a><a href="#plans">功能</a></div>
       </footer>
     </div>
   );

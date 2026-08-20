@@ -30,18 +30,21 @@ describe("Home", () => {
   it("keeps a public offline quick-note entry available alongside the full editor", () => {
     const html = renderToStaticMarkup(<Home />);
     expect(html).toContain('class="text-button offline-note-link" href="/quick-note" aria-describedby="offline-note-guidance"');
-    expect(html).toContain("先用離線快速記事");
+    expect(html).toContain("離線紀錄");
     expect(html).toContain('id="offline-note-guidance"');
     expect(html).toContain("離線草稿只保存在目前裝置；準備好後可複製並整理成正式事件。");
     expect(html).toContain('class="solid-button" href="/editor"');
   });
 
-  it("uses concrete personal-growth scenes and states the private-first data boundary", () => {
+  it("uses direct product language and states the private-first data boundary", () => {
     const html = renderToStaticMarkup(<Home />);
-    expect(html).toContain("把今天發生的事");
-    expect(html).toContain("第一份作品、換工作的那個月，或一張陪你長大的書桌");
-    expect(html).toContain("每一則事件可留在私有日記，也可在整理後再用連結分享");
-    expect(html).toContain("不用一次寫完，只要先記下一天");
+    expect(html).toContain("用時間軸整理");
+    expect(html).toContain("集中管理日期、文字、圖片和標籤");
+    expect(html).toContain("內容預設只供本人檢視");
+    expect(html).toContain("再為個別事件設定分享範圍");
+    expect(html).toContain("建立事件，補充資料");
+    expect(html).not.toContain("留給以後的你");
+    expect(html).not.toContain("再慢慢看見時間");
     expect(html).not.toContain("讓脈絡不再埋沒於訊息與試算表");
   });
 
