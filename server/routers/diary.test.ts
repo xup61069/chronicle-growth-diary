@@ -19,6 +19,7 @@ const diaryDb = vi.hoisted(() => {
     acceptDiaryInvite: vi.fn(async () => ({ diaryId: 2, role: "commenter" })),
     createDiaryInvite: vi.fn(async () => ({ id: 4, token: "family-invite-token-123456", expiresAt: 1_900_000_000_000, role: "commenter" })),
     getDiarySnapshot,
+    getDiaryOnThisDayMemories: vi.fn(async () => [{ id: 91, yearsAgo: 4, isLocked: false, daysRemaining: 0, title: "同日回憶", eventType: "memory", occurredAt: 1_715_904_000_000 }]),
     createEventComment: vi.fn(async () => ({ id: 11, eventId: 8, body: "我也記得這一天。" })),
     getDiaryEventRevisions: vi.fn(async () => [{ id: 31, eventId: 8, version: 2, changeType: "update", snapshot: { title: "第二版" }, createdAt: new Date("2026-01-02") }]),
     getDiaryAuditLogs: vi.fn(async () => [{ id: 1, action: "invite_created", actorName: "Test User", createdAt: new Date() }]),
@@ -108,6 +109,14 @@ describe("diary router validation", () => {
         tagNames: [],
       })
     ).rejects.toThrow("請為這段記憶寫下標題");
+  });
+
+  it("validates and forwards an owner-only on-this-day request without accepting impossible calendar inputs", async () => {
+    const caller = diaryRouter.createCaller(authenticatedContext);
+    await expect(caller.getOnThisDay({ year: 2026, month: 5, day: 17, timezoneOffsetMinutes: -480 })).resolves.toMatchObject([{ id: 91, title: "同日回憶" }]);
+    expect(diaryDb.getDiaryOnThisDayMemories).toHaveBeenCalledWith(1, { year: 2026, month: 5, day: 17, timezoneOffsetMinutes: -480 });
+    await expect(caller.getOnThisDay({ year: 2026, month: 13, day: 17, timezoneOffsetMinutes: -480 })).rejects.toThrow();
+    await expect(caller.getOnThisDay({ year: 2026, month: 5, day: 17, timezoneOffsetMinutes: 900 })).rejects.toThrow();
   });
 
   it("rejects invalid public share slugs without querying diary data", async () => {

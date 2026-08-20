@@ -231,6 +231,26 @@
 .life-progress-gauge .life-progress-value { stroke: var(--cinnabar); stroke-dasharray: 302; stroke-dashoffset: calc(302 - (302 * var(--life-progress, 0) / 100)); stroke-linecap: square; }
 .life-progress-gauge b, .life-progress-gauge span { position: relative; font: 500 21px "IBM Plex Mono", monospace; }
 .life-progress-gauge.is-unset { border: 1px dashed rgba(255,253,248,.48); border-radius: 50%; color: rgba(255,253,248,.65); }
+.on-this-day-card { margin: 18px 0; border: 1px solid rgba(20,38,58,.24); background: rgba(232,226,213,.42); padding: 19px; }
+.on-this-day-card > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
+.on-this-day-card h2 { margin: 3px 0 6px; font: 400 clamp(26px,3vw,36px)/1.05 "DM Serif Display", serif; letter-spacing: -.03em; }
+.on-this-day-card header > div > p:last-child { max-width: 670px; margin: 0; color: var(--ink-soft); font-size: 12px; line-height: 1.65; }
+.on-this-day-card > header > svg { flex: 0 0 auto; color: var(--cinnabar); }
+.on-this-day-list { display: grid; gap: 8px; margin-top: 16px; }
+.on-this-day-list article { display: grid; grid-template-columns: 62px minmax(0,1fr); min-height: 74px; border-top: 1px solid rgba(20,38,58,.18); background: rgba(255,253,248,.58); }
+.on-this-day-age { display: grid; place-content: center; align-content: center; border-right: 1px solid rgba(20,38,58,.18); background: var(--ink); color: #fff; text-align: center; }
+.on-this-day-age b { font: 500 23px/1 "IBM Plex Mono", monospace; }
+.on-this-day-age span { margin-top: 3px; font: 500 9px "IBM Plex Mono", monospace; letter-spacing: .04em; }
+.on-this-day-copy, .on-this-day-locked { padding: 12px 14px; }
+.on-this-day-copy > span, .on-this-day-locked p { color: var(--ink-soft); font: 500 10px/1.5 "IBM Plex Mono", monospace; }
+.on-this-day-copy h3 { margin: 3px 0 8px; font: 400 19px/1.2 "DM Serif Display", serif; }
+.on-this-day-copy button { display: inline-flex; align-items: center; gap: 4px; border: 0; padding: 0; color: var(--ink); background: transparent; font: 600 10px "IBM Plex Mono", monospace; text-decoration: underline; text-underline-offset: 3px; }
+.on-this-day-copy button:hover { color: var(--cinnabar); }
+.on-this-day-locked { display: flex; align-items: center; gap: 10px; color: var(--ink-soft); }
+.on-this-day-locked b { display: block; color: var(--ink); font-size: 12px; }
+.on-this-day-locked p { margin: 3px 0 0; }
+.on-this-day-empty { display: flex; align-items: center; gap: 10px; min-height: 68px; margin-top: 15px; color: var(--ink-soft); border-top: 1px solid rgba(20,38,58,.18); font-size: 12px; line-height: 1.65; }
+.on-this-day-empty p { margin: 0; }
 .preview-card.is-capsule-locked > :not(.capsule-lock-notice) { display: none; }
 .capsule-lock-notice { display: grid; justify-items: center; gap: 7px; padding: 34px 18px; text-align: center; color: var(--ink); }
 .capsule-lock-notice svg { color: var(--cinnabar); }
@@ -264,6 +284,8 @@
   .soundtrack-inputs { grid-template-columns: 1fr; }
   .social-card-actions { align-items: flex-start; flex-direction: column; }
   .life-progress-ring { grid-template-columns: 1fr; justify-items: start; gap: 14px; }
+  .on-this-day-card { padding: 17px; }
+  .on-this-day-card > header { gap: 10px; }
   .spatial-footprint-map { min-height: 150px; }
   .spatial-footprint-node span { max-width: 66px; }
 }

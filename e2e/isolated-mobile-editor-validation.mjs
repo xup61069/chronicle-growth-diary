@@ -6,6 +6,10 @@ if (!baseUrl) throw new Error('請設定 CHRONICLE_E2E_BASE_URL 為已啟動 loc
 const email = `mobile-editor-${Date.now()}@example.test`;
 const password = 'local-validation-passphrase';
 const eventTitle = '375px 工作區驗證事件';
+const anniversaryTitle = '兩年前的同日驗證事件';
+const lockedAnniversaryTitle = '尚未解鎖的同日膠囊';
+const today = new Date();
+const anniversaryOccurredAt = new Date(today.getFullYear() - 2, today.getMonth(), today.getDate(), 12).getTime();
 const viewport = process.env.CHRONICLE_E2E_VIEWPORT === 'desktop' ? { width: 1280, height: 720 } : { width: 375, height: 812 };
 
 function assert(condition, message) {
@@ -68,8 +72,67 @@ try {
   assert(eventCreation.status === 200, '無法建立隔離驗證事件。');
   findings.checks.push('authenticated diary.createEvent');
 
+  const anniversaryCreation = await trpcMutation(page, 'diary.createEvent', {
+    occurredAt: anniversaryOccurredAt,
+    datePrecision: 'day',
+    eventType: 'memory',
+    title: anniversaryTitle,
+    body: '僅供同日回憶卡開啟流程驗證的私人事件。',
+    ageLabel: null,
+    place: null,
+    color: '#EE623B',
+    tagNames: [],
+    skillNames: [],
+    track: 'life',
+    milestoneType: 'standard',
+    milestoneWeight: 1,
+    comparisonGroup: null,
+    unlocksAt: null,
+    phaseKeywords: [],
+    mapLatitudeE6: null,
+    mapLongitudeE6: null,
+    locationPrivacy: 'none',
+    soundtrackTitle: null,
+    soundtrackUrl: null,
+    shareScope: 'private',
+  });
+  assert(anniversaryCreation.status === 200, '無法建立隔離同日回憶事件。');
+  const lockedAnniversaryCreation = await trpcMutation(page, 'diary.createEvent', {
+    occurredAt: new Date(today.getFullYear() - 3, today.getMonth(), today.getDate(), 12).getTime(),
+    datePrecision: 'day',
+    eventType: 'memory',
+    title: lockedAnniversaryTitle,
+    body: '此內容在測試時應維持遮罩。',
+    ageLabel: null,
+    place: null,
+    color: '#EE623B',
+    tagNames: [],
+    skillNames: [],
+    track: 'life',
+    milestoneType: 'standard',
+    milestoneWeight: 1,
+    comparisonGroup: null,
+    unlocksAt: Date.now() + 3 * 24 * 60 * 60 * 1000,
+    phaseKeywords: [],
+    mapLatitudeE6: null,
+    mapLongitudeE6: null,
+    locationPrivacy: 'none',
+    soundtrackTitle: null,
+    soundtrackUrl: null,
+    shareScope: 'private',
+  });
+  assert(lockedAnniversaryCreation.status === 200, '無法建立隔離鎖定同日膠囊。');
+
   if (viewport.width > 375) {
     await page.reload({ waitUntil: 'domcontentloaded' });
+    const desktopOnThisDay = page.locator('.on-this-day-card');
+    await desktopOnThisDay.getByRole('heading', { name: 'N 年前的今天' }).waitFor({ timeout: 10_000 });
+    await desktopOnThisDay.getByText(anniversaryTitle, { exact: true }).waitFor({ timeout: 10_000 });
+    assert(await desktopOnThisDay.getByText(anniversaryTitle, { exact: true }).isVisible(), '桌面同日回憶卡未顯示已解鎖的私人事件。');
+    assert(await desktopOnThisDay.getByText(lockedAnniversaryTitle, { exact: true }).count() === 0, '桌面同日回憶卡不應顯示未解鎖膠囊標題。');
+    await desktopOnThisDay.getByRole('button', { name: '開啟這筆記錄' }).click();
+    await page.locator('.preview-card h3').getByText(anniversaryTitle, { exact: true }).waitFor({ timeout: 10_000 });
+    findings.checks.push('desktop on-this-day private card and capsule masking');
     const desktopVoiceDiary = page.locator('.voice-diary');
     await desktopVoiceDiary.scrollIntoViewIfNeeded();
     await desktopVoiceDiary.getByText('VOICE DIARY / PRIVATE').waitFor({ timeout: 10_000 });
@@ -109,6 +172,14 @@ try {
     findings.checks.push('desktop private growth dashboard');
   } else {
   await page.reload({ waitUntil: 'domcontentloaded' });
+  const mobileOnThisDay = page.locator('.on-this-day-card');
+  await mobileOnThisDay.getByRole('heading', { name: 'N 年前的今天' }).waitFor({ timeout: 10_000 });
+  await mobileOnThisDay.getByText(anniversaryTitle, { exact: true }).waitFor({ timeout: 10_000 });
+  assert(await mobileOnThisDay.getByText(anniversaryTitle, { exact: true }).isVisible(), '行動版同日回憶卡未顯示已解鎖的私人事件。');
+  assert(await mobileOnThisDay.getByText(lockedAnniversaryTitle, { exact: true }).count() === 0, '行動版同日回憶卡不應顯示未解鎖膠囊標題。');
+  await mobileOnThisDay.getByRole('button', { name: '開啟這筆記錄' }).click();
+  await page.locator('#mobile-workspace-preview').getByRole('heading', { name: anniversaryTitle, exact: true }).waitFor({ timeout: 10_000 });
+  findings.checks.push('375px on-this-day private card and capsule masking');
   await page.getByRole('tab', { name: '索引' }).click();
   const indexEventButton = page.locator('.event-list button').filter({ hasText: eventTitle });
   await indexEventButton.waitFor({ timeout: 10_000 });

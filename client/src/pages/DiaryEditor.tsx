@@ -266,6 +266,11 @@ function DiaryEditorContent() {
     onError: (error) => toast.error(error.message),
   });
   const familyMembersQuery = trpc.diary.getFamilyMembers.useQuery(undefined, { enabled: isOwner });
+  const onThisDayInput = useMemo(() => {
+    const today = new Date();
+    return { ...(requestedDiaryId ? { diaryId: requestedDiaryId } : {}), year: today.getFullYear(), month: today.getMonth() + 1, day: today.getDate(), timezoneOffsetMinutes: today.getTimezoneOffset() };
+  }, [requestedDiaryId]);
+  const onThisDayQuery = trpc.diary.getOnThisDay.useQuery(onThisDayInput, { enabled: data?.accessRole === "owner", staleTime: 0 });
   const familyAuditQuery = trpc.diary.getFamilyAudit.useQuery(undefined, { enabled: isOwner });
   const removeFamilyMemberMutation = trpc.diary.removeFamilyMember.useMutation({
     onSuccess: async () => {
@@ -328,6 +333,7 @@ function DiaryEditorContent() {
   }, [events]);
   const reflectionsByPhase = useMemo(() => new Map((data?.reflections ?? []).map((reflection) => [reflection.phaseKey, reflection])), [data?.reflections]);
   const privateAnnualEvents = useMemo(() => events.filter((event) => event.shareScope === "private"), [events]);
+  const onThisDayMemories = onThisDayQuery.data ?? [];
   const availableYears = useMemo(() => Array.from(new Set(privateAnnualEvents.map((event) => new Date(event.occurredAt).getFullYear()))).sort((left, right) => right - left), [privateAnnualEvents]);
   const annualReview = useMemo(() => buildAnnualReview(privateAnnualEvents, Number(annualYear || availableYears[0] || new Date().getFullYear()), annualTemplate), [annualTemplate, annualYear, availableYears, privateAnnualEvents]);
   const activeAnnualYear = Number(annualYear || availableYears[0] || new Date().getFullYear());
@@ -347,6 +353,11 @@ function DiaryEditorContent() {
     toast.success("已匯出年度回顧 Markdown。內容僅保存在此下載檔。 ");
   };
   const writingGuides = useMemo(() => getLocalWritingGuides(form.eventType), [form.eventType]);
+
+  const openOnThisDayMemory = (eventId: number) => {
+    setSelectedId(eventId);
+    setMobileWorkspacePanel("preview");
+  };
 
   useEffect(() => {
     if (!data) return;
@@ -1028,6 +1039,14 @@ function DiaryEditorContent() {
       {isOwner ? <section className="diary-profile-studio" aria-labelledby="diary-profile-title"><div><p className="editor-kicker"><span /> PERSONAL ARCHIVE / OWNER ONLY</p><h2 id="diary-profile-title">為這本成長史留下側寫</h2><p>以標題和短句定義這段人生的閱讀方式。側寫預設只留在私人日記中；此處不蒐集聯絡方式、完整出生日期或其他敏感個資。</p></div><form className="diary-profile-form" onSubmit={saveDiaryProfile}><label>成長史標題<input value={profileTitle} onChange={(event) => setProfileTitle(event.target.value)} maxLength={160} required /></label><label>副標題（選填）<textarea value={profileSubtitle} onChange={(event) => setProfileSubtitle(event.target.value)} maxLength={240} placeholder="例如：把重要轉折、學習與日常心緒慢慢編成一條時間帶。" /></label><footer><span>{profileSubtitle.length}/240 · 僅日記擁有者可修改</span><button type="submit" disabled={profileMutation.isPending}>{profileMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} 保存側寫</button></footer></form></section> : null}
 
       {isOwner ? <section className="life-progress-ring" aria-labelledby="life-progress-title">{lifeProgress ? <><div className="life-progress-gauge" style={{ "--life-progress": lifeProgress.percentage } as React.CSSProperties}><svg viewBox="0 0 120 120" aria-hidden="true"><circle cx="60" cy="60" r="48" /><circle className="life-progress-value" cx="60" cy="60" r="48" /></svg><b>{lifeProgress.percentage}%</b></div><div><p className="editor-kicker"><span /> LIFE PROGRESS / PRIVATE</p><h2 id="life-progress-title">把今天，留給下一個章節。</h2><p>以年份推算的私人人生進度視覺；目前約 {lifeProgress.age} 歲，採 {lifeProgress.horizonYears} 年作為閱讀刻度。這不是壽命預測，也不會出現在公開故事。</p></div></> : <><div className="life-progress-gauge is-unset"><span>—</span></div><div><p className="editor-kicker"><span /> LIFE PROGRESS / OPTIONAL</p><h2 id="life-progress-title">人生進度環尚未啟用</h2><p>如需使用，請在分享設定中選擇性提供出生年份。系統只使用年份建立私人閱讀刻度，不要求完整出生日期。</p></div></>}</section> : null}
+
+      {isOwner ? <section className="on-this-day-card" aria-labelledby="on-this-day-title">
+        <header><div><p className="editor-kicker"><span /> ON THIS DAY / PRIVATE</p><h2 id="on-this-day-title">N 年前的今天</h2><p>只比對具完整日期的私人事件。這是站內閱讀入口，不會傳送通知、寄送 Email 或向外部服務提供日記內容。</p></div><History size={28} aria-hidden="true" /></header>
+        {onThisDayQuery.isLoading ? <div className="on-this-day-empty" role="status"><Loader2 size={20} className="animate-spin" /><p>正在整理同日回憶…</p></div> : onThisDayMemories.length ? <div className="on-this-day-list">{onThisDayMemories.map((memory) => <article key={memory.id} className={memory.isLocked ? "is-locked" : ""}>
+          <div className="on-this-day-age"><b>{memory.yearsAgo}</b><span>年前</span></div>
+          {memory.isLocked ? <div className="on-this-day-locked"><LockKeyhole size={16} /><div><b>時空膠囊尚未解鎖</b><p>{formatCapsuleCountdown(memory.daysRemaining)}；在解鎖前不顯示標題或內容。</p></div></div> : <div className="on-this-day-copy"><span>{new Date(memory.occurredAt).toLocaleDateString("zh-TW", { month: "long", day: "numeric" })} · {memory.eventType}</span><h3>{memory.title}</h3><button type="button" onClick={() => openOnThisDayMemory(memory.id)}>開啟這筆記錄 <ChevronRight size={14} /></button></div>}
+        </article>)}</div> : <div className="on-this-day-empty"><History size={20} /><p>今天沒有同月同日的私人事件。日後寫下完整日期的記錄，回到工作台時會在這裡出現。</p></div>}
+      </section> : null}
 
       <section className="life-phase-overview" ref={exportRef} aria-labelledby="life-phase-title">
         <div className="phase-heading">

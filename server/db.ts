@@ -46,6 +46,8 @@ import {
   updatePhaseReflectionForDiary,
 } from "./db/aiReflections";
 import { getGrowthDashboardStatsForDiary } from "./db/growthStats";
+import { getOwnerOnThisDayMemoriesForDiary } from "./db/onThisDay";
+import type { OnThisDayRequest } from "./db/onThisDay";
 import { createVoiceNoteForEvent, deleteVoiceNoteForUser } from "./db/voiceNotes";
 import type { VoiceNoteInput } from "./db/voiceNotes";
 export { assertAiEnabled } from "./db/aiReflections";
@@ -148,6 +150,14 @@ export async function getDiarySnapshot(userId: number, requestedDiaryId?: number
   const diary = access?.diary ?? await getOrCreateDiary(userId);
   const accessRole: DiaryAccessRole = access?.role ?? "owner";
   return buildDiarySnapshotForDiary(db, diary, accessRole);
+}
+
+export async function getDiaryOnThisDayMemories(userId: number, input: OnThisDayRequest & { diaryId?: number }) {
+  const db = await requireDb();
+  const access = await getDiaryAccessForUser(userId, input.diaryId);
+  const diary = access?.diary ?? (input.diaryId ? undefined : await getOrCreateDiary(userId));
+  if (!diary || (access && access.role !== "owner")) return [];
+  return getOwnerOnThisDayMemoriesForDiary(db, diary.id, input);
 }
 
 export async function getDiaryEventRevisions(userId: number, eventId: number) {
