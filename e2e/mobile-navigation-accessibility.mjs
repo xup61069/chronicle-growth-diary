@@ -79,10 +79,33 @@ try {
   }
 
   const keywordFilter = page.getByLabel("搜尋示範事件內容");
-  await keywordFilter.fill("工作桌");
-  await page.getByText("顯示 1 筆示範事件／關鍵字「工作桌」／研究／由舊到新", { exact: true }).waitFor();
+  await keywordFilter.fill("作品");
+  const autocomplete = page.getByRole("listbox", { name: "搜尋建議" });
+  await autocomplete.waitFor();
+  if (await autocomplete.getByRole("option").count() < 2) {
+    throw new Error("公開事件內容命中時，搜尋列應列出相關自動完成建議。");
+  }
+  await keywordFilter.press("Escape");
+  await autocomplete.waitFor({ state: "hidden" });
+
+  await keywordFilter.focus();
+  await keywordFilter.fill("工作");
+  await page.locator("#timeline-autocomplete-options").waitFor();
+  if (await autocomplete.getByRole("option").count() !== 1) {
+    throw new Error("工作關鍵字應只對應一個公開事件自動完成建議。");
+  }
+  await keywordFilter.press("ArrowDown");
+  await keywordFilter.press("Enter");
+  await page.getByText("顯示 1 筆示範事件／關鍵字「搬家後重新整理工作桌」／研究／由舊到新", { exact: true }).waitFor();
   if ((await timelineTitle.textContent())?.trim() !== "搬家後重新整理工作桌") {
-    throw new Error("關鍵字搜尋應比對公開事件的標題與內容。");
+    throw new Error("自動完成選取後應以對應的公開事件關鍵字篩選結果。");
+  }
+  if ((await page.locator(".timeline-detail mark").first().textContent())?.trim() !== "搬家後重新整理工作桌") {
+    throw new Error("搜尋結果的事件卡片應以 mark 標記符合關鍵字的文字。");
+  }
+  const viewportTransition = await timelineViewport.evaluate((element) => getComputedStyle(element).transitionDuration);
+  if (!viewportTransition.split(",").every((duration) => Number.parseFloat(duration) <= 0.001)) {
+    throw new Error("減少動態偏好下，時間帶結果更新不應保留過渡動畫。");
   }
   await keywordFilter.focus();
   const keywordFocusedTitle = (await timelineTitle.textContent())?.trim();
@@ -125,6 +148,7 @@ try {
     throw new Error("由新到舊排序應先顯示日期最新的事件。");
   }
   await sortFilter.selectOption("oldest");
+  await page.getByText("顯示 5 筆示範事件／由舊到新", { exact: true }).waitFor();
   if ((await timelineTitle.textContent())?.trim() !== "記下第一次自己回家的路") {
     throw new Error("由舊到新排序應先顯示日期最早的事件。");
   }

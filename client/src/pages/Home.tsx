@@ -2,7 +2,7 @@
  * Design reminder — 編集室時間帶：Swiss editorial composition, archival paper tactility,
  * deep ink + cinnabar accents, and time as the primary navigational structure.
  */
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
   ArrowDown,
   ArrowLeft,
@@ -34,6 +34,12 @@ type TimelineEvent = {
   title: string;
   copy: string;
   number: string;
+};
+
+type TimelineSearchSuggestion = {
+  id: string;
+  label: string;
+  kind: "事件" | "類型";
 };
 
 const events: TimelineEvent[] = [
@@ -124,6 +130,35 @@ const recentTimelineSuggestions = [...events]
   .sort((left, right) => right.isoDate.localeCompare(left.isoDate))
   .slice(0, 3);
 
+const timelineSearchSuggestions = Array.from(
+  new Map<string, TimelineSearchSuggestion>(
+    events.flatMap((event) => [
+      [`event-${event.number}`, { id: `event-${event.number}`, label: event.title, kind: "事件" as const }],
+      [`category-${event.category}`, { id: `category-${event.category}`, label: event.category, kind: "類型" as const }],
+    ]),
+  ).values(),
+);
+
+function highlightSearchMatch(text: string, query: string) {
+  const term = query.trim();
+  if (!term) return text;
+  const normalizedText = text.toLocaleLowerCase("zh-TW");
+  const normalizedTerm = term.toLocaleLowerCase("zh-TW");
+  const fragments: React.ReactNode[] = [];
+  let cursor = 0;
+  let matchIndex = normalizedText.indexOf(normalizedTerm, cursor);
+
+  while (matchIndex !== -1) {
+    if (matchIndex > cursor) fragments.push(text.slice(cursor, matchIndex));
+    const matchEnd = matchIndex + term.length;
+    fragments.push(<mark key={`${matchIndex}-${matchEnd}`}>{text.slice(matchIndex, matchEnd)}</mark>);
+    cursor = matchEnd;
+    matchIndex = normalizedText.indexOf(normalizedTerm, cursor);
+  }
+  if (cursor < text.length) fragments.push(text.slice(cursor));
+  return fragments.length ? fragments : text;
+}
+
 export default function Home() {
   const [activeIndex, setActiveIndex] = useState(2);
   const [activeFilter, setActiveFilter] = useState<(typeof filters)[number]>("全部");
@@ -131,7 +166,19 @@ export default function Home() {
   const [keywordQuery, setKeywordQuery] = useState("");
   const [sortOrder, setSortOrder] = useState<TimelineSortOrder>("oldest");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [searchFocused, setSearchFocused] = useState(false);
+  const [suggestionIndex, setSuggestionIndex] = useState(-1);
+  const [isFilterTransitioning, startFilterTransition] = useTransition();
   const dragStart = useRef<{ x: number; index: number } | null>(null);
+
+  const autocompleteSuggestions = useMemo(() => {
+    const normalizedKeyword = keywordQuery.trim().toLocaleLowerCase("zh-TW");
+    if (!normalizedKeyword) return [];
+    return timelineSearchSuggestions
+      .filter((suggestion) => suggestion.label.toLocaleLowerCase("zh-TW").includes(normalizedKeyword))
+      .slice(0, 5);
+  }, [keywordQuery]);
+  const isAutocompleteOpen = searchFocused && autocompleteSuggestions.length > 0;
 
   const visibleEvents = useMemo(() => {
     const normalizedKeyword = keywordQuery.trim().toLocaleLowerCase("zh-TW");
@@ -181,29 +228,79 @@ export default function Home() {
   };
 
   const chooseFilter = (filter: (typeof filters)[number]) => {
-    setActiveFilter(filter);
-    setActiveIndex(0);
+    startFilterTransition(() => {
+      setActiveFilter(filter);
+      setActiveIndex(0);
+    });
   };
 
   const chooseDate = (date: string) => {
-    setSelectedDate(date);
-    setActiveIndex(0);
+    startFilterTransition(() => {
+      setSelectedDate(date);
+      setActiveIndex(0);
+    });
+  };
+
+  const chooseKeyword = (keyword: string) => {
+    setKeywordQuery(keyword);
+    startFilterTransition(() => {
+      setActiveIndex(0);
+    });
+  };
+
+  const chooseSortOrder = (order: TimelineSortOrder) => {
+    startFilterTransition(() => {
+      setSortOrder(order);
+      setActiveIndex(0);
+    });
   };
 
   const clearTimelineFilters = () => {
-    setActiveFilter("全部");
-    setSelectedDate("");
-    setKeywordQuery("");
-    setSortOrder("oldest");
-    setActiveIndex(0);
+    startFilterTransition(() => {
+      setActiveFilter("全部");
+      setSelectedDate("");
+      setKeywordQuery("");
+      setSortOrder("oldest");
+      setActiveIndex(0);
+    });
+    setSuggestionIndex(-1);
   };
 
   const showSuggestedEvent = (event: TimelineEvent) => {
-    setActiveFilter("全部");
-    setKeywordQuery("");
-    setSortOrder("oldest");
-    setSelectedDate(event.isoDate);
-    setActiveIndex(0);
+    startFilterTransition(() => {
+      setActiveFilter("全部");
+      setKeywordQuery("");
+      setSortOrder("oldest");
+      setSelectedDate(event.isoDate);
+      setActiveIndex(0);
+    });
+  };
+
+  const chooseAutocompleteSuggestion = (suggestion: TimelineSearchSuggestion) => {
+    chooseKeyword(suggestion.label);
+    setSearchFocused(false);
+    setSuggestionIndex(-1);
+  };
+
+  const onKeywordKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!isAutocompleteOpen) {
+      if (event.key === "Escape") setSearchFocused(false);
+      return;
+    }
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setSuggestionIndex((current) => current < autocompleteSuggestions.length - 1 ? current + 1 : 0);
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setSuggestionIndex((current) => current > 0 ? current - 1 : autocompleteSuggestions.length - 1);
+    } else if (event.key === "Enter" && suggestionIndex >= 0) {
+      event.preventDefault();
+      chooseAutocompleteSuggestion(autocompleteSuggestions[suggestionIndex]);
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      setSearchFocused(false);
+      setSuggestionIndex(-1);
+    }
   };
 
   const stepTimeline = (direction: 1 | -1) => {
@@ -352,16 +449,44 @@ export default function Home() {
                 </button>
               ))}
             </div>
-            <div className="timeline-search-filter">
+            <div className="timeline-search-filter" onBlur={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                setSearchFocused(false);
+                setSuggestionIndex(-1);
+              }
+            }}>
               <label htmlFor="timeline-keyword-query"><Search size={14} /> 搜尋</label>
               <input
                 id="timeline-keyword-query"
                 type="search"
                 value={keywordQuery}
-                onChange={(event) => setKeywordQuery(event.target.value)}
+                onChange={(event) => {
+                  chooseKeyword(event.target.value);
+                  setSearchFocused(true);
+                  setSuggestionIndex(event.target.value.trim() ? 0 : -1);
+                }}
+                onFocus={() => setSearchFocused(true)}
+                onKeyDown={onKeywordKeyDown}
                 placeholder="事件標題或內容"
                 aria-label="搜尋示範事件內容"
+                role="combobox"
+                aria-autocomplete="list"
+                aria-expanded={isAutocompleteOpen}
+                aria-controls="timeline-autocomplete-options"
+                aria-activedescendant={isAutocompleteOpen && suggestionIndex >= 0 ? `timeline-suggestion-${autocompleteSuggestions[suggestionIndex]?.id}` : undefined}
               />
+              {isAutocompleteOpen ? <div id="timeline-autocomplete-options" className="timeline-autocomplete" role="listbox" aria-label="搜尋建議">
+                {autocompleteSuggestions.map((suggestion, index) => <button
+                  type="button"
+                  key={suggestion.id}
+                  id={`timeline-suggestion-${suggestion.id}`}
+                  role="option"
+                  aria-selected={suggestionIndex === index}
+                  className={suggestionIndex === index ? "is-active" : ""}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => chooseAutocompleteSuggestion(suggestion)}
+                ><small>{suggestion.kind}</small>{highlightSearchMatch(suggestion.label, keywordQuery)}</button>)}
+              </div> : null}
             </div>
             <div className="timeline-date-filter">
               <label htmlFor="timeline-date-query"><CalendarDays size={14} /> 日期</label>
@@ -375,7 +500,7 @@ export default function Home() {
             </div>
             <div className="timeline-sort-filter">
               <label htmlFor="timeline-date-sort">排序</label>
-              <select id="timeline-date-sort" value={sortOrder} onChange={(event) => setSortOrder(event.target.value as TimelineSortOrder)} aria-label="事件日期排序">
+              <select id="timeline-date-sort" value={sortOrder} onChange={(event) => chooseSortOrder(event.target.value as TimelineSortOrder)} aria-label="事件日期排序">
                 <option value="oldest">由舊到新</option>
                 <option value="newest">由新到舊</option>
               </select>
@@ -386,13 +511,14 @@ export default function Home() {
               <button aria-label="下一個事件" onClick={() => stepTimeline(1)} disabled={!visibleEvents.length || activeIndex === visibleEvents.length - 1}><ArrowRight size={18} /></button>
             </div>
           </div>
-          <p className="timeline-result-summary" role="status" aria-live="polite">顯示 {visibleEvents.length} 筆示範事件{keywordQuery.trim() ? `／關鍵字「${keywordQuery.trim()}」` : ""}{selectedDate ? `／${selectedDate}` : ""}{activeFilter !== "全部" ? `／${activeFilter}` : ""}{sortOrder === "newest" ? "／由新到舊" : "／由舊到新"}</p>
+          <p className="timeline-result-summary" role="status" aria-live="polite">{isFilterTransitioning ? "正在更新篩選結果…" : <>顯示 {visibleEvents.length} 筆示範事件{keywordQuery.trim() ? `／關鍵字「${keywordQuery.trim()}」` : ""}{selectedDate ? `／${selectedDate}` : ""}{activeFilter !== "全部" ? `／${activeFilter}` : ""}{sortOrder === "newest" ? "／由新到舊" : "／由舊到新"}</>}</p>
 
           <div
-            className="timeline-viewport"
+            className={`timeline-viewport ${isFilterTransitioning ? "is-updating" : ""}`}
             role="region"
             aria-label="互動時間帶"
             aria-describedby="timeboard-instruction"
+            aria-busy={isFilterTransitioning}
             tabIndex={0}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
@@ -401,6 +527,7 @@ export default function Home() {
             onKeyDown={onTimelineViewportKeyDown}
           >
             {visibleEvents.length ? <div
+              key={`timeline-results-${activeFilter}-${keywordQuery}-${selectedDate}-${sortOrder}`}
               className="timeline-track"
               style={{ transform: `translateX(${-Math.max(0, activeIndex - 1) * 202}px)` }}
             >
@@ -413,7 +540,7 @@ export default function Home() {
                 >
                   <span className="event-date">{event.date}<small>{event.month}</small></span>
                   <span className="event-wire"><i /></span>
-                  <span className="event-preview"><b>{event.category}</b>{event.title}</span>
+                  <span className="event-preview"><b>{event.category}</b>{highlightSearchMatch(event.title, keywordQuery)}</span>
                 </button>
               ))}
             </div> : <div className="timeline-empty" role="status">
@@ -431,8 +558,8 @@ export default function Home() {
             <div className="detail-number">{selectedEvent.number}</div>
             <div className="detail-copy">
               <span>{selectedEvent.date} {selectedEvent.month} / {selectedEvent.year}</span>
-              <h3>{selectedEvent.title}</h3>
-              <p>{selectedEvent.copy}</p>
+              <h3>{highlightSearchMatch(selectedEvent.title, keywordQuery)}</h3>
+              <p>{highlightSearchMatch(selectedEvent.copy, keywordQuery)}</p>
             </div>
             <a href="/editor">開啟工作台 <ArrowUpRight size={17} /></a>
           </div> : null}

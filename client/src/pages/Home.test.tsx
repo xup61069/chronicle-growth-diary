@@ -60,7 +60,7 @@ describe("Home", () => {
   it("provides a focusable, described keyboard entry point for the interactive timeline", () => {
     const html = renderToStaticMarkup(<Home />);
     expect(html).toContain('id="timeboard-instruction"');
-    expect(html).toContain('role="region" aria-label="互動時間帶" aria-describedby="timeboard-instruction" tabindex="0"');
+    expect(html).toContain('role="region" aria-label="互動時間帶" aria-describedby="timeboard-instruction" aria-busy="false" tabindex="0"');
     expect(html).toContain("聚焦時間帶後");
   });
 
@@ -71,11 +71,14 @@ describe("Home", () => {
     expect(html).toContain('aria-pressed="false">研究');
   });
 
-  it("provides accessible keyword, date, sort, and live-result controls for the public timeline", () => {
+  it("provides accessible autocomplete, date, sort, and live-result controls for the public timeline", () => {
     const html = renderToStaticMarkup(<Home />);
     expect(html).toContain('id="timeline-keyword-query"');
     expect(html).toContain('type="search"');
     expect(html).toContain('aria-label="搜尋示範事件內容"');
+    expect(html).toContain('role="combobox"');
+    expect(html).toContain('aria-autocomplete="list"');
+    expect(html).toContain('aria-controls="timeline-autocomplete-options"');
     expect(html).toContain('id="timeline-date-query"');
     expect(html).toContain('type="date"');
     expect(html).toContain('aria-label="依日期篩選示範事件"');
@@ -85,6 +88,7 @@ describe("Home", () => {
     expect(html).toContain("由新到舊");
     expect(html).toContain('class="timeline-result-summary" role="status" aria-live="polite"');
     expect(html).toContain("顯示 5 筆示範事件／由舊到新");
+    expect(html).toContain('aria-busy="false"');
   });
 
   it("provides a skip link that moves keyboard focus to the main content landmark", () => {

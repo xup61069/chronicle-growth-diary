@@ -147,10 +147,14 @@ a { color: inherit; text-decoration: none; }
 .timeline-search-filter, .timeline-date-filter, .timeline-sort-filter { display: flex; align-items: center; gap: 8px; color: #cbd5da; font: 500 10px "IBM Plex Mono", monospace; letter-spacing: .06em; }
 .timeline-search-filter label, .timeline-date-filter label, .timeline-sort-filter label { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
 .timeline-search-filter, .timeline-date-filter, .timeline-sort-filter { border: 1px solid rgba(255,255,255,.32); padding: 0 8px; }
+.timeline-search-filter { position: relative; }
 .timeline-search-filter:focus-within, .timeline-date-filter:focus-within, .timeline-sort-filter:focus-within { border-color: var(--cinnabar); }
 .timeline-search-filter input, .timeline-date-filter input, .timeline-sort-filter select { min-width: 0; border: 0; border-radius: 0; outline: 0; color: #fffdf8; background: transparent; padding: 7px 0; font: 500 10px "IBM Plex Mono", monospace; }
 .timeline-search-filter input { width: 146px; }
 .timeline-search-filter input::placeholder { color: #aebcc1; }
+.timeline-autocomplete { position: absolute; z-index: 12; top: calc(100% + 6px); left: -1px; right: -1px; display: grid; overflow: hidden; border: 1px solid rgba(255,255,255,.48); background: #102437; box-shadow: 7px 7px 0 rgba(0,0,0,.2); }
+.timeline-autocomplete button { display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 8px; width: 100%; border: 0; border-bottom: 1px solid rgba(255,255,255,.14); color: #eff4f4; background: transparent; padding: 9px 10px; text-align: left; font-size: 11px; }.timeline-autocomplete button:last-child { border-bottom: 0; }.timeline-autocomplete button small { color: var(--cinnabar); font: 500 8px "IBM Plex Mono", monospace; }.timeline-autocomplete button:hover, .timeline-autocomplete button.is-active { color: var(--ink); background: #fffdf8; }.timeline-autocomplete button:hover small, .timeline-autocomplete button.is-active small { color: var(--cinnabar); }
+.timeboard mark { color: inherit; background: #f5b3a0; box-shadow: 0 0 0 2px #f5b3a0; font-weight: 700; }
 .timeline-date-filter input { width: 124px; color-scheme: dark; }
 .timeline-sort-filter select { color-scheme: dark; }
 .timeline-sort-filter option { color: var(--ink); background: #fffdf8; }
@@ -161,6 +165,7 @@ a { color: inherit; text-decoration: none; }
 .arrow-set button:not(:disabled):hover { color: var(--ink); background: #fffdf8; }
 .timeline-result-summary { min-height: 17px; margin: 12px 0 -12px; color: #aebcc1; font: 500 10px "IBM Plex Mono", monospace; letter-spacing: .05em; }
 .timeline-viewport { margin-top: 32px; overflow: hidden; cursor: grab; padding: 22px 0; touch-action: pan-y; user-select: none; }
+.timeline-viewport.is-updating { opacity: .64; }
 .timeline-viewport:active { cursor: grabbing; }
 .timeline-viewport:focus-visible { outline: 2px solid var(--cinnabar); outline-offset: 5px; }
 .timeline-track { display: flex; min-width: max-content; padding-left: calc(50% - 88px); transition: transform .24s cubic-bezier(.23,1,.32,1); }
@@ -192,6 +197,7 @@ a { color: inherit; text-decoration: none; }
 .detail-copy p { max-width: 570px; margin: 0; color: #c8d2d6; font-size: 13px; line-height: 1.7; }
 .timeline-detail > a { color: #fff; border-bottom: 1px solid #fff; padding: 5px 0; display: flex; align-items: center; gap: 7px; font-size: 13px; }
 .timeline-detail > a:hover { color: var(--cinnabar); border-color: var(--cinnabar); }
+@media (prefers-reduced-motion: no-preference) { .timeline-viewport { transition: opacity .18s var(--ease-out, ease-out), transform .18s var(--ease-out, ease-out); }.timeline-viewport.is-updating { transform: translateY(2px); }.timeline-track { animation: timeline-results-enter .2s var(--ease-out, ease-out); } } @keyframes timeline-results-enter { from { opacity: .35; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 .timeboard-scale { display: flex; align-items: center; gap: 13px; margin-top: 22px; color: #a7b5bb; font: 10px "IBM Plex Mono", monospace; letter-spacing: .08em; }
 .timeboard-scale div { flex: 1; border-top: 1px dashed rgba(255,255,255,.27); }
 
