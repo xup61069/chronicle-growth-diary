@@ -10,10 +10,14 @@ const authProvider = vi.hoisted(() => ({
   createSessionToken: vi.fn(async () => "local-session-token"),
 }));
 
+const environment = vi.hoisted(() => ({
+  ENV: { authDriver: "local" },
+}));
+
 vi.mock("../db", () => accountDb);
+vi.mock("../_core/env", () => environment);
 vi.mock("../providers/auth", () => ({ getAuthProvider: () => authProvider }));
 
-import { ENV } from "../_core/env";
 import { appRouter } from "../routers";
 
 describe("local credential fallback", () => {
@@ -27,7 +31,7 @@ describe("local credential fallback", () => {
   });
 
   it("uses the supplied AUTH_DRIVER=local setting to allow the local registration endpoint", async () => {
-    expect(ENV.authDriver).toBe("local");
+    expect(environment.ENV.authDriver).toBe("local");
     const res = { cookie: vi.fn(), clearCookie: vi.fn() };
     const caller = appRouter.createCaller({
       user: null,
