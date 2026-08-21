@@ -11,6 +11,7 @@ import {
   generatePhaseReflection,
   generateAnnualReflection,
   getDiaryEventRevisions,
+  getFullDiaryArchive,
   getDiaryAuditLogs,
   getDiaryMembers,
   getEventComments,
@@ -73,6 +74,7 @@ const year = z.number().int().min(1900).max(2200).nullable().optional();
 
 export const diaryRouter = router({
   get: protectedProcedure.input(z.object({ diaryId: z.number().int().positive().optional() }).optional()).query(({ ctx, input }) => input?.diaryId ? getDiarySnapshot(ctx.user.id, input.diaryId) : getDiarySnapshot(ctx.user.id)),
+  exportFullArchive: protectedProcedure.mutation(({ ctx }) => getFullDiaryArchive(ctx.user.id)),
   getOnThisDay: protectedProcedure.input(z.object({ diaryId: z.number().int().positive().optional(), year: z.number().int().min(1900).max(2200), month: z.number().int().min(1).max(12), day: z.number().int().min(1).max(31), timezoneOffsetMinutes: z.number().int().min(-840).max(840) })).query(({ ctx, input }) => getDiaryOnThisDayMemories(ctx.user.id, input)),
   createEvent: protectedProcedure.input(diaryEventInput.extend({ diaryId: z.number().int().positive().optional() })).mutation(({ ctx, input }) => {
     const { diaryId, ...event } = input;

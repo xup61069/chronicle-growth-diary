@@ -18,6 +18,7 @@ import { exportDiaryAsLongImage, exportDiaryAsPdf } from "@/lib/diaryExport";
 import { createMediaArchive, downloadMediaArchive, readMediaArchive, type ImportedMediaArchive } from "@/lib/diaryMediaArchive";
 import { applyPhotoCapturedAt, estimatePhotoImportStorage, formatPhotoImportBytes, hasValidPhotoLocation, preparePhotoExifImport, preparePhotoFileForUpload, staticMapPointToCoordinate, updatePhotoCapturedAt, updatePhotoLocation, type PhotoExifImportCandidate, type PhotoExifImportPreview } from "@/lib/photoExifImport";
 import { createPortableDiaryExport, downloadPortableDiary } from "@/lib/diaryPortable";
+import { createFullDiaryArchive, downloadFullDiaryArchive } from "@/lib/fullDiaryArchive";
 import { parseChronicleImport, type ChronicleImportPreview } from "@/lib/diaryImport";
 import { appendWritingGuide, getLocalWritingGuides } from "@/lib/writingGuide";
 import { getComparisonPair } from "@/lib/beforeAfter";
@@ -174,6 +175,7 @@ function DiaryEditorContent() {
   const [photoExifMapDrag, setPhotoExifMapDrag] = useState<{ photoId: string; x: number; y: number } | null>(null);
   const [photoExifUploadProgress, setPhotoExifUploadProgress] = useState<{ total: number; uploaded: number; currentFileName: string | null } | null>(null);
   const [isMediaArchiveExporting, setIsMediaArchiveExporting] = useState(false);
+  const [isFullArchiveExporting, setIsFullArchiveExporting] = useState(false);
   const [isMediaArchiveImporting, setIsMediaArchiveImporting] = useState(false);
   const [isPhotoExifImporting, setIsPhotoExifImporting] = useState(false);
   const [voiceDrafts, setVoiceDrafts] = useState<QueuedVoiceDraft[]>([]);
@@ -264,6 +266,7 @@ function DiaryEditorContent() {
   });
   const deleteReflectionMutation = trpc.diary.deletePhaseReflection.useMutation();
   const importMutation = trpc.diary.importEvents.useMutation();
+  const fullArchiveMutation = trpc.diary.exportFullArchive.useMutation();
   const restoreRevisionMutation = trpc.diary.restoreEventRevision.useMutation();
   const deleteAccountMutation = trpc.auth.deleteAccount.useMutation();
   const familyInviteMutation = trpc.diary.createFamilyInvite.useMutation({
@@ -1017,6 +1020,22 @@ function DiaryEditorContent() {
     }
   };
 
+  const exportFullArchive = async () => {
+    if (!isOwner) return toast.error("只有日記擁有者能建立全量資料封存。 ");
+    const baseName = (data?.diary.title ?? "我的成長史").replace(/[^\u4e00-\u9fffa-zA-Z0-9_-]/g, "-") || "chronicle-growth-diary";
+    setIsFullArchiveExporting(true);
+    try {
+      const source = await fullArchiveMutation.mutateAsync();
+      const archive = await createFullDiaryArchive(source);
+      downloadFullDiaryArchive(archive.blob, baseName);
+      toast.success(`已建立全量封存：${archive.eventCount} 筆事件、${archive.assetCount} 個附件。`);
+    } catch (archiveError) {
+      toast.error(archiveError instanceof Error ? archiveError.message : "無法建立全量資料封存。 ");
+    } finally {
+      setIsFullArchiveExporting(false);
+    }
+  };
+
   const selectImportFile = () => importInputRef.current?.click();
   const selectSocialImportFile = () => socialImportInputRef.current?.click();
   const selectMediaArchiveFile = () => mediaArchiveInputRef.current?.click();
@@ -1262,7 +1281,7 @@ function DiaryEditorContent() {
       <section className="life-phase-overview" ref={exportRef} aria-labelledby="life-phase-title">
         <div className="phase-heading">
           <div><p className="editor-kicker"><span /> LIFE CHAPTERS / EDITABLE</p><h2 id="life-phase-title">人生階段總覽</h2><p>系統會先依事件時間與錨點編排階段；你也可以拖曳每個階段的起訖時間，讓分段更貼近自己的敘事。</p></div>
-          <div className="export-actions"><span>完整成長史備份<small>未解鎖時空膠囊在 PDF／長圖中會自動遮罩</small></span><input ref={importInputRef} type="file" accept="application/json,.json,text/markdown,.md" onChange={handleImportFile} hidden /><input ref={socialImportInputRef} type="file" accept="application/json,.json,text/csv,.csv" onChange={handleSocialImportFile} hidden /><input ref={mediaArchiveInputRef} type="file" accept="application/zip,.zip" onChange={handleMediaArchiveFile} hidden />{isOwner ? <button onClick={openA5PrintBook}><FileDown size={15} /> A5 書冊預覽</button> : null}<button onClick={() => exportArchive("pdf")}><FileDown size={15} /> 匯出 PDF</button><button onClick={() => exportArchive("image")}><ImageDown size={15} /> 匯出長圖片</button><button onClick={() => exportArchive("json")}><FileJson size={15} /> 匯出 JSON</button><button onClick={() => exportArchive("markdown")}><FilePenLine size={15} /> 匯出 Markdown</button><button onClick={() => exportArchive("frontmatter")}><FilePenLine size={15} /> 匯出 Frontmatter</button>{canEdit ? <><button onClick={exportMediaArchive} disabled={isMediaArchiveExporting}>{isMediaArchiveExporting ? <Loader2 size={15} className="animate-spin" /> : <Archive size={15} />} 匯出媒體 ZIP</button><button onClick={selectMediaArchiveFile}><Archive size={15} /> 匯入媒體 ZIP</button><button onClick={selectImportFile}><Archive size={15} /> 匯入 JSON／Frontmatter</button><button onClick={selectSocialImportFile}><Archive size={15} /> 匯入社群草稿</button></> : null}</div>
+          <div className="export-actions"><span>完整成長史備份<small>全量封存僅限擁有者手動建立；不含分享憑證或 storage key</small></span><input ref={importInputRef} type="file" accept="application/json,.json,text/markdown,.md" onChange={handleImportFile} hidden /><input ref={socialImportInputRef} type="file" accept="application/json,.json,text/csv,.csv" onChange={handleSocialImportFile} hidden /><input ref={mediaArchiveInputRef} type="file" accept="application/zip,.zip" onChange={handleMediaArchiveFile} hidden />{isOwner ? <><button onClick={exportFullArchive} disabled={isFullArchiveExporting} data-testid="full-archive-export">{isFullArchiveExporting ? <Loader2 size={15} className="animate-spin" /> : <Archive size={15} />} 全量封存 ZIP</button><button onClick={openA5PrintBook}><FileDown size={15} /> A5 書冊預覽</button></> : null}<button onClick={() => exportArchive("pdf")}><FileDown size={15} /> 匯出 PDF</button><button onClick={() => exportArchive("image")}><ImageDown size={15} /> 匯出長圖片</button><button onClick={() => exportArchive("json")}><FileJson size={15} /> 匯出 JSON</button><button onClick={() => exportArchive("markdown")}><FilePenLine size={15} /> 匯出 Markdown</button><button onClick={() => exportArchive("frontmatter")}><FilePenLine size={15} /> 匯出 Frontmatter</button>{canEdit ? <><button onClick={exportMediaArchive} disabled={isMediaArchiveExporting}>{isMediaArchiveExporting ? <Loader2 size={15} className="animate-spin" /> : <Archive size={15} />} 匯出媒體 ZIP</button><button onClick={selectMediaArchiveFile}><Archive size={15} /> 匯入媒體 ZIP</button><button onClick={selectImportFile}><Archive size={15} /> 匯入 JSON／Frontmatter</button><button onClick={selectSocialImportFile}><Archive size={15} /> 匯入社群草稿</button></> : null}</div>
         </div>
         <div className="phase-grid">
           {data?.lifePhases.length ? data.lifePhases.map((phase) => {

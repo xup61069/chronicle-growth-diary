@@ -15,6 +15,7 @@
 - [x] 補強 mock OAuth callback 的瀏覽器端對端防護，並完成依賴與 secret 掃描結果記錄。
 - [x] 實作 PWA Web Share Target，將系統分享內容導入既有 private QuickNote 草稿入口，不自動寫入事件。
 - [x] 修補 Express 傳遞 `path-to-regexp` 的 production 高風險依賴，或記錄經驗證的升級 blocker、風險範圍與後續處置。
+- [x] 建立可攜全量資料封存格式、完整性清單與 owner-only 下載流程，涵蓋私有時間軸資料的可驗證備份。
 
 ## 已確認的非執行限制
 

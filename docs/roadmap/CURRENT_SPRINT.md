@@ -41,3 +41,12 @@
 後續強化已完成：週期性 ICS 預設保留起始事件，擁有者可在本機審核時選擇有限的 4 次或 12 次展開，超過 250 段確認上限即停止寫入。照片去識別化可加入、修改或移除手動遮罩並調整模糊強度；每次修改都必須重建本機預覽後才可上傳副本。HEIC／HEIF 審核區會依檔案大小顯示原始來源、預估 JPEG 轉檔與 Live Photo MOV 的容量，原始 HEIC 不會因估算而被讀取或上傳。
 
 最新治理與輸入入口已完成：PR 僅能包含單一功能或不可分割修復，私人元件依 diary、import、sharing 領域分層，既有 `docs/README.md` 維持文件入口。CI 新增真實瀏覽器的 mock OAuth callback 回歸與不輸出內容的 Git 歷史 secret scan；Axios、Drizzle ORM、Nanoid 與 Express 已更新，Express wildcard 亦已遷移至命名 splat，production dependency audit 回報為零漏洞。PWA manifest 已宣告 Web Share Target，系統分享的標題、文字與 HTTPS／HTTP 來源連結只會合併至裝置本機 QuickNote 草稿，隨即移除網址參數，不會建立事件或上傳內容。
+
+## 目前交付：可攜全量封存
+
+| 範圍 | 私有資料邊界 | 驗收 |
+| --- | --- | --- |
+| 全量資料封存 | 僅日記擁有者以明確按鈕取得完整私人事件、標籤／技能、階段與年度回顧、事件修訂、媒體與語音的可攜描述；未解鎖時空膠囊在此 owner archive 中保留原始內容。分享 token、密碼雜湊、session、storage key、分享存取紀錄、邀請與協作稽核資料一律排除。 | 產生版本化 ZIP，內含固定資料 payload、asset manifest 與 SHA-256 完整性摘要；每項媒體／語音只在明確匯出時下載，失敗或超出上限時不產生局部下載。 |
+| 可攜附件 | 封存內的媒體與語音以安全檔名存放，資料 payload 只引用封存內路徑，不保留來源 URL 或 private storage key。 | 讀回驗證器拒絕不安全路徑、格式不符、過大檔案與 checksum 不一致的 archive。 |
+
+已完成：擁有者可在私人工作台建立 `chronicle-full-archive` 第 1 版 ZIP。伺服器僅聚合其自身日記的內容資料與短暫附件來源，瀏覽器封存前先拒絕敏感欄位，並為 JSON payload 與每一個附件寫入 SHA-256 manifest。單一附件上限為 20MB、總封存上限為 100MB、最多 120 個附件；任一附件讀取失敗或超限時不下載部分封存。隔離 local-auth 的 375px 與桌面回歸均會建立後清理測試帳號，桌面流程另驗證 owner 可下載 data-only 全量 ZIP。
