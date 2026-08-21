@@ -120,6 +120,13 @@
       "when": 1787198957659,
       "tag": "0016_wet_magus",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "5",
+      "when": 1787274654299,
+      "tag": "0017_freezing_bishop",
+      "breakpoints": true
     }
   ]
 }
