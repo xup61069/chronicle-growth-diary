@@ -5,9 +5,11 @@ import { describe, expect, it } from "vitest";
 const root = resolve(import.meta.dirname, "../../../..");
 
 describe("CI regression protection", () => {
-  it("runs the mock OAuth callback smoke and lazy route verifier explicitly", () => {
+  it("runs mock OAuth HTTP and browser callback regressions plus the lazy route verifier explicitly", () => {
     const workflow = readFileSync(resolve(root, ".github/workflows/ci.yml"), "utf8");
     expect(workflow).toContain("pnpm test:e2e:oauth-mock");
+    expect(workflow).toContain("pnpm test:e2e:oauth-mock-browser");
+    expect(workflow).toContain("Install Chromium");
     expect(workflow).toContain("pnpm verify:lazy-routes");
     expect(workflow).toContain("Build production bundle");
   });

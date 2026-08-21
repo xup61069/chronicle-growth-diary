@@ -38,7 +38,7 @@ describe("service error log redaction", () => {
       redirect: vi.fn(),
     };
 
-    await handler({ params: { 0: "private/diary/child-photo.jpg" } }, res);
+    await handler({ params: { key: ["private", "diary", "child-photo.jpg"] } }, res);
 
     expect(res.status).toHaveBeenCalledWith(502);
     expect(res.send).toHaveBeenCalledWith("Storage proxy error");
