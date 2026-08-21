@@ -46,6 +46,7 @@ import {
   updatePhaseReflectionForDiary,
 } from "./db/aiReflections";
 import { getGrowthDashboardStatsForDiary } from "./db/growthStats";
+import { buildFullDiaryArchiveForDiary } from "./db/fullDiaryArchive";
 import { getOwnerOnThisDayMemoriesForDiary } from "./db/onThisDay";
 import type { OnThisDayRequest } from "./db/onThisDay";
 import {
@@ -159,6 +160,13 @@ export async function getDiarySnapshot(userId: number, requestedDiaryId?: number
   const diary = access?.diary ?? await getOrCreateDiary(userId);
   const accessRole: DiaryAccessRole = access?.role ?? "owner";
   return buildDiarySnapshotForDiary(db, diary, accessRole);
+}
+
+/** Owner-only export source. Attachment URLs exist only until the browser creates a local ZIP. */
+export async function getFullDiaryArchive(userId: number) {
+  const db = await requireDb();
+  const diary = await getOwnedDiary(userId);
+  return buildFullDiaryArchiveForDiary(db, diary);
 }
 
 export async function getDiaryOnThisDayMemories(userId: number, input: OnThisDayRequest & { diaryId?: number }) {
