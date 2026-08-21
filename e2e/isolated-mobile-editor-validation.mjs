@@ -54,6 +54,35 @@ async function trpcMutation(page, path, input) {
   }, { path, input });
 }
 
+function getTrpcResult(response) {
+  return response.body?.[0]?.result?.data?.json;
+}
+
+async function seedVoiceDraft(page, eventId) {
+  await page.evaluate(async ({ eventId }) => {
+    await new Promise((resolve, reject) => {
+      const request = indexedDB.open("chronicle-voice-drafts", 1);
+      request.onerror = () => reject(request.error);
+      request.onupgradeneeded = () => request.result.createObjectStore("drafts", { keyPath: "id" });
+      request.onsuccess = () => {
+        const db = request.result;
+        const transaction = db.transaction("drafts", "readwrite");
+        transaction.objectStore("drafts").put({
+          id: `voice-e2e-${eventId}`,
+          eventId,
+          blob: new Blob(["isolated voice draft"], { type: "audio/webm" }),
+          mimeType: "audio/webm",
+          fileName: "isolated-voice-draft.webm",
+          durationMs: 1_500,
+          createdAt: Date.now(),
+        });
+        transaction.oncomplete = () => { db.close(); resolve(); };
+        transaction.onerror = () => { db.close(); reject(transaction.error); };
+      };
+    });
+  }, { eventId });
+}
+
 const browser = await chromium.launch({
   executablePath: '/usr/bin/chromium',
   headless: true,
@@ -98,6 +127,9 @@ try {
     shareScope: 'private',
   });
   assert(eventCreation.status === 200, '無法建立隔離驗證事件。');
+  const eventId = getTrpcResult(eventCreation)?.id;
+  assert(Number.isInteger(eventId), '建立事件回應未提供可用 ID，無法驗證語音本機草稿。');
+  await seedVoiceDraft(page, eventId);
   findings.checks.push('authenticated diary.createEvent');
 
   const anniversaryCreation = await trpcMutation(page, 'diary.createEvent', {
@@ -300,15 +332,26 @@ try {
     await page.getByText(/每日回憶檢查必須在網站發布後才能開啟/).waitFor({ timeout: 10_000 });
     assert(await desktopRecallToggle.isChecked() === false, '開發預覽不應建立每日排程或變更啟用狀態。');
     findings.checks.push('desktop recall check default-off and unpublished safety boundary');
+    await page.locator('.event-list button').filter({ hasText: eventTitle }).click();
+    await page.locator('.preview-card h3').getByText(eventTitle, { exact: true }).waitFor({ timeout: 10_000 });
     const desktopVoiceDiary = page.locator('.voice-diary');
     await desktopVoiceDiary.scrollIntoViewIfNeeded();
     await desktopVoiceDiary.getByText('VOICE DIARY / PRIVATE').waitFor({ timeout: 10_000 });
     assert(await desktopVoiceDiary.getByRole('button', { name: '開始錄音' }).isVisible(), '桌面私人事件未提供語音錄製入口。');
-    assert(await desktopVoiceDiary.getByRole('status').getByText('尚未有待上傳的錄音。').isVisible(), '桌面語音日記未提供未上傳狀態回饋。');
+    await desktopVoiceDiary.getByText('isolated-voice-draft.webm', { exact: true }).waitFor({ timeout: 10_000 });
+    const desktopVoiceConsent = desktopVoiceDiary.getByRole('checkbox');
+    const desktopVoiceUpload = desktopVoiceDiary.getByRole('button', { name: '上傳並轉寫' });
+    assert(await desktopVoiceConsent.isChecked() === false, '桌面語音草稿的轉寫同意不可預設勾選。');
+    assert(await desktopVoiceUpload.isDisabled(), '桌面未同意時不可啟用語音上傳。');
+    await desktopVoiceConsent.check();
+    assert(await desktopVoiceUpload.isEnabled(), '桌面同意後應啟用語音上傳入口。');
+    await desktopVoiceDiary.getByRole('button', { name: '移除本機草稿' }).click();
+    await desktopVoiceDiary.getByText('尚未有待上傳的錄音。').waitFor({ timeout: 10_000 });
+    assert(await desktopVoiceDiary.getByRole('checkbox').count() === 0, '桌面移除最後一段本機草稿後應收起同意控制項。');
     if (process.env.CHRONICLE_E2E_VOICE_SCREENSHOT_PATH) {
       await desktopVoiceDiary.screenshot({ path: process.env.CHRONICLE_E2E_VOICE_SCREENSHOT_PATH });
     }
-    findings.checks.push('desktop private voice diary privacy entry');
+    findings.checks.push('desktop private voice diary consent, upload gating, and local draft deletion');
 
     const desktopHeartReaction = page.locator('.event-reaction-options button').filter({ hasText: '心意' });
     await desktopHeartReaction.waitFor({ timeout: 10_000 });
@@ -449,12 +492,20 @@ try {
   await voiceDiary.getByText('VOICE DIARY / PRIVATE').waitFor({ timeout: 10_000 });
   assert(await voiceDiary.getByText('錄音會先保存在這台裝置').isVisible(), '語音日記未說明本機優先保存。');
   assert(await voiceDiary.getByRole('button', { name: '開始錄音' }).isVisible(), '私人事件未提供語音錄製入口。');
-  assert(await voiceDiary.getByRole('checkbox').count() === 0, '沒有待上傳錄音時不應顯示轉寫同意控制項。');
-  assert(await voiceDiary.getByRole('status').getByText('尚未有待上傳的錄音。').isVisible(), '語音日記未提供未上傳狀態回饋。');
+  await voiceDiary.getByText('isolated-voice-draft.webm', { exact: true }).waitFor({ timeout: 10_000 });
+  const mobileVoiceConsent = voiceDiary.getByRole('checkbox');
+  const mobileVoiceUpload = voiceDiary.getByRole('button', { name: '上傳並轉寫' });
+  assert(await mobileVoiceConsent.isChecked() === false, '行動版語音草稿的轉寫同意不可預設勾選。');
+  assert(await mobileVoiceUpload.isDisabled(), '行動版未同意時不可啟用語音上傳。');
+  await mobileVoiceConsent.check();
+  assert(await mobileVoiceUpload.isEnabled(), '行動版同意後應啟用語音上傳入口。');
+  await voiceDiary.getByRole('button', { name: '移除本機草稿' }).click();
+  await voiceDiary.getByText('尚未有待上傳的錄音。').waitFor({ timeout: 10_000 });
+  assert(await voiceDiary.getByRole('checkbox').count() === 0, '行動版移除最後一段本機草稿後應收起同意控制項。');
   if (process.env.CHRONICLE_E2E_VOICE_SCREENSHOT_PATH) {
     await voiceDiary.screenshot({ path: process.env.CHRONICLE_E2E_VOICE_SCREENSHOT_PATH });
   }
-  findings.checks.push('375px private voice diary privacy entry');
+  findings.checks.push('375px private voice diary consent, upload gating, and local draft deletion');
 
   const heartReaction = page.locator('.event-reaction-options button').filter({ hasText: '心意' });
   await heartReaction.waitFor({ timeout: 10_000 });

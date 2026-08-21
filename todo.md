@@ -13,6 +13,7 @@
 - [x] 修正 GitHub CI 預設 Manus driver 下的 local auth fallback 回歸：測試隔離 mock `AUTH_DRIVER=local`，不依賴部署環境變數，且已在預設 Manus driver 下通過 lint、型別、75 個測試檔／200 項 Vitest 與 production build。
 - [x] 盤點並收斂伺服器排程／認證例外日誌：每日回憶與 OAuth callback 僅保留固定操作與錯誤碼，不輸出原始 error、request body、session、授權碼或日記內容；已補足兩條錯誤路徑的 redaction 契約回歸並完成全量品質驗證。
 - [x] 盤點並收斂儲存代理與通知服務的錯誤日誌：只保留固定操作、HTTP 狀態或錯誤碼，不輸出上游 response detail、原始 exception、URL、媒體 key 或私人內容；已補足 storage／notification redaction 回歸並完成全量品質驗證。
+- [x] 漸進拆分 `DiaryEditor.tsx` 第二階段：已抽出 `PrivateVoiceDiary` 展示與本機草稿狀態區塊，父頁仍管理錄音、上傳、轉寫與私人媒體資料寫入；通過 server-render、全量品質閘門，隔離桌面／375px 回歸均覆蓋本機草稿、預設未同意、同意後上傳入口啟用及刪除 callback，測試資料已清理且未呼叫外部轉寫。
 
 - [x] 驗證本機與 Manus session cookie 的 SameSite、Secure、HttpOnly 與 Path 契約；session 改為 `SameSite=Lax`，OAuth state nonce 維持獨立的 cross-site cookie，並補足 local register、OAuth callback、logout 的安全回歸。安全修正版正式 `/editor?release=13defe98` 亦已確認仍顯示本機帳密面板。
 - [x] 更新安全與 AI 交接文件，記錄 session cookie 的 `SameSite=Lax` 邊界、獨立 OAuth state nonce 的 `SameSite=None` 理由，以及對應回歸測試位置。
