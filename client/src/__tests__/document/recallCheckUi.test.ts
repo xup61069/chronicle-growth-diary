@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const editor = readFileSync(resolve(process.cwd(), "client/src/pages/DiaryEditor.tsx"), "utf8");
-const studios = readFileSync(resolve(process.cwd(), "client/src/components/PrivateMemoryStudios.tsx"), "utf8");
+const studios = readFileSync(resolve(process.cwd(), "client/src/components/diary/PrivateMemoryStudios.tsx"), "utf8");
 
 describe("recall check UI privacy contract", () => {
   it("keeps the owner-only daily check default-off and states the no-delivery boundary", () => {
