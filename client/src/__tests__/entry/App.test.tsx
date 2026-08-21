@@ -1,7 +1,7 @@
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { RouteLoadingState } from "./App";
+import { RouteLoadingState } from "../../App";
 
 describe("RouteLoadingState", () => {
   it("provides a readable loading boundary while a non-home route chunk loads", () => {

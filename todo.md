@@ -4,6 +4,9 @@
 
 ## Active
 
+- [x] 統一測試放置與文件規則，確認並補強 CI 的 lint、型別、測試、建置與公開／隔離 E2E 範圍；整理 ideas、template 與 pnpm patches 的治理說明，執行工作樹秘密模式掃描、供應鏈盤點與 GitHub 分支保護設定。完整 Git 差異歷史掃描曾超時，且帳號無 secret alert API 讀取權；此限制已記錄於 AI handoff，持續依賴 GitHub secret scanning／push protection 與每次交接的受控掃描。
+- [ ] 建立使用者可控且預設關閉的「那年今日」與未來信件提醒偏好／遞送基礎，通知不含日記內文；未設定可用郵件或推播提供者時必須優雅停用，並補足 owner、private、到期與失敗路徑測試。
+
 - [x] 更新雙語 README、架構、測試、安全與功能路線圖，建立 `docs/AI_HANDOFF.md` 和擴充 `AGENTS.md`，讓其他 AI 可重現目前私有資料邊界、驗證流程、外部 OAuth blocker 與 GitHub 交接規則。
 
 - [x] 在照片地圖加入可拖曳標記以直接更新 GPS，並於桌面與 375px 回歸驗證地圖互動後送入最終 private 事件的座標與預覽草稿一致。

@@ -1,6 +1,6 @@
 # 貢獻 Chronicle
 
-感謝你協助讓個人成長史的記錄工具更可靠、更可攜。開始前請閱讀 [`AGENTS.md`](./AGENTS.md)、[`ideas.md`](./ideas.md)、[`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)、[`docs/TESTING.md`](./docs/TESTING.md) 與 [`SECURITY.md`](./SECURITY.md)。
+感謝你協助讓個人成長史的記錄工具更可靠、更可攜。開始前請閱讀 [`AGENTS.md`](./AGENTS.md)、[`docs/DESIGN_SYSTEM.md`](./docs/DESIGN_SYSTEM.md)、[`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)、[`docs/TESTING.md`](./docs/TESTING.md) 與 [`SECURITY.md`](./SECURITY.md)。
 
 ## 開發環境與品質閘門
 
@@ -27,6 +27,10 @@ corepack pnpm build
 | UI／互動 | 使用現有元件與「編集室時間帶」視覺規格；可鍵盤操作、保留焦點可見性，並尊重減少動態偏好。 |
 | 測試 | 遵循 [`docs/TESTING.md`](./docs/TESTING.md)；新單元測試預設 co-locate，跨領域測試放在正確的 `__tests__` 領域。 |
 | 文件 | 更新 README、roadmap 或安全文件的可重現事實；版本敘事放 Releases，長篇討論放 Discussions。 |
+
+若修改 `README.md` 的功能、隱私、驗證命令或專案地圖，必須在同一 Pull Request 同步審閱與更新 `README.en.md`。兩份 README 僅保留入口、已驗證能力與資料邊界；較長的技術說明應移至 `docs/`，並從 README 連結。
+
+`template.json` 是早期 static scaffold 快照，並非此全端 Chronicle 部署所使用的設定來源，請勿以它的舊依賴或指令修改產品。`patches/wouter@3.7.1.patch` 則是仍生效的 pnpm 修補：它在 `wouter@3.7.1` 的 `Switch` 收集 route path，供 Manus runtime／測試工具取得路由資訊。只有在升級 Wouter 後確認標準套件已有等效 route 觀測能力，並完成路由、公開首頁與工作台回歸後，才能移除該修補與 `package.json`／lockfile 對應設定。
 
 ## 家庭與兒童資料
 

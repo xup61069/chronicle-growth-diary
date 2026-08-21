@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { startLogin } from "./const";
+import { startLogin } from "../../const";
 
 const originalWindow = globalThis.window;
 const originalDocument = globalThis.document;

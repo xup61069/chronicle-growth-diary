@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 安全性與隱私問題
+    url: https://github.com/xup61069/chronicle-growth-diary/security/advisories/new
+    about: 請以私密方式回報可利用弱點、跨帳號讀取或敏感資料外洩。

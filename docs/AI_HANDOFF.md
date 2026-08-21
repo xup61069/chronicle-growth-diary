@@ -6,7 +6,7 @@
 
 Chronicle 是一個以時間軸管理個人成長史的**私人日記工作台**。它不是社群動態牆；介面應幫助使用者整理自己記下的事件、媒體、生命階段與回顧。
 
-所有 UI 必須遵守 [`ideas.md`](../ideas.md) 的 Swiss Editorial Archive／「編集室時間帶」語言：深墨藍、骨白紙材、僅用於關鍵動作的辰砂橘紅 `#EE623B`、DM Serif Display 標題與 IBM Plex Mono 資料微文案。網站目前**預設深色模式**，但使用者可切換並保留偏好；不要讓新功能破壞深色對比、鍵盤焦點或 `prefers-reduced-motion`。
+所有 UI 必須遵守 [`DESIGN_SYSTEM.md`](./DESIGN_SYSTEM.md) 的 Swiss Editorial Archive／「編集室時間帶」語言：深墨藍、骨白紙材、僅用於關鍵動作的辰砂橘紅 `#EE623B`、DM Serif Display 標題與 IBM Plex Mono 資料微文案。網站目前**預設深色模式**，但使用者可切換並保留偏好；不要讓新功能破壞深色對比、鍵盤焦點或 `prefers-reduced-motion`。
 
 | 原則 | 必須遵守的行為 |
 | --- | --- |
@@ -30,7 +30,7 @@ corepack pnpm install --frozen-lockfile
 
 | 情境 | 先讀取 |
 | --- | --- |
-| 前端或互動 | [`ideas.md`](../ideas.md)、[`docs/TESTING.md`](./TESTING.md) |
+| 前端或互動 | [`DESIGN_SYSTEM.md`](./DESIGN_SYSTEM.md)、[`TESTING.md`](./TESTING.md) |
 | tRPC、授權或資料庫 | [`docs/ARCHITECTURE.md`](./ARCHITECTURE.md)、[`SECURITY.md`](../SECURITY.md) |
 | 本機或隔離驗證 | [`docs/LOCAL_DEVELOPMENT.md`](./LOCAL_DEVELOPMENT.md) |
 | 產品優先順序 | [`docs/roadmap/FEATURES.md`](./roadmap/FEATURES.md) 與 [`todo.md`](../todo.md) |
@@ -112,7 +112,15 @@ git diff --check
 4. 一個提交只做一個可說明主題；release 敘事放 GitHub Releases，長篇決策放 Discussions，而非用 commit 當工作日誌。
 5. 交接時必須回報 checkpoint、GitHub SHA、實際通過的指令，以及仍被外部條件阻擋的項目。
 
-## 9. 最小交接回報格式
+## 9. 儲存庫治理基準
+
+測試結構採兩層規則：單一模組的測試與受測檔 co-locate；需要 mock application entry、跨檔文件／設定或跨領域 server 契約時，才置於具名 `__tests__` 領域。`client/src/` 與 `server/` 根層不得新增測試。CI 的 `verify` job 執行 lint、型別、Vitest 與 production build；獨立 `public-homepage-e2e` job 在本機 Vite 服務執行公開首頁、文件匯出、分享語音隔離與深色模式瀏覽器回歸。
+
+根目錄的早期 `template.json` static scaffold 已移除，因為 Chronicle 的真實全端設定以 `package.json`、`vite.config.ts`、`server/_core/` 與部署專案設定為準。設計規格由根目錄 `ideas.md` 移至 [`DESIGN_SYSTEM.md`](./DESIGN_SYSTEM.md)。`patches/wouter@3.7.1.patch` 仍是受版本鎖定的相容性修補；移除或升級前必須完成路由回歸。
+
+GitHub Issues 是後續功能 backlog 的公開追蹤來源；`todo.md` 只保留目前衝刺與外部 blocker。功能 Issue 範本要求使用情境、私有資料邊界、排程／通知控制和可測試驗收條件。GitHub secret scanning 與 push protection 已啟用；本任務帳號無法讀取 secret alert API，因此每次交接仍需執行受控工作樹掃描，且不得將「無 alert API 存取」誤報為完整歷史清查成功。
+
+## 10. 最小交接回報格式
 
 下一位 AI 完成一輪後，請以表格交接：
 
