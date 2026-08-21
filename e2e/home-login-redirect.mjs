@@ -13,7 +13,8 @@ try {
   await page.waitForURL((url) => url.pathname === '/app-auth', { timeout: 15_000, waitUntil: 'commit' });
 
   const destination = new URL(page.url());
-  if (destination.searchParams.get('type') !== 'signIn') throw new Error('登入導向缺少 signIn 類型。');
+  if (destination.searchParams.get('responseType') !== 'code') throw new Error('登入導向必須要求授權 code。');
+  if (destination.searchParams.has('type')) throw new Error('登入導向不應傳送不相容的 signIn 類型。');
   if (!destination.searchParams.get('appId')) throw new Error('登入導向缺少 appId。');
   if (!destination.searchParams.get('redirectUri')?.endsWith('/api/oauth/callback')) throw new Error('登入導向缺少正確 callback。');
   if (!destination.searchParams.get('state')) throw new Error('登入導向缺少 OAuth state。');
