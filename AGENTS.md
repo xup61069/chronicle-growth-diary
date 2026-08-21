@@ -34,10 +34,11 @@ corepack pnpm drizzle-kit generate
 
 1. 先執行 `git status -sb` 與 `git log -1 --oneline`；工作樹若混有非本任務改動，只 stage 自己的檔案，不得用 reset、checkout 或強推清除它們。
 2. 每次收到新功能、改動或 bug，先更新 `docs/roadmap/CURRENT_SPRINT.md` 的可交付項目，建立資料與隱私邊界後再實作；完成後更新該 sprint。`todo.md` 只保留指針，**禁止**回填歷史待辦、逐筆驗證結果、PR 工作日誌或長期 backlog。
-3. 私有資料一律最小化：預設 private，媒體不入資料庫，公開／link 範圍不得得到 private 事件、位置、語音、AI 或家庭欄位。AI、語音、GPS 地圖、媒體上傳與匯出需有使用者明確觸發或同意。
-4. 修改公開 UI 時，檢查預設深色模式、可切換主題、鍵盤焦點、375px 與 `prefers-reduced-motion`。修改私有 UI 時，另以隔離 local-auth 回歸驗證 owner 與分享隔離。
-5. 修改完成後至少執行 `pnpm lint`、`pnpm check`、`pnpm test`、前端 Vite build、伺服器 esbuild 與 `git diff --check`；必要時執行對應 E2E。完整命令與範圍見 [`docs/AI_HANDOFF.md`](./docs/AI_HANDOFF.md)。
-6. 交付前建立 checkpoint，使用 `gh` 同步 GitHub，確認遠端 SHA；回報實際通過項目與真實 blocker。不得把外部 OAuth／服務問題以 mock、local-auth 或推測誤報為正式整合成功。
+3. 每個 GitHub PR 只交付一個使用者可理解的功能，或一組無法安全拆分的單一修復。不得把不相關功能、純格式化、搬移與功能改動混入同一 PR；例行 sync check、逐次驗證紀錄與 checkpoint 摘要不得單獨建立 PR，應隨相關功能 PR 合併或留在 CI artifact／Release。
+4. 私有資料一律最小化：預設 private，媒體不入資料庫，公開／link 範圍不得得到 private 事件、位置、語音、AI 或家庭欄位。AI、語音、GPS 地圖、媒體上傳與匯出需有使用者明確觸發或同意。
+5. 修改公開 UI 時，檢查預設深色模式、可切換主題、鍵盤焦點、375px 與 `prefers-reduced-motion`。修改私有 UI 時，另以隔離 local-auth 回歸驗證 owner 與分享隔離。
+6. 修改完成後至少執行 `pnpm lint`、`pnpm check`、`pnpm test`、前端 Vite build、伺服器 esbuild 與 `git diff --check`；必要時執行對應 E2E。完整命令與範圍見 [`docs/AI_HANDOFF.md`](./docs/AI_HANDOFF.md)。
+7. 交付前建立 checkpoint，使用 `gh` 同步 GitHub，確認遠端 SHA；回報實際通過項目與真實 blocker。不得把外部 OAuth／服務問題以 mock、local-auth 或推測誤報為正式整合成功。
 
 ## 安全與品質規則
 

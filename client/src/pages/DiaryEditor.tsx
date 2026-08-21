@@ -5,11 +5,11 @@
 import DashboardLayout from "@/components/DashboardLayout";
 import { DiaryEditorHeader } from "@/components/DiaryEditorHeader";
 import { DiaryLoadState } from "@/components/DiaryLoadState";
-import { FutureLettersStudio, MonthlyDigestStudio, OnThisDayStudio, RecallCheckStudio } from "@/components/PrivateMemoryStudios";
-import { PrivateBackfillAssistant } from "@/components/PrivateBackfillAssistant";
-import { PrivateIcsCalendarImport } from "@/components/PrivateIcsCalendarImport";
-import { PrivateSharePhotoDeidentification } from "@/components/PrivateSharePhotoDeidentification";
-import { PrivateVoiceDiary } from "@/components/PrivateVoiceDiary";
+import { FutureLettersStudio, MonthlyDigestStudio, OnThisDayStudio, RecallCheckStudio } from "@/components/diary/PrivateMemoryStudios";
+import { PrivateBackfillAssistant } from "@/components/diary/PrivateBackfillAssistant";
+import { PrivateIcsCalendarImport } from "@/components/import/PrivateIcsCalendarImport";
+import { PrivateSharePhotoDeidentification } from "@/components/sharing/PrivateSharePhotoDeidentification";
+import { PrivateVoiceDiary } from "@/components/diary/PrivateVoiceDiary";
 import { annualReviewTemplates, buildAnnualReview, createAnnualReviewFrontmatter, type AnnualReviewTemplate } from "@/lib/annualReview";
 import { consumeTagInputEnter, diaryColors, eventTypes, formatDate, formatInputDate, makeEmptyForm, parseCoordinateE6, readImage, toTimestamp, type DatePrecision, type EventForm, type EventType, type PendingImage } from "@/lib/diaryEditor";
 import { filterDiaryEvents, type DiarySortOrder } from "@/lib/diaryFilters";

@@ -18,7 +18,7 @@ corepack pnpm build
 
 ## Pull Request 準則
 
-每個 Pull Request 應聚焦單一問題，清楚說明使用者影響、資料模型或 migration、隱私影響、測試結果與桌面／375px 檢視。請避免把格式化、重命名與功能改動混在同一個 PR。變更公開 API、分享、媒體、AI 或匯入／匯出時，必須明確說明誰可讀寫資料、哪些內容會離開裝置或伺服器、如何失敗及如何復原。
+每個 Pull Request 應聚焦單一問題，清楚說明使用者影響、資料模型或 migration、隱私影響、測試結果與桌面／375px 檢視。請避免把格式化、重命名與功能改動混在同一個 PR；不能安全拆分時，請在描述中說明相依原因。例行同步檢查、逐筆驗證與 checkpoint 敘事不是獨立 PR 主題，應隨相關功能合併，或移至 CI artifact／Release。變更公開 API、分享、媒體、AI 或匯入／匯出時，必須明確說明誰可讀寫資料、哪些內容會離開裝置或伺服器、如何失敗及如何復原。
 
 | 變更類型 | 最低要求 |
 | --- | --- |
@@ -31,6 +31,14 @@ corepack pnpm build
 若修改 `README.md` 的功能、隱私、驗證命令或專案地圖，必須在同一 Pull Request 同步審閱與更新 `README.en.md`。兩份 README 僅保留入口、已驗證能力與資料邊界；較長的技術說明應移至 `docs/`，並從 README 連結。
 
 `template.json` 是早期 static scaffold 快照，並非此全端 Chronicle 部署所使用的設定來源，請勿以它的舊依賴或指令修改產品。`patches/wouter@3.7.1.patch` 則是仍生效的 pnpm 修補：它在 `wouter@3.7.1` 的 `Switch` 收集 route path，供 Manus runtime／測試工具取得路由資訊。只有在升級 Wouter 後確認標準套件已有等效 route 觀測能力，並完成路由、公開首頁與工作台回歸後，才能移除該修補與 `package.json`／lockfile 對應設定。
+
+新增或升級重量級依賴時，請在 PR 說明用途、瀏覽器／伺服器載入策略、移除條件與替代方案；並執行 `pnpm audit --prod`。提交前執行專案指定的 secret scan，不得將其結果、掃描輸出或任何疑似金鑰寫入版本庫。
+
+| 依賴 | 引入理由與載入策略 | 移除條件 |
+| --- | --- | --- |
+| `heic-to` | 只在擁有者確認 HEIC／HEIF 匯入時動態載入並於瀏覽器轉成 JPEG；不納入 PWA 初始預快取。 | 瀏覽器原生 HEIC 解碼可穩定涵蓋目標裝置，或改用有等效本機處理能力的較小工具。 |
+| `@tensorflow-models/face-detection` 與 `@tensorflow/tfjs-*` | 只在擁有者要求建立分享用去識別化副本時載入；使用裝置內 WebGL，失敗時回退 CPU，不上傳影像或座標。 | 有較小、同樣完全離線且可輸出可審核臉部區域的替代方案。 |
+| `ical.js` | 僅在選取 `.ics` 後於瀏覽器解析、限制週期展開並產生 private 草稿。 | 瀏覽器提供可用且相容 RFC 5545 的原生 parser，或維護成本明顯較低的同等本機 parser。 |
 
 ## 家庭與兒童資料
 
