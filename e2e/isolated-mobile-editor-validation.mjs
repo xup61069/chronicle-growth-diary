@@ -235,12 +235,17 @@ try {
 
   if (viewport.width > 375) {
     await page.reload({ waitUntil: 'domcontentloaded' });
+    const desktopBackfillAssistant = page.locator('.backfill-assistant');
+    await desktopBackfillAssistant.getByRole('heading', { name: '補回最近的空白' }).waitFor({ timeout: 10_000 });
+    assert(await desktopBackfillAssistant.getByText('尚未選取待整理照片').isVisible(), '桌面補記助手在未選照片時應只顯示本機計數狀態。');
+    assert(await desktopBackfillAssistant.getByText('僅供 375px 編輯器互動驗證的隔離事件。').count() === 0, '桌面補記助手不應顯示私人事件正文。');
     const photoExifEntry = page.locator('.import-studio').filter({ has: page.getByRole('heading', { name: '從照片資料開始整理' }) });
     await photoExifEntry.getByRole('heading', { name: '從照片資料開始整理' }).waitFor({ timeout: 10_000 });
     await page.locator('input[accept="image/jpeg"]').setInputFiles([
       { name: 'without-exif.jpg', mimeType: 'image/jpeg', buffer: Buffer.from([0xff, 0xd8, 0xff, 0xd9]) },
       { name: 'captured.jpg', mimeType: 'image/jpeg', buffer: makeExifJpeg() },
     ]);
+    await desktopBackfillAssistant.getByText('目前這批有 2 張照片尚未整理').waitFor({ timeout: 10_000 });
     const photoExifPreview = page.locator('.import-studio').filter({ has: page.getByRole('heading', { name: '確認照片的時間與位置' }) });
     const manualCapturedAt = photoExifPreview.getByLabel('without-exif.jpg 的拍攝日期與時間');
     const exifCapturedAt = photoExifPreview.getByLabel('captured.jpg 的拍攝日期與時間');
@@ -382,12 +387,17 @@ try {
     findings.checks.push('desktop private growth dashboard');
   } else {
   await page.reload({ waitUntil: 'domcontentloaded' });
+  const mobileBackfillAssistant = page.locator('.backfill-assistant');
+  await mobileBackfillAssistant.getByRole('heading', { name: '補回最近的空白' }).waitFor({ timeout: 10_000 });
+  assert(await mobileBackfillAssistant.getByText('尚未選取待整理照片').isVisible(), '行動版補記助手在未選照片時應只顯示本機計數狀態。');
+  assert(await mobileBackfillAssistant.getByText('僅供 375px 編輯器互動驗證的隔離事件。').count() === 0, '行動版補記助手不應顯示私人事件正文。');
   const mobilePhotoExifEntry = page.locator('.import-studio').filter({ has: page.getByRole('heading', { name: '從照片資料開始整理' }) });
   await mobilePhotoExifEntry.getByRole('heading', { name: '從照片資料開始整理' }).waitFor({ timeout: 10_000 });
   await page.locator('input[accept="image/jpeg"]').setInputFiles([
     { name: 'without-exif-mobile.jpg', mimeType: 'image/jpeg', buffer: Buffer.from([0xff, 0xd8, 0xff, 0xd9]) },
     { name: 'captured-mobile.jpg', mimeType: 'image/jpeg', buffer: makeExifJpeg() },
   ]);
+  await mobileBackfillAssistant.getByText('目前這批有 2 張照片尚未整理').waitFor({ timeout: 10_000 });
   const mobilePhotoExifPreview = page.locator('.import-studio').filter({ has: page.getByRole('heading', { name: '確認照片的時間與位置' }) });
   await mobilePhotoExifPreview.getByText('2026-08-20', { exact: true }).waitFor({ timeout: 10_000 });
   const mobileManualCapturedAt = mobilePhotoExifPreview.getByLabel('without-exif-mobile.jpg 的拍攝日期與時間');
