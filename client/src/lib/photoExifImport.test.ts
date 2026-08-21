@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyPhotoCapturedAt, isHeicPhotoFile, preparePhotoExifImport, staticMapPointToCoordinate, updatePhotoCapturedAt, updatePhotoLocation } from "./photoExifImport";
+import { applyPhotoCapturedAt, estimatePhotoImportStorage, formatPhotoImportBytes, isHeicPhotoFile, preparePhotoExifImport, staticMapPointToCoordinate, updatePhotoCapturedAt, updatePhotoLocation } from "./photoExifImport";
 
 const file = (name: string, type = "image/jpeg", size = 100) => ({ name, type, size } as File);
 
@@ -79,6 +79,24 @@ describe("photo EXIF import", () => {
       { name: "IMG_2048.HEIC", format: "heic", companion: "IMG_2048.MOV", capturedAt: "2026-08-23T10:12" },
     ]);
     expect(preview.skipped).toEqual([{ name: "orphan.MOV", reason: "找不到同名 JPEG／HEIC 靜態照片，未作為 Live Photo 匯入" }]);
+  });
+
+  it("estimates stored bytes from selected HEIC, JPEG and Live Photo companion sizes before conversion or upload", async () => {
+    const preview = await preparePhotoExifImport([
+      file("IMG_1.HEIC", "image/heic", 2_000_000),
+      file("IMG_1.MOV", "video/quicktime", 500_000),
+      file("IMG_2.jpg", "image/jpeg", 300_000),
+    ], async () => new Date(2026, 7, 23), async () => null);
+    expect(estimatePhotoImportStorage(preview.photos)).toMatchObject({
+      sourceStillBytes: 2_300_000,
+      sourceHeicBytes: 2_000_000,
+      sourceJpegBytes: 300_000,
+      livePhotoMotionBytes: 500_000,
+      estimatedConvertedHeicBytes: 2_700_000,
+      estimatedStoredBytes: 3_500_000,
+      heicJpegEstimateRatio: 1.35,
+    });
+    expect(formatPhotoImportBytes(3_500_000)).toBe("3.3 MB");
   });
 
   it("rebuilds date groups after a user manually fills or adjusts a captured local date and time", async () => {

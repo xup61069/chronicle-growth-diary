@@ -2,6 +2,7 @@ export const MAX_EXIF_IMPORT_FILE_BYTES = 4 * 1024 * 1024;
 export const MAX_EXIF_IMPORT_IMAGES_PER_EVENT = 8;
 export const MAX_EXIF_IMPORT_FILES = 24;
 export const PHOTO_IMPORT_MIME_TYPES = ["image/jpeg", "image/heic", "image/heif"] as const;
+export const HEIC_JPEG_ESTIMATE_RATIO = 1.35;
 
 export type PhotoExifFile = Pick<File, "name" | "type" | "size">;
 export type ExifDateReader = (file: File) => Promise<Date | string | null | undefined>;
@@ -39,6 +40,44 @@ export type PhotoExifImportPreview = {
   groups: PhotoExifImportGroup[];
   skipped: Array<{ name: string; reason: string }>;
 };
+
+export type PhotoImportStorageEstimate = {
+  sourceStillBytes: number;
+  sourceHeicBytes: number;
+  sourceJpegBytes: number;
+  livePhotoMotionBytes: number;
+  estimatedConvertedHeicBytes: number;
+  estimatedStoredBytes: number;
+  heicJpegEstimateRatio: number;
+};
+
+export function estimatePhotoImportStorage(photos: PhotoExifImportCandidate[]): PhotoImportStorageEstimate {
+  const uniqueCompanions = new Map<string, File>();
+  let sourceHeicBytes = 0;
+  let sourceJpegBytes = 0;
+  for (const photo of photos) {
+    if (photo.format === "heic") sourceHeicBytes += photo.file.size;
+    else sourceJpegBytes += photo.file.size;
+    if (photo.livePhotoCompanion) uniqueCompanions.set(`${photo.livePhotoCompanion.name}:${photo.livePhotoCompanion.size}:${photo.livePhotoCompanion.lastModified}`, photo.livePhotoCompanion);
+  }
+  const livePhotoMotionBytes = Array.from(uniqueCompanions.values()).reduce((sum, file) => sum + file.size, 0);
+  const estimatedConvertedHeicBytes = Math.ceil(sourceHeicBytes * HEIC_JPEG_ESTIMATE_RATIO);
+  return {
+    sourceStillBytes: sourceHeicBytes + sourceJpegBytes,
+    sourceHeicBytes,
+    sourceJpegBytes,
+    livePhotoMotionBytes,
+    estimatedConvertedHeicBytes,
+    estimatedStoredBytes: sourceJpegBytes + estimatedConvertedHeicBytes + livePhotoMotionBytes,
+    heicJpegEstimateRatio: HEIC_JPEG_ESTIMATE_RATIO,
+  };
+}
+
+export function formatPhotoImportBytes(bytes: number) {
+  if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(bytes < 10 * 1024 ? 1 : 0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(bytes < 10 * 1024 * 1024 ? 1 : 0)} MB`;
+}
 
 function normalizedFileExtension(file: PhotoExifFile) {
   return file.name.trim().split(".").pop()?.toLowerCase() ?? "";
