@@ -29,7 +29,8 @@ describe("startLogin", () => {
     expect(destination.pathname).toBe("/app-auth");
     expect(destination.searchParams.get("appId")).toBe("chronicle-test-app");
     expect(destination.searchParams.get("redirectUri")).toBe("https://timeline.example.test/api/oauth/callback");
-    expect(destination.searchParams.get("type")).toBe("signIn");
+    expect(destination.searchParams.get("responseType")).toBe("code");
+    expect(destination.searchParams.has("type")).toBe(false);
     expect(destination.searchParams.get("state")).toBeTruthy();
   });
 });
