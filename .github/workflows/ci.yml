@@ -30,8 +30,12 @@ jobs:
         run: pnpm check
       - name: Run unit tests
         run: pnpm test
+      - name: Run mock OAuth provider callback smoke
+        run: pnpm test:e2e:oauth-mock
       - name: Build production bundle
         run: pnpm build
+      - name: Verify production lazy-route chunks
+        run: pnpm verify:lazy-routes
 
   public-homepage-e2e:
     runs-on: ubuntu-latest

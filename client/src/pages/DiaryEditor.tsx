@@ -6,6 +6,7 @@ import DashboardLayout from "@/components/DashboardLayout";
 import { DiaryEditorHeader } from "@/components/DiaryEditorHeader";
 import { DiaryLoadState } from "@/components/DiaryLoadState";
 import { FutureLettersStudio, MonthlyDigestStudio, OnThisDayStudio, RecallCheckStudio } from "@/components/PrivateMemoryStudios";
+import { PrivateBackfillAssistant } from "@/components/PrivateBackfillAssistant";
 import { PrivateVoiceDiary } from "@/components/PrivateVoiceDiary";
 import { annualReviewTemplates, buildAnnualReview, createAnnualReviewFrontmatter, type AnnualReviewTemplate } from "@/lib/annualReview";
 import { consumeTagInputEnter, diaryColors, eventTypes, formatDate, formatInputDate, makeEmptyForm, parseCoordinateE6, readImage, toTimestamp, type DatePrecision, type EventForm, type EventType, type PendingImage } from "@/lib/diaryEditor";
@@ -30,6 +31,7 @@ import { applyMilestoneTemplate, milestoneTemplates } from "@/lib/milestoneTempl
 import { parseSocialDraftCsv, parseSocialDraftJson, type SocialDraftCandidate } from "@/lib/socialDraftImport";
 import { buildTrackRows, filterEventsBySkill, getTimelineInsights, getTimelineSkills, isTimeCapsuleLocked, milestoneLabels } from "@/lib/multitrackTimeline";
 import { buildPlaceFootprints, buildSpatialFootprints, getBentoSpan, timelineViewOptions, type TimelineViewMode } from "@/lib/timelineViews";
+import { getBackfillAssistantSnapshot } from "@/lib/backfillAssistant";
 import { listVoiceDrafts, makeVoiceDraftFileName, queueVoiceDraft, removeVoiceDraft, voiceBlobToBase64, type QueuedVoiceDraft } from "@/lib/voiceDrafts";
 import { trpc } from "@/lib/trpc";
 import { canEditFamilyDiary, canManageAnnualReview, canManageFamilyDiarySettings, describeFamilyAuditAction, type FamilyDiaryAccessRole } from "@/lib/familyCollaboration";
@@ -323,6 +325,10 @@ function DiaryEditorContent() {
   const events: DiaryEvent[] = data?.events ?? [];
   const recallPreferences = recallPreferencesQuery.data;
   const currentTimezoneOffsetMinutes = useMemo(() => new Date().getTimezoneOffset(), []);
+  const backfillAssistantSnapshot = useMemo(
+    () => getBackfillAssistantSnapshot(events.map((event) => ({ occurredAt: event.occurredAt })), photoExifPreview?.photos.length ?? 0),
+    [events, photoExifPreview?.photos.length],
+  );
   const recallLastCheckLabel = recallPreferences?.lastCheckedAt
     ? new Intl.DateTimeFormat("zh-TW", { dateStyle: "medium", timeStyle: "short" }).format(new Date(recallPreferences.lastCheckedAt))
     : "尚未檢查";
@@ -1279,6 +1285,7 @@ function DiaryEditorContent() {
         <div className="import-warning"><Archive size={15} /> {importPreview.warnings[0]}</div>
         <div className="import-actions"><button type="button" onClick={() => setImportPreview(null)} disabled={importMutation.isPending}>取消</button><button type="button" onClick={confirmImport} disabled={importMutation.isPending}>{importMutation.isPending ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />} 確認建立 {importPreview.events.length} 段事件</button></div>
       </section> : null}
+      {isOwner ? <PrivateBackfillAssistant snapshot={backfillAssistantSnapshot} onChoosePhotos={selectPhotoExifFiles} /> : null}
       {isOwner ? <section className="import-studio" aria-labelledby="photo-exif-entry-title"><div><p className="editor-kicker"><span /> PHOTO DATE + GPS / PRIVATE</p><h2 id="photo-exif-entry-title">從照片資料開始整理</h2><p>選取 JPEG 後，拍攝日期與內嵌 GPS 只在目前瀏覽器讀取並分組預覽；確認前不會上傳任何照片或建立事件。</p></div><div className="import-warning"><LockKeyhole size={15} /> 每次最多 24 張、每張 4MB。你可在確認前校正日期時間與座標；位置只會隨 private 事件保存。</div><div className="import-actions"><button type="button" onClick={selectPhotoExifFiles}><ImagePlus size={15} /> 選擇 JPEG 照片</button></div></section> : null}
       {photoExifPreview ? <section className="import-studio" aria-labelledby="photo-exif-import-title">
         <div><p className="editor-kicker"><span /> PHOTO DATA / LOCAL REVIEW</p><h2 id="photo-exif-import-title">確認照片的時間與位置</h2><p>拍攝日期與 GPS 只在這個瀏覽器讀取。你可在確認前逐張微調日期、時間與座標；沒有 EXIF 的 JPEG 也可手動補填。地圖只在你按下更新時依目前座標載入；確認前不會上傳任何照片或建立事件。</p></div>

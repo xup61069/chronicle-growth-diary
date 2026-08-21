@@ -16,7 +16,7 @@ Chronicle 是個人成長史的敘事時間工作台。所有介面必須遵守 
 | 資料存取 | `server/db.ts` | 所有日記資料須以使用者／日記擁有權篩選。 |
 | 資料庫 | `drizzle/schema.ts`、`drizzle/` | 修改 schema 後必須產生、審閱並套用 migration。 |
 | 檔案儲存 | `server/storage.ts` | 資料庫只存 key、URL 與中繼資料，不能存影像位元組。 |
-| 規格與追蹤 | `docs/DESIGN_SYSTEM.md`、`todo.md`、GitHub Issues | 視覺規格不可違反；每項功能完成即更新 TODO，後續 backlog 以 GitHub Issues 追蹤。 |
+| 規格與追蹤 | `docs/DESIGN_SYSTEM.md`、`docs/roadmap/`、GitHub Issues | 視覺規格不可違反；目前 sprint 只寫入 roadmap，長期 backlog 以 GitHub Issues 追蹤。 |
 
 ## 開發指令
 
@@ -33,7 +33,7 @@ corepack pnpm drizzle-kit generate
 ## AI 執行順序與 GitHub 交接
 
 1. 先執行 `git status -sb` 與 `git log -1 --oneline`；工作樹若混有非本任務改動，只 stage 自己的檔案，不得用 reset、checkout 或強推清除它們。
-2. 每次收到新功能、改動或 bug，都先在 `todo.md` 新增 `[ ]` 項目，建立資料與隱私邊界後再實作；完成後才標為 `[x]`。
+2. 每次收到新功能、改動或 bug，先更新 `docs/roadmap/CURRENT_SPRINT.md` 的可交付項目，建立資料與隱私邊界後再實作；完成後更新該 sprint。`todo.md` 只保留指針，**禁止**回填歷史待辦、逐筆驗證結果、PR 工作日誌或長期 backlog。
 3. 私有資料一律最小化：預設 private，媒體不入資料庫，公開／link 範圍不得得到 private 事件、位置、語音、AI 或家庭欄位。AI、語音、GPS 地圖、媒體上傳與匯出需有使用者明確觸發或同意。
 4. 修改公開 UI 時，檢查預設深色模式、可切換主題、鍵盤焦點、375px 與 `prefers-reduced-motion`。修改私有 UI 時，另以隔離 local-auth 回歸驗證 owner 與分享隔離。
 5. 修改完成後至少執行 `pnpm lint`、`pnpm check`、`pnpm test`、前端 Vite build、伺服器 esbuild 與 `git diff --check`；必要時執行對應 E2E。完整命令與範圍見 [`docs/AI_HANDOFF.md`](./docs/AI_HANDOFF.md)。
