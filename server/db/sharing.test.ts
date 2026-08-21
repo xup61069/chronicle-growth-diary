@@ -134,6 +134,43 @@ describe("sharing data access", () => {
     expect(result.status === "ok" && result.events[0]).not.toHaveProperty("reactions");
   });
 
+  it("replaces an opted-in image with its de-identified derivative and excludes source media data", async () => {
+    const { db } = createDb([sharedDiary]);
+    mocks.getEnrichedDiaryEvents.mockResolvedValueOnce([
+      {
+        id: 14,
+        occurredAt: Date.UTC(2026, 0, 1),
+        locationPrivacy: "none",
+        tags: [],
+        media: [
+          { id: 31, url: "/manus-storage/private-original.jpg", storageKey: "private/source.jpg", fileName: "private-original.jpg", mimeType: "image/jpeg", mediaKind: "image", shareSafeEnabled: true, shareSafeUrl: "/manus-storage/blurred.jpg", shareSafeStorageKey: "share-safe/blurred.jpg", shareSafeFileName: "blurred.jpg", shareSafeMimeType: "image/jpeg" },
+          { id: 32, url: "/manus-storage/private-motion.mov", storageKey: "private/motion.mov", fileName: "private-motion.mov", mimeType: "video/quicktime", mediaKind: "live_motion", shareSafeEnabled: false },
+        ],
+      },
+    ]);
+
+    const result = await readSharedDiary(db, "story-growth-file");
+
+    expect(result).toMatchObject({ status: "ok", events: [{ id: 14, media: [{ id: 31, url: "/manus-storage/blurred.jpg", isDeidentified: true }] }] });
+    const serialized = JSON.stringify(result);
+    expect(serialized).not.toContain("private-original.jpg");
+    expect(serialized).not.toContain("private-motion.mov");
+    expect(serialized).not.toContain("private/source.jpg");
+    expect(serialized).not.toContain("share-safe/blurred.jpg");
+  });
+
+  it("hides a share-safe-gated image when its derivative has been removed instead of falling back to the private original", async () => {
+    const { db } = createDb([sharedDiary]);
+    mocks.getEnrichedDiaryEvents.mockResolvedValueOnce([
+      { id: 15, occurredAt: Date.UTC(2026, 0, 2), locationPrivacy: "none", tags: [], media: [{ id: 33, url: "/manus-storage/private-source.jpg", storageKey: "private/source.jpg", mediaKind: "image", shareSafeEnabled: true, shareSafeUrl: null }] },
+    ]);
+
+    const result = await readSharedDiary(db, "story-growth-file");
+
+    expect(result).toMatchObject({ status: "ok", events: [{ id: 15, media: [] }] });
+    expect(JSON.stringify(result)).not.toContain("private-source.jpg");
+  });
+
   it("masks every private field of an unexpired time capsule before returning shared events", async () => {
     const { db } = createDb([sharedDiary]);
     mocks.getEnrichedDiaryEvents.mockResolvedValueOnce([

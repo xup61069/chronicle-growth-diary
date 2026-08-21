@@ -1,16 +1,21 @@
-export const MAX_EXIF_IMPORT_FILES = 24;
 export const MAX_EXIF_IMPORT_FILE_BYTES = 4 * 1024 * 1024;
 export const MAX_EXIF_IMPORT_IMAGES_PER_EVENT = 8;
+export const MAX_EXIF_IMPORT_FILES = 24;
+export const PHOTO_IMPORT_MIME_TYPES = ["image/jpeg", "image/heic", "image/heif"] as const;
 
 export type PhotoExifFile = Pick<File, "name" | "type" | "size">;
 export type ExifDateReader = (file: File) => Promise<Date | string | null | undefined>;
 export type ExifGpsReader = (file: File) => Promise<{ latitude?: number; longitude?: number } | null | undefined>;
 export type PhotoCaptureSource = "exif" | "manual";
 export type PhotoGpsSource = "exif" | "manual" | "none";
+export type PhotoImportFormat = "jpeg" | "heic";
 
 export type PhotoExifImportCandidate = {
   id: string;
   file: File;
+  format: PhotoImportFormat;
+  /** A same-stem MOV candidate; the owner must still review it before import. */
+  livePhotoCompanion: File | null;
   capturedAt: string;
   source: PhotoCaptureSource;
   latitude: string;
@@ -34,6 +39,35 @@ export type PhotoExifImportPreview = {
   groups: PhotoExifImportGroup[];
   skipped: Array<{ name: string; reason: string }>;
 };
+
+function normalizedFileExtension(file: PhotoExifFile) {
+  return file.name.trim().split(".").pop()?.toLowerCase() ?? "";
+}
+
+export function isHeicPhotoFile(file: PhotoExifFile) {
+  return file.type === "image/heic" || file.type === "image/heif" || ["heic", "heif"].includes(normalizedFileExtension(file));
+}
+
+export function isSupportedPhotoImportFile(file: PhotoExifFile) {
+  return file.type === "image/jpeg" || ["jpg", "jpeg"].includes(normalizedFileExtension(file)) || isHeicPhotoFile(file);
+}
+
+function isLivePhotoMotionFile(file: PhotoExifFile) {
+  return file.type === "video/quicktime" || normalizedFileExtension(file) === "mov";
+}
+
+function livePhotoStem(file: PhotoExifFile) {
+  return file.name.trim().replace(/\.[^.]+$/, "").toLocaleLowerCase();
+}
+
+/** Converts a selected HEIC/HEIF still locally only when the owner confirms import. */
+export async function preparePhotoFileForUpload(file: File): Promise<File> {
+  if (!isHeicPhotoFile(file)) return file;
+  const { heicTo } = await import("heic-to");
+  const jpeg = await heicTo({ blob: file, type: "image/jpeg", quality: 0.9 });
+  const fileName = file.name.replace(/\.(heic|heif)$/i, ".jpg");
+  return new File([jpeg], fileName, { type: "image/jpeg", lastModified: file.lastModified });
+}
 
 function toLocalDateTimeInput(value: Date | string | null | undefined) {
   if (!value) return "";
@@ -142,7 +176,7 @@ export function updatePhotoLocation(preview: PhotoExifImportPreview, photoId: st
   return { ...preview, photos, groups: buildPhotoExifImportGroups(photos) };
 }
 
-/** Reads only capture dates from JPEG metadata by default. GPS is read separately only for a user-requested preview. */
+/** Reads capture dates from JPEG or HEIC metadata locally. GPS is read separately for a user-requested preview. */
 export async function readPhotoCapturedAt(file: File): Promise<Date | string | null | undefined> {
   const { default: exifr } = await import("exifr/dist/full.esm.mjs");
   const metadata = await exifr.parse(await file.arrayBuffer(), ["DateTimeOriginal", "CreateDate"]);
@@ -158,14 +192,17 @@ export async function readPhotoGps(file: File): Promise<{ latitude?: number; lon
 
 export async function preparePhotoExifImport(files: File[], readCapturedAt: ExifDateReader = readPhotoCapturedAt, readGps: ExifGpsReader = readPhotoGps): Promise<PhotoExifImportPreview> {
   const skipped: PhotoExifImportPreview["skipped"] = [];
-  const accepted = files.slice(0, MAX_EXIF_IMPORT_FILES);
-  if (files.length > accepted.length) skipped.push(...files.slice(MAX_EXIF_IMPORT_FILES).map((file) => ({ name: file.name, reason: `每次最多選取 ${MAX_EXIF_IMPORT_FILES} 張照片` })));
+  const motionFiles = files.filter(isLivePhotoMotionFile);
+  const stillFiles = files.filter((file) => !isLivePhotoMotionFile(file));
+  const accepted = stillFiles.slice(0, MAX_EXIF_IMPORT_FILES);
+  if (stillFiles.length > accepted.length) skipped.push(...stillFiles.slice(MAX_EXIF_IMPORT_FILES).map((file) => ({ name: file.name, reason: `每次最多選取 ${MAX_EXIF_IMPORT_FILES} 張照片` })));
+  const motionByStem = new Map(motionFiles.map((file) => [livePhotoStem(file), file]));
   const photos: PhotoExifImportCandidate[] = [];
 
   for (let index = 0; index < accepted.length; index += 1) {
     const file = accepted[index];
-    if (file.type !== "image/jpeg") {
-      skipped.push({ name: file.name, reason: "目前只讀取 JPEG 的拍攝日期" });
+    if (!isSupportedPhotoImportFile(file)) {
+      skipped.push({ name: file.name, reason: "只支援 JPEG、HEIC 或 HEIF 照片" });
       continue;
     }
     if (file.size > MAX_EXIF_IMPORT_FILE_BYTES) {
@@ -189,7 +226,21 @@ export async function preparePhotoExifImport(files: File[], readCapturedAt: Exif
       latitude = "";
       longitude = "";
     }
-    photos.push({ id: `${index}-${file.name}`, file, capturedAt, source: capturedAt ? "exif" : "manual", latitude, longitude, gpsSource: latitude && longitude ? "exif" : "none" });
+    photos.push({
+      id: `${index}-${file.name}`,
+      file,
+      format: isHeicPhotoFile(file) ? "heic" : "jpeg",
+      livePhotoCompanion: motionByStem.get(livePhotoStem(file)) ?? null,
+      capturedAt,
+      source: capturedAt ? "exif" : "manual",
+      latitude,
+      longitude,
+      gpsSource: latitude && longitude ? "exif" : "none",
+    });
+  }
+
+  for (const motion of motionFiles) {
+    if (!accepted.some((still) => livePhotoStem(still) === livePhotoStem(motion))) skipped.push({ name: motion.name, reason: "找不到同名 JPEG／HEIC 靜態照片，未作為 Live Photo 匯入" });
   }
 
   return { photos, groups: buildPhotoExifImportGroups(photos), skipped };

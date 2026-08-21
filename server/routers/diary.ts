@@ -35,6 +35,9 @@ import {
   updatePhaseReflection,
   uploadDiaryCoverImage,
   uploadDiaryEventImage,
+  uploadDiaryLivePhotoMotion,
+  uploadShareSafeDiaryImage,
+  clearShareSafeDiaryImage,
   uploadDiaryVoiceNote,
   deleteDiaryVoiceNote,
 } from "../db";
@@ -140,6 +143,19 @@ export const diaryRouter = router({
     base64: z.string().min(1).max(6_000_000),
     caption: z.string().trim().max(240).optional(),
   })).mutation(({ ctx, input }) => uploadDiaryEventImage({ userId: ctx.user.id, ...input })),
+  uploadLivePhotoMotion: protectedProcedure.input(z.object({
+    eventId: z.number().int().positive(),
+    fileName: z.string().trim().min(1).max(180),
+    mimeType: z.literal("video/quicktime"),
+    base64: z.string().min(1).max(6_000_000),
+  })).mutation(({ ctx, input }) => uploadDiaryLivePhotoMotion({ userId: ctx.user.id, ...input })),
+  uploadShareSafeImage: protectedProcedure.input(z.object({
+    mediaId: z.number().int().positive(),
+    fileName: z.string().trim().min(1).max(180),
+    mimeType: z.enum(["image/jpeg", "image/png", "image/webp"]),
+    base64: z.string().min(1).max(6_000_000),
+  })).mutation(({ ctx, input }) => uploadShareSafeDiaryImage({ userId: ctx.user.id, ...input })),
+  clearShareSafeImage: protectedProcedure.input(z.object({ mediaId: z.number().int().positive() })).mutation(({ ctx, input }) => clearShareSafeDiaryImage(ctx.user.id, input.mediaId)),
   updateImage: protectedProcedure.input(z.object({ id: z.number().int().positive(), caption: z.string().trim().max(240).nullable() })).mutation(({ ctx, input }) => updateDiaryEventMedia(ctx.user.id, input.id, input.caption)),
   reorderImages: protectedProcedure.input(z.object({ eventId: z.number().int().positive(), mediaIds: z.array(z.number().int().positive()).max(100) })).mutation(({ ctx, input }) => reorderDiaryEventMedia(ctx.user.id, input.eventId, input.mediaIds)),
   uploadCoverImage: protectedProcedure.input(z.object({

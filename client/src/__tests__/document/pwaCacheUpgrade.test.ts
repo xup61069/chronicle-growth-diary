@@ -10,5 +10,6 @@ describe("PWA upgrade safety", () => {
     expect(config).toContain("cleanupOutdatedCaches: true");
     expect(config).toContain("clientsClaim: true");
     expect(config).toContain("skipWaiting: true");
+    expect(config).toContain('globIgnores: ["**/heic-to-*.js"]');
   });
 });

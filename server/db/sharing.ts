@@ -35,6 +35,23 @@ function maskLockedSharedCapsule<T extends { unlocksAt?: number | null; title: s
   };
 }
 
+type SharedMediaProjection = { id: number; url: string; caption: string | null; isDeidentified: boolean };
+
+function projectSharedMedia(media: Array<Record<string, unknown>>): SharedMediaProjection[] {
+  return media.reduce<SharedMediaProjection[]>((projected, item) => {
+    if (item.mediaKind === "live_motion") return projected;
+    const { storageKey: _storageKey, shareSafeStorageKey: _shareSafeStorageKey, shareSafeUrl, shareSafeEnabled, ...shared } = item;
+    const id = typeof shared.id === "number" ? shared.id : 0;
+    const caption = typeof shared.caption === "string" ? shared.caption : null;
+    if (shareSafeEnabled) {
+      if (typeof shareSafeUrl === "string" && shareSafeUrl) projected.push({ id, url: shareSafeUrl, caption, isDeidentified: true });
+      return projected;
+    }
+    if (typeof shared.url === "string" && shared.url) projected.push({ id, url: shared.url, caption, isDeidentified: false });
+    return projected;
+  }, []);
+}
+
 export type DiarySharingInput = {
   shareMode: "private" | "public" | "link";
   birthYear?: number | null;
@@ -137,11 +154,13 @@ export async function readSharedDiary(db: DbClient, slug: string, token?: string
     channel: diary.shareMode === "link" ? "link" : "public",
   });
 
+  const lifePhases = makeLifePhaseSnapshot(diary, events.map((event) => ({ ...event, media: [], voiceNotes: [], reactions: [] })));
   const sharedEvents = events.map((event) => {
     const sharedEvent = maskLockedSharedCapsule(event);
-    const { voiceNotes: _voiceNotes, reactions: _reactions, ...shareableEvent } = sharedEvent as typeof sharedEvent & { reactions?: unknown };
+    const { voiceNotes: _voiceNotes, reactions: _reactions, media, ...shareableEvent } = sharedEvent as typeof sharedEvent & { reactions?: unknown; media: Array<Record<string, unknown>> };
     return {
       ...shareableEvent,
+      media: projectSharedMedia(media),
       place: sharedEvent.isTimeCapsuleLocked ? null : event.locationPrivacy === "city" ? event.place : null,
       mapLatitudeE6: null,
       mapLongitudeE6: null,
@@ -160,6 +179,6 @@ export async function readSharedDiary(db: DbClient, slug: string, token?: string
       publicStoryLayout: diary.publicStoryLayout,
     },
     events: sharedEvents,
-    lifePhases: makeLifePhaseSnapshot(diary, sharedEvents),
+    lifePhases,
   };
 }

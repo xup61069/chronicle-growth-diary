@@ -51,6 +51,9 @@ const diaryDb = vi.hoisted(() => {
     toggleEventReaction: vi.fn(async () => ({ reaction: "heart", reacted: true })),
     updatePhaseReflection: vi.fn(),
     uploadDiaryEventImage: vi.fn(),
+    uploadDiaryLivePhotoMotion: vi.fn(),
+    uploadShareSafeDiaryImage: vi.fn(),
+    clearShareSafeDiaryImage: vi.fn(),
     uploadDiaryVoiceNote: vi.fn(),
     deleteDiaryVoiceNote: vi.fn(),
   };
@@ -151,6 +154,18 @@ describe("diary router validation", () => {
     })).rejects.toThrow("只支援 JPG、PNG、WebP 或 GIF 圖片");
 
     expect(diaryDb.uploadDiaryEventImage).not.toHaveBeenCalled();
+  });
+
+  it("limits Live Photo motion and share-safe derivative uploads to their protected media contracts", async () => {
+    const caller = diaryRouter.createCaller(authenticatedContext);
+    await expect(caller.uploadLivePhotoMotion({ eventId: 8, fileName: "motion.mov", mimeType: "video/mp4" as never, base64: "dGVzdA==" })).rejects.toThrow();
+    await expect(caller.uploadShareSafeImage({ mediaId: 41, fileName: "blurred.gif", mimeType: "image/gif" as never, base64: "dGVzdA==" })).rejects.toThrow();
+    await caller.uploadLivePhotoMotion({ eventId: 8, fileName: "motion.mov", mimeType: "video/quicktime", base64: "dGVzdA==" });
+    await caller.uploadShareSafeImage({ mediaId: 41, fileName: "blurred.jpg", mimeType: "image/jpeg", base64: "dGVzdA==" });
+    await caller.clearShareSafeImage({ mediaId: 41 });
+    expect(diaryDb.uploadDiaryLivePhotoMotion).toHaveBeenCalledWith(expect.objectContaining({ userId: 1, eventId: 8, mimeType: "video/quicktime" }));
+    expect(diaryDb.uploadShareSafeDiaryImage).toHaveBeenCalledWith(expect.objectContaining({ userId: 1, mediaId: 41, mimeType: "image/jpeg" }));
+    expect(diaryDb.clearShareSafeDiaryImage).toHaveBeenCalledWith(1, 41);
   });
 
   it("只接受受限的日記標題與副標題以更新個人成長側寫", async () => {

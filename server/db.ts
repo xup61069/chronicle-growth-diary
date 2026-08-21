@@ -24,7 +24,7 @@ import { persistDiarySharing, readSharedDiary } from "./db/sharing";
 export type { DiarySharingInput } from "./db/sharing";
 import type { DiarySharingInput } from "./db/sharing";
 import { updateDiaryPhaseBoundariesForDiary, updateDiaryProfileForDiary } from "./db/diarySettings";
-import { deleteDiaryEventMediaForUser, reorderDiaryEventMediaForUser, updateDiaryEventMediaForUser, uploadDiaryCoverMedia, uploadDiaryEventMedia } from "./db/diaryMedia";
+import { clearShareSafeDiaryEventMedia, deleteDiaryEventMediaForUser, reorderDiaryEventMediaForUser, updateDiaryEventMediaForUser, uploadDiaryCoverMedia, uploadDiaryEventMedia, uploadShareSafeDiaryEventMedia } from "./db/diaryMedia";
 import {
   createDiaryEventForUser,
   deleteDiaryEventForUser,
@@ -272,6 +272,21 @@ export async function getSharedDiary(slug: string, token?: string | null, passwo
 export async function uploadDiaryEventImage(input: { userId: number; eventId: number; fileName: string; mimeType: string; base64: string; caption?: string; }) {
   const db = await requireDb();
   return uploadDiaryEventMedia(db, assertEventWriteAccess, input);
+}
+
+export async function uploadDiaryLivePhotoMotion(input: { userId: number; eventId: number; fileName: string; mimeType: string; base64: string }) {
+  const db = await requireDb();
+  return uploadDiaryEventMedia(db, assertEventWriteAccess, { ...input, mediaKind: "live_motion" });
+}
+
+export async function uploadShareSafeDiaryImage(input: { userId: number; mediaId: number; fileName: string; mimeType: string; base64: string }) {
+  const db = await requireDb();
+  return uploadShareSafeDiaryEventMedia(db, assertEventWriteAccess, input);
+}
+
+export async function clearShareSafeDiaryImage(userId: number, mediaId: number) {
+  const db = await requireDb();
+  return clearShareSafeDiaryEventMedia(db, assertEventWriteAccess, userId, mediaId);
 }
 
 export async function uploadDiaryVoiceNote(input: VoiceNoteInput) {

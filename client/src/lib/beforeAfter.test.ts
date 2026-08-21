@@ -15,4 +15,12 @@ describe("before and after comparison helpers", () => {
   it("does not create a misleading comparison when a group lacks two images", () => {
     expect(getComparisonPair(events, { ...events[0], comparisonGroup: "只有一張", media: [{ url: "https://example.test/only.jpg" }] })).toBeNull();
   });
+
+  it("filters a Live Photo MOV before choosing comparison cover images", () => {
+    const livePhotoEvents = [
+      { id: 10, occurredAt: 100, title: "前", comparisonGroup: "Live", media: [{ url: "https://example.test/before.mov", mediaKind: "live_motion" as const }, { url: "https://example.test/before.jpg", mediaKind: "image" as const }] },
+      { id: 11, occurredAt: 200, title: "後", comparisonGroup: "Live", media: [{ url: "https://example.test/after.mov", mediaKind: "live_motion" as const }, { url: "https://example.test/after.jpg", mediaKind: "image" as const }] },
+    ];
+    expect(getComparisonPair(livePhotoEvents, livePhotoEvents[1])).toMatchObject({ before: { media: [{ url: "https://example.test/before.jpg" }] }, after: { media: [{ url: "https://example.test/after.jpg" }] } });
+  });
 });
