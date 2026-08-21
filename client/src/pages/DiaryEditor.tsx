@@ -18,7 +18,7 @@ import { exportDiaryAsLongImage, exportDiaryAsPdf } from "@/lib/diaryExport";
 import { createMediaArchive, downloadMediaArchive, readMediaArchive, type ImportedMediaArchive } from "@/lib/diaryMediaArchive";
 import { applyPhotoCapturedAt, estimatePhotoImportStorage, formatPhotoImportBytes, hasValidPhotoLocation, preparePhotoExifImport, preparePhotoFileForUpload, staticMapPointToCoordinate, updatePhotoCapturedAt, updatePhotoLocation, type PhotoExifImportCandidate, type PhotoExifImportPreview } from "@/lib/photoExifImport";
 import { createPortableDiaryExport, downloadPortableDiary } from "@/lib/diaryPortable";
-import { createFullDiaryArchive, downloadFullDiaryArchive } from "@/lib/fullDiaryArchive";
+import { createFullDiaryArchive, downloadFullDiaryArchive, readFullDiaryArchive, type FullDiaryArchiveImportAsset, type FullDiaryArchiveProgress } from "@/lib/fullDiaryArchive";
 import { parseChronicleImport, type ChronicleImportPreview } from "@/lib/diaryImport";
 import { appendWritingGuide, getLocalWritingGuides } from "@/lib/writingGuide";
 import { getComparisonPair } from "@/lib/beforeAfter";
@@ -176,6 +176,11 @@ function DiaryEditorContent() {
   const [photoExifUploadProgress, setPhotoExifUploadProgress] = useState<{ total: number; uploaded: number; currentFileName: string | null } | null>(null);
   const [isMediaArchiveExporting, setIsMediaArchiveExporting] = useState(false);
   const [isFullArchiveExporting, setIsFullArchiveExporting] = useState(false);
+  const [fullArchiveProgress, setFullArchiveProgress] = useState<FullDiaryArchiveProgress | null>(null);
+  const [fullArchiveRestorePreview, setFullArchiveRestorePreview] = useState<{ data: Record<string, unknown>; assets: FullDiaryArchiveImportAsset[] } | null>(null);
+  const [fullArchiveRestoreId, setFullArchiveRestoreId] = useState<string | null>(null);
+  const [fullArchiveRestoreProgress, setFullArchiveRestoreProgress] = useState<{ stage: "verifying" | "staging" | "ready" | "committing" | "failed"; completed: number; total: number; currentFileName: string | null } | null>(null);
+  const [fullArchiveRestoreConfirmation, setFullArchiveRestoreConfirmation] = useState("");
   const [isMediaArchiveImporting, setIsMediaArchiveImporting] = useState(false);
   const [isPhotoExifImporting, setIsPhotoExifImporting] = useState(false);
   const [voiceDrafts, setVoiceDrafts] = useState<QueuedVoiceDraft[]>([]);
@@ -186,6 +191,7 @@ function DiaryEditorContent() {
   const importInputRef = useRef<HTMLInputElement>(null);
   const socialImportInputRef = useRef<HTMLInputElement>(null);
   const mediaArchiveInputRef = useRef<HTMLInputElement>(null);
+  const fullArchiveRestoreInputRef = useRef<HTMLInputElement>(null);
   const photoExifInputRef = useRef<HTMLInputElement>(null);
   const photoExifMapPointerRef = useRef<{ photoId: string; pointerId: number } | null>(null);
   const voiceRecorderRef = useRef<MediaRecorder | null>(null);
@@ -267,6 +273,10 @@ function DiaryEditorContent() {
   const deleteReflectionMutation = trpc.diary.deletePhaseReflection.useMutation();
   const importMutation = trpc.diary.importEvents.useMutation();
   const fullArchiveMutation = trpc.diary.exportFullArchive.useMutation();
+  const fullArchiveRestorePrepareMutation = trpc.archiveRestore.prepare.useMutation();
+  const fullArchiveRestoreStageMutation = trpc.archiveRestore.stageAsset.useMutation();
+  const fullArchiveRestoreCommitMutation = trpc.archiveRestore.commit.useMutation();
+  const fullArchiveRestoreCancelMutation = trpc.archiveRestore.cancel.useMutation();
   const restoreRevisionMutation = trpc.diary.restoreEventRevision.useMutation();
   const deleteAccountMutation = trpc.auth.deleteAccount.useMutation();
   const familyInviteMutation = trpc.diary.createFamilyInvite.useMutation({
@@ -1024,9 +1034,10 @@ function DiaryEditorContent() {
     if (!isOwner) return toast.error("只有日記擁有者能建立全量資料封存。 ");
     const baseName = (data?.diary.title ?? "我的成長史").replace(/[^\u4e00-\u9fffa-zA-Z0-9_-]/g, "-") || "chronicle-growth-diary";
     setIsFullArchiveExporting(true);
+    setFullArchiveProgress({ stage: "preparing", completed: 0, total: 0, currentFileName: null });
     try {
       const source = await fullArchiveMutation.mutateAsync();
-      const archive = await createFullDiaryArchive(source);
+      const archive = await createFullDiaryArchive(source, undefined, setFullArchiveProgress);
       downloadFullDiaryArchive(archive.blob, baseName);
       toast.success(`已建立全量封存：${archive.eventCount} 筆事件、${archive.assetCount} 個附件。`);
     } catch (archiveError) {
@@ -1034,6 +1045,88 @@ function DiaryEditorContent() {
     } finally {
       setIsFullArchiveExporting(false);
     }
+  };
+
+  const selectFullArchiveRestoreFile = () => fullArchiveRestoreInputRef.current?.click();
+
+  const readRestoreAssetBase64 = (asset: FullDiaryArchiveImportAsset) => new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error(`無法讀取附件「${asset.fileName}」。`));
+    reader.onload = () => resolve(String(reader.result).split(",")[1] ?? "");
+    reader.readAsDataURL(asset.blob);
+  });
+
+  const handleFullArchiveRestoreFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    if (!isOwner) return toast.error("只有日記擁有者能還原全量封存。 ");
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    setFullArchiveRestorePreview(null);
+    setFullArchiveRestoreId(null);
+    setFullArchiveRestoreConfirmation("");
+    setFullArchiveRestoreProgress({ stage: "verifying", completed: 0, total: 0, currentFileName: file.name });
+    try {
+      const archive = await readFullDiaryArchive(file);
+      setFullArchiveRestorePreview({ data: archive.data, assets: archive.assets });
+      setFullArchiveRestoreProgress(null);
+      toast.success(`已驗證封存：${Array.isArray(archive.data.events) ? archive.data.events.length : 0} 筆事件、${archive.assetCount} 個附件。請先審核再開始還原。`);
+    } catch (restoreError) {
+      setFullArchiveRestoreProgress({ stage: "failed", completed: 0, total: 0, currentFileName: null });
+      toast.error(restoreError instanceof Error ? restoreError.message : "無法讀取這份全量封存。 ");
+    }
+  };
+
+  const stageFullArchiveRestore = async () => {
+    if (!isOwner || !fullArchiveRestorePreview) return;
+    setFullArchiveRestoreProgress({ stage: "staging", completed: 0, total: fullArchiveRestorePreview.assets.length, currentFileName: null });
+    let preparedRestoreId: string | null = null;
+    try {
+      const prepared = await fullArchiveRestorePrepareMutation.mutateAsync({
+        data: fullArchiveRestorePreview.data as never,
+        assets: fullArchiveRestorePreview.assets.map((asset) => ({ id: asset.id, kind: asset.kind, fileName: asset.fileName, mimeType: asset.mimeType ?? "application/octet-stream", byteLength: asset.byteLength, sha256: asset.sha256 })),
+      });
+      preparedRestoreId = prepared.restoreId;
+      setFullArchiveRestoreId(prepared.restoreId);
+      for (let index = 0; index < fullArchiveRestorePreview.assets.length; index += 1) {
+        const asset = fullArchiveRestorePreview.assets[index]!;
+        setFullArchiveRestoreProgress({ stage: "staging", completed: index, total: fullArchiveRestorePreview.assets.length, currentFileName: asset.fileName });
+        await fullArchiveRestoreStageMutation.mutateAsync({ restoreId: prepared.restoreId, assetId: asset.id, base64: await readRestoreAssetBase64(asset) });
+        setFullArchiveRestoreProgress({ stage: "staging", completed: index + 1, total: fullArchiveRestorePreview.assets.length, currentFileName: asset.fileName });
+      }
+      setFullArchiveRestoreProgress({ stage: "ready", completed: fullArchiveRestorePreview.assets.length, total: fullArchiveRestorePreview.assets.length, currentFileName: null });
+      toast.success("所有附件已備妥。輸入確認文字後才會取代目前成長史。 ");
+    } catch (restoreError) {
+      if (preparedRestoreId) await fullArchiveRestoreCancelMutation.mutateAsync({ restoreId: preparedRestoreId }).catch(() => undefined);
+      setFullArchiveRestoreId(null);
+      setFullArchiveRestoreProgress({ stage: "failed", completed: 0, total: fullArchiveRestorePreview.assets.length, currentFileName: null });
+      toast.error(restoreError instanceof Error ? restoreError.message : "還原附件未完成；現有日記沒有變更。 ");
+    }
+  };
+
+  const commitFullArchiveRestore = async () => {
+    if (!fullArchiveRestoreId || fullArchiveRestoreConfirmation !== "還原我的成長史") return;
+    setFullArchiveRestoreProgress((current) => ({ stage: "committing", completed: current?.total ?? 0, total: current?.total ?? 0, currentFileName: null }));
+    try {
+      const result = await fullArchiveRestoreCommitMutation.mutateAsync({ restoreId: fullArchiveRestoreId, confirmation: fullArchiveRestoreConfirmation });
+      await utils.diary.get.invalidate();
+      await refetch();
+      setFullArchiveRestorePreview(null);
+      setFullArchiveRestoreId(null);
+      setFullArchiveRestoreConfirmation("");
+      setFullArchiveRestoreProgress(null);
+      toast.success(`已還原 ${result.restoredEventCount} 筆事件與 ${result.restoredAssetCount} 個附件；分享設定已回復為 private。`);
+    } catch (restoreError) {
+      setFullArchiveRestoreProgress({ stage: "failed", completed: 0, total: fullArchiveRestorePreview?.assets.length ?? 0, currentFileName: null });
+      toast.error(restoreError instanceof Error ? restoreError.message : "無法提交還原；目前日記沒有變更。 ");
+    }
+  };
+
+  const cancelFullArchiveRestore = async () => {
+    if (fullArchiveRestoreId) await fullArchiveRestoreCancelMutation.mutateAsync({ restoreId: fullArchiveRestoreId }).catch(() => undefined);
+    setFullArchiveRestorePreview(null);
+    setFullArchiveRestoreId(null);
+    setFullArchiveRestoreConfirmation("");
+    setFullArchiveRestoreProgress(null);
   };
 
   const selectImportFile = () => importInputRef.current?.click();
@@ -1281,7 +1374,7 @@ function DiaryEditorContent() {
       <section className="life-phase-overview" ref={exportRef} aria-labelledby="life-phase-title">
         <div className="phase-heading">
           <div><p className="editor-kicker"><span /> LIFE CHAPTERS / EDITABLE</p><h2 id="life-phase-title">人生階段總覽</h2><p>系統會先依事件時間與錨點編排階段；你也可以拖曳每個階段的起訖時間，讓分段更貼近自己的敘事。</p></div>
-          <div className="export-actions"><span>完整成長史備份<small>全量封存僅限擁有者手動建立；不含分享憑證或 storage key</small></span><input ref={importInputRef} type="file" accept="application/json,.json,text/markdown,.md" onChange={handleImportFile} hidden /><input ref={socialImportInputRef} type="file" accept="application/json,.json,text/csv,.csv" onChange={handleSocialImportFile} hidden /><input ref={mediaArchiveInputRef} type="file" accept="application/zip,.zip" onChange={handleMediaArchiveFile} hidden />{isOwner ? <><button onClick={exportFullArchive} disabled={isFullArchiveExporting} data-testid="full-archive-export">{isFullArchiveExporting ? <Loader2 size={15} className="animate-spin" /> : <Archive size={15} />} 全量封存 ZIP</button><button onClick={openA5PrintBook}><FileDown size={15} /> A5 書冊預覽</button></> : null}<button onClick={() => exportArchive("pdf")}><FileDown size={15} /> 匯出 PDF</button><button onClick={() => exportArchive("image")}><ImageDown size={15} /> 匯出長圖片</button><button onClick={() => exportArchive("json")}><FileJson size={15} /> 匯出 JSON</button><button onClick={() => exportArchive("markdown")}><FilePenLine size={15} /> 匯出 Markdown</button><button onClick={() => exportArchive("frontmatter")}><FilePenLine size={15} /> 匯出 Frontmatter</button>{canEdit ? <><button onClick={exportMediaArchive} disabled={isMediaArchiveExporting}>{isMediaArchiveExporting ? <Loader2 size={15} className="animate-spin" /> : <Archive size={15} />} 匯出媒體 ZIP</button><button onClick={selectMediaArchiveFile}><Archive size={15} /> 匯入媒體 ZIP</button><button onClick={selectImportFile}><Archive size={15} /> 匯入 JSON／Frontmatter</button><button onClick={selectSocialImportFile}><Archive size={15} /> 匯入社群草稿</button></> : null}</div>
+          <div className="export-actions"><span>完整成長史備份<small>全量封存僅限擁有者手動建立；不含分享憑證或 storage key</small></span><input ref={importInputRef} type="file" accept="application/json,.json,text/markdown,.md" onChange={handleImportFile} hidden /><input ref={socialImportInputRef} type="file" accept="application/json,.json,text/csv,.csv" onChange={handleSocialImportFile} hidden /><input ref={mediaArchiveInputRef} type="file" accept="application/zip,.zip" onChange={handleMediaArchiveFile} hidden /><input ref={fullArchiveRestoreInputRef} type="file" accept="application/zip,.zip" onChange={handleFullArchiveRestoreFile} hidden />{isOwner ? <><button onClick={exportFullArchive} disabled={isFullArchiveExporting} data-testid="full-archive-export">{isFullArchiveExporting ? <Loader2 size={15} className="animate-spin" /> : <Archive size={15} />} 全量封存 ZIP</button><button onClick={selectFullArchiveRestoreFile} disabled={isFullArchiveExporting || fullArchiveRestoreStageMutation.isPending || fullArchiveRestoreCommitMutation.isPending}><RotateCcw size={15} /> 還原全量 ZIP</button><button onClick={openA5PrintBook}><FileDown size={15} /> A5 書冊預覽</button></> : null}<button onClick={() => exportArchive("pdf")}><FileDown size={15} /> 匯出 PDF</button><button onClick={() => exportArchive("image")}><ImageDown size={15} /> 匯出長圖片</button><button onClick={() => exportArchive("json")}><FileJson size={15} /> 匯出 JSON</button><button onClick={() => exportArchive("markdown")}><FilePenLine size={15} /> 匯出 Markdown</button><button onClick={() => exportArchive("frontmatter")}><FilePenLine size={15} /> 匯出 Frontmatter</button>{canEdit ? <><button onClick={exportMediaArchive} disabled={isMediaArchiveExporting}>{isMediaArchiveExporting ? <Loader2 size={15} className="animate-spin" /> : <Archive size={15} />} 匯出媒體 ZIP</button><button onClick={selectMediaArchiveFile}><Archive size={15} /> 匯入媒體 ZIP</button><button onClick={selectImportFile}><Archive size={15} /> 匯入 JSON／Frontmatter</button><button onClick={selectSocialImportFile}><Archive size={15} /> 匯入社群草稿</button></> : null}{fullArchiveProgress ? <div className="full-archive-progress" role="status"><span>{fullArchiveProgress.stage === "preparing" ? "正在準備封存資料" : fullArchiveProgress.stage === "reading-assets" ? `正在讀取附件 ${fullArchiveProgress.completed}/${fullArchiveProgress.total}` : fullArchiveProgress.stage === "packaging" ? "正在封裝 ZIP" : "封存已完成"}</span>{fullArchiveProgress.total ? <div role="progressbar" aria-label="全量封存進度" aria-valuemin={0} aria-valuemax={fullArchiveProgress.total} aria-valuenow={fullArchiveProgress.completed}><i style={{ width: `${Math.round((fullArchiveProgress.completed / fullArchiveProgress.total) * 100)}%` }} /></div> : null}<small>{fullArchiveProgress.currentFileName ?? "資料保持在目前瀏覽器，直到下載完成。"}</small></div> : null}{fullArchiveRestorePreview ? <div className="full-archive-restore" data-testid="full-archive-restore"><p className="editor-kicker"><span /> FULL ARCHIVE / RESTORE REVIEW</p><b>已驗證封存：{Array.isArray(fullArchiveRestorePreview.data.events) ? fullArchiveRestorePreview.data.events.length : 0} 筆事件、{fullArchiveRestorePreview.assets.length} 個附件</b><p>還原會先暫存所有附件；只有在全部就緒且你輸入確認文字後，才以一次交易取代目前的 private 成長史。公開與連結分享會關閉，憑證與存取資料不會還原。</p>{fullArchiveRestoreProgress ? <div className="full-archive-progress" role="status"><span>{fullArchiveRestoreProgress.stage === "verifying" ? "正在驗證封存完整性" : fullArchiveRestoreProgress.stage === "staging" ? `正在備妥附件 ${fullArchiveRestoreProgress.completed}/${fullArchiveRestoreProgress.total}` : fullArchiveRestoreProgress.stage === "ready" ? "附件已備妥，等待確認" : fullArchiveRestoreProgress.stage === "committing" ? "正在以交易還原日記" : "還原已停止；目前日記未變更"}</span>{fullArchiveRestoreProgress.total ? <div role="progressbar" aria-label="全量還原進度" aria-valuemin={0} aria-valuemax={fullArchiveRestoreProgress.total} aria-valuenow={fullArchiveRestoreProgress.completed}><i style={{ width: `${Math.round((fullArchiveRestoreProgress.completed / fullArchiveRestoreProgress.total) * 100)}%` }} /></div> : null}<small>{fullArchiveRestoreProgress.currentFileName ?? "附件只會暫存於 private storage，尚未寫入日記。"}</small></div> : null}{!fullArchiveRestoreId ? <div><button type="button" onClick={stageFullArchiveRestore} disabled={fullArchiveRestorePrepareMutation.isPending || fullArchiveRestoreStageMutation.isPending}>{fullArchiveRestorePrepareMutation.isPending || fullArchiveRestoreStageMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Archive size={14} />} 備妥所有附件</button><button type="button" onClick={cancelFullArchiveRestore}>取消</button></div> : fullArchiveRestoreProgress?.stage === "ready" ? <div className="full-archive-confirm"><label>輸入「還原我的成長史」以取代目前 private 日記<input value={fullArchiveRestoreConfirmation} onChange={(event) => setFullArchiveRestoreConfirmation(event.target.value)} autoComplete="off" /></label><button type="button" onClick={commitFullArchiveRestore} disabled={fullArchiveRestoreConfirmation !== "還原我的成長史" || fullArchiveRestoreCommitMutation.isPending}>{fullArchiveRestoreCommitMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />} 確認還原</button><button type="button" onClick={cancelFullArchiveRestore}>取消</button></div> : <button type="button" onClick={cancelFullArchiveRestore}>取消還原</button>}</div> : null}</div>
         </div>
         <div className="phase-grid">
           {data?.lifePhases.length ? data.lifePhases.map((phase) => {

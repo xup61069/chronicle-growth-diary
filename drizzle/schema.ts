@@ -202,6 +202,53 @@ export const growthEventRevisions = mysqlTable(
   ],
 );
 
+/** Owner-scoped staging metadata for a verified full-archive restore. Bytes remain in private storage. */
+export const growthArchiveRestoreSessions = mysqlTable(
+  "growth_archive_restore_sessions",
+  {
+    id: varchar("id", { length: 64 }).primaryKey(),
+    diaryId: int("diaryId").notNull().references(() => growthDiaries.id, { onDelete: "cascade" }),
+    userId: int("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+    payload: text("payload").notNull(),
+    status: mysqlEnum("status", ["pending", "committed", "cancelled"]).notNull().default("pending"),
+    expiresAt: bigint("expiresAt", { mode: "number" }).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (table) => [
+    index("growth_archive_restore_session_diary_idx").on(table.diaryId, table.createdAt),
+    index("growth_archive_restore_session_owner_idx").on(table.userId, table.expiresAt),
+  ],
+);
+
+/** Metadata for each staged full-archive attachment; attachment bytes never enter the database. */
+export const growthArchiveRestoreAssets = mysqlTable(
+  "growth_archive_restore_assets",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    restoreId: varchar("restoreId", { length: 64 }).notNull().references(() => growthArchiveRestoreSessions.id, { onDelete: "cascade" }),
+    assetId: varchar("assetId", { length: 128 }).notNull(),
+    kind: mysqlEnum("kind", ["image", "live_motion", "voice", "cover"]).notNull(),
+    eventArchiveId: varchar("eventArchiveId", { length: 64 }),
+    fileName: varchar("fileName", { length: 180 }).notNull(),
+    mimeType: varchar("mimeType", { length: 80 }),
+    byteLength: int("byteLength").notNull(),
+    sha256: varchar("sha256", { length: 64 }).notNull(),
+    caption: varchar("caption", { length: 240 }),
+    sortOrder: int("sortOrder"),
+    durationMs: int("durationMs"),
+    transcript: text("transcript"),
+    language: varchar("language", { length: 16 }),
+    transcriptionModel: varchar("transcriptionModel", { length: 80 }),
+    storageKey: varchar("storageKey", { length: 512 }),
+    url: varchar("url", { length: 1024 }),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("growth_archive_restore_asset_unique_idx").on(table.restoreId, table.assetId),
+    index("growth_archive_restore_asset_restore_idx").on(table.restoreId),
+  ],
+);
+
 /** A user-approved AI recap attached to a single stage of the personal story. */
 export const growthPhaseReflections = mysqlTable(
   "growth_phase_reflections",
@@ -313,6 +360,8 @@ export type GrowthTag = typeof growthTags.$inferSelect;
 export type GrowthEventMedia = typeof growthEventMedia.$inferSelect;
 export type GrowthEventVoiceNote = typeof growthEventVoiceNotes.$inferSelect;
 export type GrowthEventRevision = typeof growthEventRevisions.$inferSelect;
+export type GrowthArchiveRestoreSession = typeof growthArchiveRestoreSessions.$inferSelect;
+export type GrowthArchiveRestoreAsset = typeof growthArchiveRestoreAssets.$inferSelect;
 export type GrowthPhaseReflection = typeof growthPhaseReflections.$inferSelect;
 export type GrowthDiaryMember = typeof growthDiaryMembers.$inferSelect;
 export type GrowthDiaryInvite = typeof growthDiaryInvites.$inferSelect;

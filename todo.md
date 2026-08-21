@@ -1,6 +1,6 @@
 # Project TODO
 
-> 本檔只作為目前指針；**禁止**記錄歷史執行過程、驗證逐筆結果或長期 backlog。現行工程工作見 [docs/roadmap/CURRENT_SPRINT.md](./docs/roadmap/CURRENT_SPRINT.md)，功能規劃見 [docs/roadmap/FEATURES.md](./docs/roadmap/FEATURES.md)，外部 OAuth 狀態見 [docs/AI_HANDOFF.md](./docs/AI_HANDOFF.md)。
+> 本檔只保留 sprint 指針，不記錄執行歷程或 backlog。現行工作見 [CURRENT_SPRINT](./docs/roadmap/CURRENT_SPRINT.md)，規劃見 [FEATURES](./docs/roadmap/FEATURES.md)，OAuth 狀態見 [AI_HANDOFF](./docs/AI_HANDOFF.md)。
 
 - [x] 完成本輪治理、CI 防護與補記助手的 private-first MVP。
 - [x] 建立 HEIC／Live Photo 的本機 metadata 預覽、確認後 private 匯入與 EXIF 日期保留流程。
@@ -16,6 +16,8 @@
 - [x] 實作 PWA Web Share Target，將系統分享內容導入既有 private QuickNote 草稿入口，不自動寫入事件。
 - [x] 修補 Express 傳遞 `path-to-regexp` 的 production 高風險依賴，或記錄經驗證的升級 blocker、風險範圍與後續處置。
 - [x] 建立可攜全量資料封存格式、完整性清單與 owner-only 下載流程，涵蓋私有時間軸資料的可驗證備份。
+- [x] 建立全量封存 ZIP 的可審核還原精靈，包含完整性驗證、衝突處理、資料覆寫保護與附件還原進度。
+- [x] 為全量封存 ZIP 匯出提供可理解的逐步進度、狀態提示與完成結果摘要。
 
 ## 已確認的非執行限制
 
