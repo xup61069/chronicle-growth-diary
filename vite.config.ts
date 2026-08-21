@@ -178,6 +178,12 @@ const plugins = [
       ],
     },
     workbox: {
+      // A previous precache can leave an anonymous visitor on an obsolete
+      // entry bundle. Claim clients and replace it as soon as a new deploy
+      // arrives so hash-based assets and index.html always move together.
+      cleanupOutdatedCaches: true,
+      clientsClaim: true,
+      skipWaiting: true,
       navigateFallback: "/index.html",
       globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
       runtimeCaching: [],
@@ -205,7 +211,9 @@ export default defineConfig({
         manualChunks(id) {
           if (id.includes("preload-helper")) return "route-preload";
           if (!id.includes("node_modules")) return;
-          if (id.includes("/recharts/")) return "charts";
+          // Keep Recharts in the lazy dashboard route. Extracting it into a
+          // shared vendor chunk can evaluate Recharts before React's runtime
+          // export is initialized in the production ESM graph.
           if (id.includes("/jspdf/") || id.includes("/html2canvas/")) return "document-export";
           if (id.includes("/@trpc/") || id.includes("/@tanstack/react-query/") || id.includes("/superjson/")) return "data-client";
           if (id.includes("/lucide-react/")) return "icon-library";
