@@ -32,7 +32,6 @@ jobs:
       - name: Build production bundle
         run: pnpm build
   public-homepage-e2e:
-    needs: verify
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -62,3 +61,4 @@ jobs:
           pnpm test:e2e:mobile-nav
           pnpm test:e2e:document-export
           pnpm test:e2e:shared-story-voice-isolation
+          node e2e/dark-mode-home-validation.mjs

@@ -6,7 +6,7 @@
 
 | 範圍 | 狀態 | 可重現方法 |
 | --- | --- | --- |
-| 格式、型別、單元測試與正式建置 | 通過 | `pnpm lint && pnpm check && pnpm test`，再分別執行 `./node_modules/.bin/vite build` 與 `pnpm exec esbuild server/_core/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist`。目前基準為 **62 個測試檔、176 項 Vitest**。 |
+| 格式、型別、單元測試與正式建置 | 通過 | `pnpm lint && pnpm check && pnpm test`，再分別執行 `./node_modules/.bin/vite build` 與 `pnpm exec esbuild server/_core/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist`。目前基準為 **63 個測試檔、178 項 Vitest**。 |
 | 公開首頁 375px | 通過 | 設定 HTTPS `CHRONICLE_E2E_BASE_URL` 後執行 `pnpm test:e2e:mobile-nav`。覆蓋跳至主要內容、行動導覽、範例入口、時間帶鍵盤探索、事件類型篩選的 `aria-pressed`、僅公開欄位的關鍵字搜尋、自動完成的 Escape／Arrow／Enter 選取、搜尋命中 `mark`、日期與類型交集篩選、由新到舊／由舊到新排序、搜尋欄一鍵清除、網址參數同步與分享連結還原、每批三筆的載入更多、零結果插圖、近期事件建議、零結果清除、減少動態下無結果過渡與離線紀錄入口。首頁改採事件、日期、資料可見範圍與操作流程等直接產品文案，已以桌面與 375px 檢查可讀性。 |
 | 路由載入邊界 | 通過 | Vite 將資料客戶端、圖表、文件匯出、圖示庫與僅工作台使用的 UI 套件分離為可快取 chunk；公開首頁入口產物由 **151.74 KiB** 降至 **128.53 KiB**（減少 **23.21 KiB／15.00%**）。`RouteLoadingState` 提供 `aria-busy` 與 live status；公開首頁 375px、以及隔離 local-auth 的 375px／桌面 `/editor`、`/dashboard` 與返回導覽回歸均通過。 |
 | 按需文件匯出邊界與下載 | 通過 | `diaryExport.ts` 僅以 `import("html2canvas")` 與 `import("jspdf")` 載入大型依賴；`diaryExportCodeSplitting.test.ts` 禁止回歸為靜態 import，`diaryExport.test.ts` 覆蓋多頁 PDF 與長圖片下載的封裝流程。壓縮 Vite 產物確認 `DiaryEditor` 以動態 `import()` 指向 **593.38 KiB** 的 `document-export` chunk，而公開首頁入口沒有此 chunk 參照；`route-preload` 則先於一般 `node_modules` 規則獨立分割。隔離 local-auth 的 `pnpm test:e2e:editor-document-export` 已以真實的「匯出 PDF／匯出長圖片」按鈕確認兩種非空下載；無登入的 `pnpm test:e2e:document-export` 則以小型內容夾具保護動態依賴與下載檔案，並納入 CI。 |

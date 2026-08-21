@@ -1,6 +1,6 @@
 # Chronicle — 個人成長史時間軸
 
-[繁體中文](./README.md) · [English](./README.en.md) · [AI 交接](./docs/AI_HANDOFF.md) · [本機開發](./docs/LOCAL_DEVELOPMENT.md) · [自架指南](./docs/SELF_HOSTING.md) · [媒體封存格式](./docs/MEDIA_ARCHIVE.md) · [Roadmap](./docs/roadmap/README.md) · [貢獻方式](./CONTRIBUTING.md) · [安全性](./SECURITY.md)
+[繁體中文](./README.md) · [English](./README.en.md) · [AI 交接](./docs/AI_HANDOFF.md) · [設計系統](./docs/DESIGN_SYSTEM.md) · [本機開發](./docs/LOCAL_DEVELOPMENT.md) · [自架指南](./docs/SELF_HOSTING.md) · [媒體封存格式](./docs/MEDIA_ARCHIVE.md) · [Roadmap](./docs/roadmap/README.md) · [貢獻方式](./CONTRIBUTING.md) · [安全性](./SECURITY.md)
 
 Chronicle 是一個以時間軸呈現的私人數位日記。它幫助使用者把童年記憶、學習歷程、人生轉折與個人成就，整理成可持續編輯的成長檔案。
 
@@ -89,7 +89,7 @@ CHRONICLE_E2E_BASE_URL=https://your-preview.example node e2e/dark-mode-home-vali
 
 ## 貢獻與持續整合
 
-[`AGENTS.md`](./AGENTS.md) 定義架構、資料安全、資料庫 migration 與「編集室時間帶」視覺規範；交接給其他 AI 時請先讀 [`docs/AI_HANDOFF.md`](./docs/AI_HANDOFF.md)。貢獻流程請見 [`CONTRIBUTING.md`](./CONTRIBUTING.md)，測試分層請見 [`docs/TESTING.md`](./docs/TESTING.md)，router 組裝邊界請見 [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)，後續功能方向請見 [`docs/roadmap/`](./docs/roadmap/README.md)。每次推送與 Pull Request 都會執行格式 lint、型別檢查、Vitest 與正式建置；公開首頁 E2E 由 CI 的獨立工作執行。
+[`AGENTS.md`](./AGENTS.md) 定義架構、資料安全、資料庫 migration 與協作者規範；視覺規格位於 [`docs/DESIGN_SYSTEM.md`](./docs/DESIGN_SYSTEM.md)，交接給其他 AI 時請先讀 [`docs/AI_HANDOFF.md`](./docs/AI_HANDOFF.md)。貢獻流程請見 [`CONTRIBUTING.md`](./CONTRIBUTING.md)，測試分層請見 [`docs/TESTING.md`](./docs/TESTING.md)，router 組裝邊界請見 [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)，後續功能方向與公開 backlog 請見 [`docs/roadmap/`](./docs/roadmap/README.md) 與 [GitHub Issues](https://github.com/xup61069/chronicle-growth-diary/issues)。每次推送與 Pull Request 都會執行格式 lint、型別檢查、Vitest 與正式建置；公開首頁與深色模式 E2E 由 CI 的獨立工作執行。
 
 版本說明請使用 [GitHub Releases](https://github.com/xup61069/chronicle-growth-diary/releases)；長篇設計討論、驗證結論與提案請使用 [GitHub Discussions](https://github.com/xup61069/chronicle-growth-diary/discussions)，而非把提交紀錄當成工作日誌。
 

@@ -1,10 +1,10 @@
 # Chronicle 協作規範
 
-> **所有 AI 協作者的第一入口。** 開始前依序讀取本檔、[`docs/AI_HANDOFF.md`](./docs/AI_HANDOFF.md)、[`ideas.md`](./ideas.md)，再依任務讀取架構、測試、安全與本機開發文件。交接狀態、已知 blocker 與後續優先順序只以 `docs/AI_HANDOFF.md` 為準，避免從舊對話或 commit history 猜測。
+> **所有 AI 協作者的第一入口。** 開始前依序讀取本檔、[`docs/AI_HANDOFF.md`](./docs/AI_HANDOFF.md)、[`docs/DESIGN_SYSTEM.md`](./docs/DESIGN_SYSTEM.md)，再依任務讀取架構、測試、安全與本機開發文件。交接狀態、已知 blocker 與後續優先順序只以 `docs/AI_HANDOFF.md` 為準，避免從舊對話或 commit history 猜測。
 
 ## 產品與視覺準則
 
-Chronicle 是個人成長史的敘事時間工作台。所有介面必須遵守 [`ideas.md`](./ideas.md) 的「編集室時間帶」規格：以時間刻度、索引與事件節點組織資訊；使用骨白紙材、深墨藍與僅用於關鍵操作的辰砂橘紅 `#EE623B`；展示字採 DM Serif Display，資料微文案採 IBM Plex Mono。避免通用卡片堆疊、大面積高飽和色與無目的動畫。
+Chronicle 是個人成長史的敘事時間工作台。所有介面必須遵守 [`docs/DESIGN_SYSTEM.md`](./docs/DESIGN_SYSTEM.md) 的「編集室時間帶」規格：以時間刻度、索引與事件節點組織資訊；使用骨白紙材、深墨藍與僅用於關鍵操作的辰砂橘紅 `#EE623B`；展示字採 DM Serif Display，資料微文案採 IBM Plex Mono。避免通用卡片堆疊、大面積高飽和色與無目的動畫。
 
 ## 架構地圖
 
@@ -16,7 +16,7 @@ Chronicle 是個人成長史的敘事時間工作台。所有介面必須遵守 
 | 資料存取 | `server/db.ts` | 所有日記資料須以使用者／日記擁有權篩選。 |
 | 資料庫 | `drizzle/schema.ts`、`drizzle/` | 修改 schema 後必須產生、審閱並套用 migration。 |
 | 檔案儲存 | `server/storage.ts` | 資料庫只存 key、URL 與中繼資料，不能存影像位元組。 |
-| 規格與追蹤 | `ideas.md`、`todo.md` | 視覺規格不可違反；每項功能完成即更新 TODO。 |
+| 規格與追蹤 | `docs/DESIGN_SYSTEM.md`、`todo.md`、GitHub Issues | 視覺規格不可違反；每項功能完成即更新 TODO，後續 backlog 以 GitHub Issues 追蹤。 |
 
 ## 開發指令
 
@@ -48,3 +48,4 @@ corepack pnpm drizzle-kit generate
 - 未完成的控制項必須提供清楚提示，不能偽裝成已啟用的功能。
 - 不得提交 `.env`、金鑰、cookie、JWT、真實家庭／兒童資料、私人媒體、地圖影像或測試帳號；也不得創造虛構評論、評分或使用者內容。
 - 照片 EXIF 與 GPS 匯入需遵守本機預覽、確認後才上傳的模型；GPS／地圖只能在使用者明確要求位置工具時讀取或請求，且只可保存為 `private precise` 位置。詳見 [`docs/AI_HANDOFF.md`](./docs/AI_HANDOFF.md)。
+- 測試採「單一模組預設 co-locate、跨檔入口／文件／基礎設施契約置於具名 `__tests__` 領域」的兩層規則；不得在 `client/src/` 或 `server/` 根層新增測試。完整位置與最低驗證見 [`docs/TESTING.md`](./docs/TESTING.md)。

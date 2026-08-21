@@ -1,6 +1,6 @@
 # Chronicle — Personal Growth Timeline
 
-[繁體中文 / Traditional Chinese](./README.md) · [English](./README.en.md) · [AI handoff](./docs/AI_HANDOFF.md) · [Local development](./docs/LOCAL_DEVELOPMENT.md) · [Self-hosting](./docs/SELF_HOSTING.md) · [Media archive format](./docs/MEDIA_ARCHIVE.md) · [Roadmap](./docs/roadmap/README.md) · [Contributing](./CONTRIBUTING.md) · [Security](./SECURITY.md)
+[繁體中文 / Traditional Chinese](./README.md) · [English](./README.en.md) · [AI handoff](./docs/AI_HANDOFF.md) · [Design system](./docs/DESIGN_SYSTEM.md) · [Local development](./docs/LOCAL_DEVELOPMENT.md) · [Self-hosting](./docs/SELF_HOSTING.md) · [Media archive format](./docs/MEDIA_ARCHIVE.md) · [Roadmap](./docs/roadmap/README.md) · [Contributing](./CONTRIBUTING.md) · [Security](./SECURITY.md)
 
 Chronicle is a private, timeline-first journal for preserving childhood memories, learning, milestones, turning points, and the chapters that connect them. Its editorial workspace lets people arrange lived experience into a long-term personal archive rather than a feed.
 
@@ -105,7 +105,7 @@ drizzle/schema.ts                  MySQL/TiDB-compatible data model
 
 ## Contributing and community
 
-Read [AGENTS.md](./AGENTS.md) before changing the application. AI handoff begins with [docs/AI_HANDOFF.md](./docs/AI_HANDOFF.md), which records current boundaries, verification, blockers, and next priorities. The repository includes [contribution guidance](./CONTRIBUTING.md), [test placement rules](./docs/TESTING.md), [router boundaries](./docs/ARCHITECTURE.md), a [feature roadmap](./docs/roadmap/README.md), a [code of conduct](./CODE_OF_CONDUCT.md), and a [security reporting policy](./SECURITY.md). CI checks formatting, TypeScript, Vitest, production builds, and the public-homepage browser regression.
+Read [AGENTS.md](./AGENTS.md) before changing the application. The [design system](./docs/DESIGN_SYSTEM.md) is the source of truth for the visual language, and AI handoff begins with [docs/AI_HANDOFF.md](./docs/AI_HANDOFF.md), which records current boundaries, verification, blockers, and next priorities. The repository includes [contribution guidance](./CONTRIBUTING.md), [test placement rules](./docs/TESTING.md), [router boundaries](./docs/ARCHITECTURE.md), a [feature roadmap](./docs/roadmap/README.md), a public [Issue backlog](https://github.com/xup61069/chronicle-growth-diary/issues), a [code of conduct](./CODE_OF_CONDUCT.md), and a [security reporting policy](./SECURITY.md). CI checks formatting, TypeScript, Vitest, production builds, and independent public-homepage and dark-mode browser regressions.
 
 ## License
 
