@@ -10,13 +10,12 @@ const page = await context.newPage();
 try {
   await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
   await page.getByRole('button', { name: '登入', exact: true }).click({ noWaitAfter: true });
-  await page.waitForURL((url) => url.pathname === '/app-auth', { timeout: 15_000, waitUntil: 'commit' });
+  await page.waitForURL((url) => url.pathname === '/login', { timeout: 15_000, waitUntil: 'commit' });
 
   const destination = new URL(page.url());
-  if (destination.searchParams.get('responseType') !== 'code') throw new Error('登入導向必須要求授權 code。');
-  if (destination.searchParams.has('type')) throw new Error('登入導向不應傳送不相容的 signIn 類型。');
-  if (!destination.searchParams.get('appId')) throw new Error('登入導向缺少 appId。');
-  if (!destination.searchParams.get('redirectUri')?.endsWith('/api/oauth/callback')) throw new Error('登入導向缺少正確 callback。');
+  if (!destination.searchParams.get('app_id')) throw new Error('登入導向缺少 app_id。');
+  if (!destination.searchParams.get('redirect_url')?.endsWith('/api/oauth/callback')) throw new Error('登入導向缺少正確 callback。');
+  if (destination.searchParams.has('appId') || destination.searchParams.has('redirectUri')) throw new Error('登入導向不應使用非標準 camelCase 參數。');
   if (!destination.searchParams.get('state')) throw new Error('登入導向缺少 OAuth state。');
 
   console.log(JSON.stringify({ status: 'passed', destination: `${destination.origin}${destination.pathname}` }));

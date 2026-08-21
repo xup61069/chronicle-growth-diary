@@ -97,7 +97,7 @@ git diff --check
 
 ### 6.0.1 部署 runtime OAuth callback 相容性
 
-前端的 `startLogin()` 必須以 `window.location.origin` 建立 `/api/oauth/callback`，並傳送 `responseType=code`；不可傳送過時的 `type=signIn`，否則 hosted sign-in 可能只回傳 `state` 而沒有授權 `code`。但已觀測到 Manus 的部署 runtime 在 hosted sign-in 完成後實際回傳 `/manus-oauth/callback`；若 Express 只掛載 API 路徑，請求會落入 SPA fallback 並顯示前端 404。`server/_core/oauth.ts` 因此必須讓 `/api/oauth/callback` 與 `/manus-oauth/callback` 共用**同一個** callback handler，兩者皆不可跳過 nonce cookie 比對、原始 `state` token exchange 或固定 `/editor` 導向。`client/src/__tests__/entry/const.test.ts`、`e2e/home-login-redirect.mjs` 與 `server/__tests__/auth/oauth.callback.test.ts` 覆蓋授權 code 與兩條 callback 路徑。這些修復仍不等同於正式使用者 session 與 `diary.get` 已驗證成功。
+前端的 `startLogin()` 必須以 `window.location.origin` 建立 `/api/oauth/callback`，並使用 Manus OAuth 的正式 `/login` 入口與 `app_id`、`redirect_url`、`state` 參數；不可傳送舊版 `/app-auth`、camelCase 參數或 `type=signIn`，否則 hosted sign-in 可能只回傳 `state` 而沒有授權 `code`。但已觀測到 Manus 的部署 runtime 在 hosted sign-in 完成後實際回傳 `/manus-oauth/callback`；若 Express 只掛載 API 路徑，請求會落入 SPA fallback 並顯示前端 404。`server/_core/oauth.ts` 因此必須讓 `/api/oauth/callback` 與 `/manus-oauth/callback` 共用**同一個** callback handler，兩者皆不可跳過 nonce cookie 比對、原始 `state` token exchange 或固定 `/editor` 導向。`client/src/__tests__/entry/const.test.ts`、`e2e/home-login-redirect.mjs` 與 `server/__tests__/auth/oauth.callback.test.ts` 覆蓋登入參數、授權 code 與兩條 callback 路徑。這些修復仍不等同於正式使用者 session 與 `diary.get` 已驗證成功。
 
 ## 6.1 回憶每日檢查（使用者選擇 A）
 

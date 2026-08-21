@@ -9,7 +9,11 @@
 - [x] 依使用者選擇 A，實作不依賴外部寄信或推播服務的 owner-only 回憶偏好與每日檢查：預設關閉、可停用、只保存最小檢查狀態、不建立外送內容，並預留日後安全接上遞送提供者的邊界。
 - [ ] 使用者發布後，依其明確回覆啟用每日站內回憶檢查；確認僅建立／恢復 owner 的平台排程，且不開啟 Email、推播或任何日記內容外送。
 - [ ] 調查並修復使用者回報的正式 OAuth 登入後 404：已重現部署 runtime 回傳 `/manus-oauth/callback` 而落入 SPA fallback 的路徑，並讓其與 `/api/oauth/callback` 共用 nonce 驗證與 token exchange handler；仍待使用者完成正式登入以確認可進入私人工作台。
-- [ ] 調查標準 `/api/oauth/callback` 只收到 `state`、未收到 OAuth `code` 而呈現 404 的正式登入故障；已直接重現首頁登入傳送 `type=signIn` 而沒有 `responseType=code`，並修正為要求 code、以 HTTPS 預覽的登入導向 E2E 驗證。仍待正式重新發布後由使用者登入確認 callback、session 與工作台可達。
+- [ ] 調查標準 `/api/oauth/callback` 只收到 `state`、未收到 OAuth `code` 而呈現 404 的正式登入故障；已由舊 `/app-auth`、camelCase 參數與 `type=signIn` 遷移至正式 `/login`、`app_id`、`redirect_url` 與 state，並以 HTTPS 預覽登入導向 E2E 驗證。仍待正式重新發布後由使用者登入確認 callback、session 與工作台可達。
+- [ ] 使用者重新嘗試後仍只收到 state-only `/api/oauth/callback`，代表其登入路徑未使用新版 `responseType=code` 或 hosted sign-in 未支援該參數；正常正式頁面曾載入舊 `index-fzdnzrFG.js`，但帶 `?release=f32c3362` 的導覽已取得 `index-CnwkAW3T.js`，其中含 `responseType` 且不含 `signIn`。需用新版入口完成實際登入驗證，必要時再建立 state-only callback 相容流程。
+- [ ] 使用者已以新版入口重試，仍只得到 state-only callback；停止將問題歸因於 PWA 快取，改為盤點 hosted sign-in 實際回呼契約、可驗證的 server-side exchange 與不降低 nonce／owner 資料邊界的相容方案。
+- [ ] 依正式 Manus OAuth 規範將登入入口改為 `/login`，使用 `app_id`、`redirect_url` 與 `state`，保留 host-only nonce cookie、原始 state token exchange 和固定工作台導向；新增契約回歸並以正式登入驗證 code、session 與 `/editor`。
+- [ ] 調查並修復使用者回報的正式 `chronotime-w3ztsoiq.manus.space` `ERR_CONNECTION_ABORTED`；目前探針已確認 DNS 解析、TLS 驗證、HTTP 200 與獨立瀏覽器首頁渲染均正常，正式執行紀錄未見服務啟動錯誤。待使用者重新連線確認是否為短暫發布切換或其網路路徑中止，恢復後再重試 OAuth。
 - [x] 定位並在開發版本修復使用者回報的正式站「整個沒畫面」故障：根因為匿名首頁的 `auth.me` 錯誤被全域自動導向 OAuth；已移除該跳轉、在未登入 HTTPS 開發首頁驗證可見性，並新增靜態回歸測試。
 - [x] 重新發布包含公開首頁未登入修正的正式版本到 `chronotime-w3ztsoiq.manus.space`。
 - [x] 在正式網域以未登入狀態驗證桌面與 375px 首頁可見性，確認不再自動跳轉 OAuth 且首頁內容可見；已定位並修復第二個根因：Recharts 的 `charts` 手動 chunk 在 React runtime 初始化前讀取 `forwardRef`，使入口 module 評估失敗且 root 空白。已移除此分包；正式桌面匿名頁已可見首頁內容、登入按鈕與搜尋控制，正式網域 375px `pnpm test:e2e:mobile-nav` 亦通過。PWA 另加入立即接管、舊快取清理與設定契約測試以降低舊入口殘留風險。
