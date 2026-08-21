@@ -15,6 +15,12 @@
 
 這個邊界讓 `server/_core`、`server/routers.ts` 與 `server/routers/` 各自有不同且可檢驗的責任，而非混用兩套路由模式。
 
+## 資料庫 migration 唯一來源
+
+Drizzle 的唯一事實來源是根目錄 [`drizzle/`](../drizzle/)：`schema.ts` 定義目前 schema、`0000_*.sql` 至 `0017_*.sql` 是依序套用的 migration、`meta/` 保存 Drizzle snapshot 與 journal。`drizzle.config.ts` 的 `out` 固定為 `./drizzle`，因此**不得**在 `drizzle/migrations/` 或另一個平行目錄新增 SQL。
+
+變更 schema 時，先修改 `drizzle/schema.ts`，再由 `pnpm drizzle-kit generate` 產生下一個 SQL 及 meta snapshot；審閱 SQL 後使用受控 migration 流程套用。若工具輸出位置或既有檔案結構不同，先停止並修正設定，不要複製 SQL 至兩個目錄。`server/__tests__/infrastructure/migrationLayout.test.ts` 會守護這個單一來源契約。
+
 ## 受保護的照片位置地圖
 
 `server/routers/photoMap.ts` 是照片匯入的使用者觸發地圖合約。它使用 `protectedProcedure` 驗證範圍合法的緯度與經度，再透過 `server/_core/map.ts` 的既有 Maps proxy 取得短生命週期的預覽資料。它不是事件位置資料庫，也不得在頁面載入、EXIF 解析或背景工作時自動呼叫。

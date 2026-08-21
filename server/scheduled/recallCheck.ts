@@ -15,10 +15,10 @@ export async function handleRecallCheck(req: Request, res: Response) {
     if (!result) return res.json({ ok: true, skipped: "orphan_or_disabled", delivery: "none" });
     return res.json({ ok: true, status: result.status, delivery: "none" });
   } catch (error) {
-    return res.status(500).json({
+    console.error("[Recall check] callback failed", {
+      path: "/api/scheduled/recall-check",
       error: error instanceof Error ? error.message : String(error),
-      context: { path: "/api/scheduled/recall-check" },
-      timestamp: new Date().toISOString(),
     });
+    return res.status(500).json({ error: "recall-check-failed" });
   }
 }

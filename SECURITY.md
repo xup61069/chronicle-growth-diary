@@ -12,7 +12,7 @@ Chronicle 處理私人日記、影像、受控分享與可能涉及家庭成員�
 
 | 領域 | 必要控制 | 變更時的驗證 |
 | --- | --- | --- |
-| OAuth 與 session | 登入 callback 必須驗證一次性 `state`／nonce；cookie 保持 HttpOnly、Secure、SameSite 與最小生命週期。 | callback、登入、登出與未登入分支測試；不在測試或文件中放入真實 token。 |
+| OAuth 與 session | 登入 callback 必須驗證一次性 `state`／nonce。`app_session_id` 為 HttpOnly、Secure、Path `/`、`SameSite=Lax`；僅短效 OAuth state nonce 使用 `SameSite=None; Secure` 以支援跨站授權回呼。 | `server/__tests__/auth/auth.local.test.ts`、`oauth.callback.test.ts`、`auth.logout.test.ts` 與 `server/routers/localAuthDriver.test.ts`；不在測試或文件中放入真實 token。 |
 | 日記與媒體 | 所有私有讀寫均以擁有者篩選；資料庫只保存媒體 key、URL 與中繼資料，不保存影像位元組。 | 跨帳號、刪除、媒體與分享範圍回歸。 |
 | 分享與家庭協作 | 僅明確標記可分享的事件可離開私有邊界；密碼、invite 與 link token 不得以明文保存。 | public／link／private 範圍、到期、密碼和邀請 token 測試。 |
 | AI | AI 回顧必須有日記層級的明確啟用狀態；本機 writing guide 不傳送日記內容。 | AI 偏好、輸入最小化、失敗與刪除行為測試。 |

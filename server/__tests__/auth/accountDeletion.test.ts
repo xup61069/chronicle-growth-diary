@@ -72,6 +72,8 @@ describe("auth.deleteAccount", () => {
     expect(result).toEqual({ deleted: true });
     expect(db.deleteAccount).toHaveBeenCalledWith(42);
     expect(cleared).toHaveLength(1);
-    expect(cleared[0]?.options).toMatchObject({ maxAge: -1, httpOnly: true, path: "/" });
+    expect(cleared[0]?.options).toMatchObject({ httpOnly: true, path: "/", sameSite: "lax", secure: true });
+    expect(cleared[0]?.options).not.toHaveProperty("maxAge");
+    expect(cleared[0]?.options).not.toHaveProperty("expires");
   });
 });

@@ -76,7 +76,7 @@ describe("OAuth callback", () => {
     expect(res.cookie).toHaveBeenCalledWith(
       COOKIE_NAME,
       "session-token",
-      expect.objectContaining({ httpOnly: true, secure: true, sameSite: "none" })
+      expect.objectContaining({ httpOnly: true, secure: true, sameSite: "lax" })
     );
     expect(res.redirect).toHaveBeenCalledWith(302, "/editor");
   });
