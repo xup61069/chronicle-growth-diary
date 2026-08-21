@@ -26,11 +26,11 @@ describe("startLogin", () => {
     expect(documentState.cookie).toContain("SameSite=None");
     const destination = new URL(location.href);
     expect(destination.origin).toBe("https://login.example.test");
-    expect(destination.pathname).toBe("/app-auth");
-    expect(destination.searchParams.get("appId")).toBe("chronicle-test-app");
-    expect(destination.searchParams.get("redirectUri")).toBe("https://timeline.example.test/api/oauth/callback");
-    expect(destination.searchParams.get("responseType")).toBe("code");
-    expect(destination.searchParams.has("type")).toBe(false);
+    expect(destination.pathname).toBe("/login");
+    expect(destination.searchParams.get("app_id")).toBe("chronicle-test-app");
+    expect(destination.searchParams.get("redirect_url")).toBe("https://timeline.example.test/api/oauth/callback");
+    expect(destination.searchParams.has("appId")).toBe(false);
+    expect(destination.searchParams.has("redirectUri")).toBe(false);
     expect(destination.searchParams.get("state")).toBeTruthy();
   });
 });
