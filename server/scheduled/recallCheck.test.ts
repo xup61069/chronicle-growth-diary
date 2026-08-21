@@ -47,18 +47,20 @@ describe("scheduled recall check", () => {
     expect(res.state).toEqual({ statusCode: 200, body: { ok: true, skipped: "orphan_or_disabled", delivery: "none" } });
   });
 
-  it("returns a machine-readable 500 when the private check cannot complete", async () => {
-    recallDb.runDiaryRecallCheckByTaskUid.mockRejectedValueOnce(new Error("database unavailable"));
+  it("returns a machine-readable 500 and a redacted diagnostic when the private check cannot complete", async () => {
+    const privateFailure = "database unavailable for entry title: 祕密回憶";
+    recallDb.runDiaryRecallCheckByTaskUid.mockRejectedValueOnce(new Error(privateFailure));
     const res = response();
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
     try {
       await handleRecallCheck({} as any, res);
       expect(res.state).toEqual({ statusCode: 500, body: { error: "recall-check-failed" } });
-      expect(JSON.stringify(res.state.body)).not.toContain("database unavailable");
+      expect(JSON.stringify(res.state.body)).not.toContain(privateFailure);
       expect(errorSpy).toHaveBeenCalledWith("[Recall check] callback failed", {
-        path: "/api/scheduled/recall-check",
-        error: "database unavailable",
+        operation: "scheduled_recall_check",
+        code: "recall-check-failed",
       });
+      expect(JSON.stringify(errorSpy.mock.calls)).not.toContain(privateFailure);
     } finally {
       errorSpy.mockRestore();
     }
