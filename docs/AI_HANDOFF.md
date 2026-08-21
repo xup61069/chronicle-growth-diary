@@ -95,6 +95,14 @@ git diff --check
 
 下一位 AI 不得為了清除 TODO 而偽造 OAuth 成功、繞過登入、弱化 ownership，或把 local-auth 結果宣稱為正式 OAuth 成功。外部入口恢復可用後，才依 [`docs/VALIDATION_LOG.md`](./VALIDATION_LOG.md) 的邊界重跑正式登入與 `diary.get` 實證。
 
+## 6.1 回憶每日檢查（使用者選擇 A）
+
+使用者選擇先建立**不外送**的基礎，而不是直接串接 Email 或 Web Push。`growth_diary_recall_preferences` 只保存 owner-only 的啟用狀態、瀏覽器時區 offset、Heartbeat `taskUid`、最後檢查時間、兩種符合項目的計數與狀態；不保存標題、正文、媒體、位置、語音、收件地址或任何通知內容。資料表由 `drizzle/0017_freezing_bishop.sql` 建立。
+
+`server/routers/recallChecks.ts` 的 `getPreferences`、`setPreferences` 與 `runNow` 全部使用日記擁有者限定的資料層 wrapper。`server/scheduled/recallCheck.ts` 只接受經 `sdk.authenticateRequest` 驗證的 cron `taskUid`，按 task UID 讀取啟用中的偏好；其 HTTP 回應只含 `checked_empty`／`checked_items` 或 no-op，沒有事件數或日記欄位。`server/db/recallChecks.ts` 的來源 SQL 只投影時間、日期精度、解鎖時間與 private 範圍欄位。
+
+工作台的「每日回憶檢查」預設關閉；開發預覽會明確拒絕建立排程。網站**發布後**，使用者才可開啟每日 00:15 UTC 的 Heartbeat 檢查；本階段仍不會寄信、推播或外送內容。正式發布後才可建立／測試任務；依排程規範，修改 callback 後也必須再次保存 checkpoint 並請使用者發布，再建立或啟用任務。未來若接入遞送服務，必須重新設計使用者同意、收件地址／推播訂閱、刪除與失敗路徑，不可把這個計數型基礎直接升格為外送。
+
 ## 7. 建議後續優先順序
 
 1. **正式 OAuth 恢復後驗證**：只在外部登入頁能到達時，實證登入、`diary.get`、編輯器載入與 callback；更新 blocker 記錄。

@@ -41,6 +41,7 @@ import "@/styles/voice-diary.css";
 import {
   Archive,
   ArrowDownUp,
+  BellRing,
   BrainCircuit,
   BookOpenCheck,
   CalendarDays,
@@ -288,6 +289,21 @@ function DiaryEditorContent() {
     return { ...(requestedDiaryId ? { diaryId: requestedDiaryId } : {}), year: today.getFullYear(), month: today.getMonth() + 1, day: today.getDate(), timezoneOffsetMinutes: today.getTimezoneOffset() };
   }, [requestedDiaryId]);
   const onThisDayQuery = trpc.diary.getOnThisDay.useQuery(onThisDayInput, { enabled: data?.accessRole === "owner", staleTime: 0 });
+  const recallPreferencesQuery = trpc.recallChecks.getPreferences.useQuery(undefined, { enabled: isOwner, staleTime: 0 });
+  const recallPreferencesMutation = trpc.recallChecks.setPreferences.useMutation({
+    onSuccess: async (preference, input) => {
+      await utils.recallChecks.getPreferences.invalidate();
+      toast.success(input.enabled ? "已開啟每日回憶檢查；系統不會寄信、推播或傳送日記內容。" : "已停止每日回憶檢查；已建立的排程會一併暫停。 ");
+    },
+    onError: (error) => toast.error(error.message),
+  });
+  const recallRunNowMutation = trpc.recallChecks.runNow.useMutation({
+    onSuccess: async () => {
+      await utils.recallChecks.getPreferences.invalidate();
+      toast.success("已更新今日回憶檢查狀態；沒有寄送或公開任何內容。 ");
+    },
+    onError: (error) => toast.error(error.message),
+  });
   const familyAuditQuery = trpc.diary.getFamilyAudit.useQuery(undefined, { enabled: isOwner });
   const removeFamilyMemberMutation = trpc.diary.removeFamilyMember.useMutation({
     onSuccess: async () => {
@@ -306,6 +322,16 @@ function DiaryEditorContent() {
 
   type DiaryEvent = NonNullable<typeof data>["events"][number];
   const events: DiaryEvent[] = data?.events ?? [];
+  const recallPreferences = recallPreferencesQuery.data;
+  const currentTimezoneOffsetMinutes = useMemo(() => new Date().getTimezoneOffset(), []);
+  const recallLastCheckLabel = recallPreferences?.lastCheckedAt
+    ? new Intl.DateTimeFormat("zh-TW", { dateStyle: "medium", timeStyle: "short" }).format(new Date(recallPreferences.lastCheckedAt))
+    : "尚未檢查";
+  const recallStatusLabel = recallPreferences?.lastCheckStatus === "checked_items"
+    ? `最近一次找到 ${recallPreferences.lastOnThisDayCount + recallPreferences.lastFutureLetterCount} 個可在工作台查看的私人項目。`
+    : recallPreferences?.lastCheckStatus === "checked_empty"
+      ? "最近一次沒有符合的私人項目。"
+      : "尚未建立每日檢查紀錄。";
   const baseVisibleEvents = useMemo(
     () => filterDiaryEvents(events, { type: filterType, tag: filterTag, search: searchQuery, dateFrom, dateTo, sortOrder }),
     [dateFrom, dateTo, events, filterTag, filterType, searchQuery, sortOrder],
@@ -1212,6 +1238,15 @@ function DiaryEditorContent() {
           <div className="on-this-day-age"><b>{memory.yearsAgo}</b><span>年前</span></div>
           {memory.isLocked ? <div className="on-this-day-locked"><LockKeyhole size={16} /><div><b>時空膠囊尚未解鎖</b><p>{formatCapsuleCountdown(memory.daysRemaining)}；在解鎖前不顯示標題或內容。</p></div></div> : <div className="on-this-day-copy"><span>{new Date(memory.occurredAt).toLocaleDateString("zh-TW", { month: "long", day: "numeric" })} · {memory.eventType}</span><h3>{memory.title}</h3><button type="button" onClick={() => openOnThisDayMemory(memory.id)}>開啟這筆記錄 <ChevronRight size={14} /></button></div>}
         </article>)}</div> : <div className="on-this-day-empty"><History size={20} /><p>今天沒有同月同日的私人事件。日後寫下完整日期的記錄，回到工作台時會在這裡出現。</p></div>}
+      </section> : null}
+
+      {isOwner ? <section className="recall-check-studio" aria-labelledby="recall-check-title">
+        <header><div><p className="editor-kicker"><span /> DAILY RECALL CHECK / OWNER ONLY</p><h2 id="recall-check-title">每日回憶檢查</h2><p>這是可選的私人背景檢查。它只統計今天是否有可查看的私人回憶或已到期信件；不寄送 Email、不推播、不保存日記內容、標題、照片或地點。</p></div><BellRing size={27} aria-hidden="true" /></header>
+        <div className="recall-check-panel">
+          <label className="recall-check-toggle"><input type="checkbox" checked={recallPreferences?.enabled ?? false} disabled={recallPreferencesQuery.isLoading || recallPreferencesMutation.isPending} onChange={(event) => recallPreferencesMutation.mutate({ enabled: event.target.checked, timezoneOffsetMinutes: currentTimezoneOffsetMinutes })} /><span><b>每天自動檢查</b><small>預設關閉。第一次開啟必須先發布網站；未設定外部遞送服務時，結果只留在這個私人工具台。</small></span></label>
+          <div className="recall-check-status" aria-live="polite"><span>最後檢查：{recallLastCheckLabel}</span><p>{recallStatusLabel}</p></div>
+          <button type="button" onClick={() => recallRunNowMutation.mutate({ timezoneOffsetMinutes: currentTimezoneOffsetMinutes })} disabled={!recallPreferences?.enabled || recallRunNowMutation.isPending}>{recallRunNowMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />} 立即檢查</button>
+        </div>
       </section> : null}
 
       {isOwner ? <section className="future-letters-studio" aria-labelledby="future-letters-title">

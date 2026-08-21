@@ -10,6 +10,7 @@ import { getAuthProvider } from "./providers/auth";
 import { diaryRouter, shareRouter } from "./routers/diary";
 import { statsRouter } from "./routers/stats";
 import { photoMapRouter } from "./routers/photoMap";
+import { recallChecksRouter } from "./routers/recallChecks";
 
 const localCredentialInput = z.object({
   email: z.string().trim().email("請輸入有效的 email。").max(320),
@@ -79,6 +80,7 @@ export const appRouter = router({
   share: shareRouter,
   stats: statsRouter,
   photoMap: photoMapRouter,
+  recallChecks: recallChecksRouter,
 });
 
 export type AppRouter = typeof appRouter;

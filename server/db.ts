@@ -48,6 +48,15 @@ import {
 import { getGrowthDashboardStatsForDiary } from "./db/growthStats";
 import { getOwnerOnThisDayMemoriesForDiary } from "./db/onThisDay";
 import type { OnThisDayRequest } from "./db/onThisDay";
+import {
+  getRecallPreferenceByTaskUid,
+  getRecallPreferencesForDiary,
+  runRecallCheckForDiary,
+  saveRecallPreferencesForDiary,
+  setRecallScheduleTaskForDiary,
+} from "./db/recallChecks";
+export type { RecallCheckRequest, RecallPreferencesInput } from "./db/recallChecks";
+import type { RecallCheckRequest, RecallPreferencesInput } from "./db/recallChecks";
 import { createVoiceNoteForEvent, deleteVoiceNoteForUser } from "./db/voiceNotes";
 import type { VoiceNoteInput } from "./db/voiceNotes";
 export { assertAiEnabled } from "./db/aiReflections";
@@ -301,6 +310,46 @@ async function getOwnedDiary(userId: number) {
   const diary = await db.select().from(growthDiaries).where(eq(growthDiaries.userId, userId)).limit(1);
   if (!diary[0]) throw new Error("找不到你的成長史。");
   return diary[0];
+}
+
+/** Owner-only read path for default-off recall controls and the content-free last-check summary. */
+export async function getDiaryRecallPreferences(userId: number) {
+  const db = await requireDb();
+  const diary = await getOwnedDiary(userId);
+  return getRecallPreferencesForDiary(db, diary.id);
+}
+
+export async function updateDiaryRecallPreferences(userId: number, input: RecallPreferencesInput) {
+  const db = await requireDb();
+  const diary = await getOwnedDiary(userId);
+  return saveRecallPreferencesForDiary(db, diary.id, input);
+}
+
+export async function setDiaryRecallScheduleTask(userId: number, taskUid: string | null) {
+  const db = await requireDb();
+  const diary = await getOwnedDiary(userId);
+  return setRecallScheduleTaskForDiary(db, diary.id, taskUid);
+}
+
+export async function runDiaryRecallCheck(userId: number, request: RecallCheckRequest, now?: number) {
+  const db = await requireDb();
+  const diary = await getOwnedDiary(userId);
+  return runRecallCheckForDiary(db, diary.id, request, now);
+}
+
+/** Cron-only lookup; the caller must have authenticated a Heartbeat task UID first. */
+export async function runDiaryRecallCheckByTaskUid(taskUid: string, now = Date.now()) {
+  const db = await requireDb();
+  const preference = await getRecallPreferenceByTaskUid(db, taskUid);
+  if (!preference) return null;
+  const adjusted = new Date(now - preference.timezoneOffsetMinutes * 60_000);
+  const request = {
+    year: adjusted.getUTCFullYear(),
+    month: adjusted.getUTCMonth() + 1,
+    day: adjusted.getUTCDate(),
+    timezoneOffsetMinutes: preference.timezoneOffsetMinutes,
+  };
+  return runRecallCheckForDiary(db, preference.diaryId, request, now);
 }
 
 export async function createDiaryInvite(userId: number, input: { email: string; role: DiaryMemberRole; expiresAt: number }) {

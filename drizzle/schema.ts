@@ -59,6 +59,28 @@ export const growthDiaries = mysqlTable(
   (table) => [index("growth_diaries_user_idx").on(table.userId)],
 );
 
+/** Owner-only controls and minimal execution state for private recall checks. */
+export const growthDiaryRecallPreferences = mysqlTable(
+  "growth_diary_recall_preferences",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    diaryId: int("diaryId").notNull().references(() => growthDiaries.id, { onDelete: "cascade" }),
+    enabled: boolean("enabled").notNull().default(false),
+    timezoneOffsetMinutes: int("timezoneOffsetMinutes").notNull().default(0),
+    scheduleCronTaskUid: varchar("scheduleCronTaskUid", { length: 65 }),
+    lastCheckedAt: bigint("lastCheckedAt", { mode: "number" }),
+    lastOnThisDayCount: int("lastOnThisDayCount").notNull().default(0),
+    lastFutureLetterCount: int("lastFutureLetterCount").notNull().default(0),
+    lastCheckStatus: varchar("lastCheckStatus", { length: 32 }).notNull().default("never"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("growth_diary_recall_preferences_diary_unique_idx").on(table.diaryId),
+    index("growth_diary_recall_preferences_task_uid_idx").on(table.scheduleCronTaskUid),
+  ],
+);
+
 /** A dated personal memory, learning moment, achievement, or chapter. */
 export const growthEvents = mysqlTable(
   "growth_events",
