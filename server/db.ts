@@ -47,6 +47,9 @@ import {
 } from "./db/aiReflections";
 import { getGrowthDashboardStatsForDiary } from "./db/growthStats";
 import { buildFullDiaryArchiveForDiary } from "./db/fullDiaryArchive";
+import { cancelFullArchiveRestore as cancelFullArchiveRestoreForUser, commitFullArchiveRestore as commitFullArchiveRestoreForDiary, prepareFullArchiveRestore as prepareFullArchiveRestoreForDiary, stageFullArchiveRestoreAsset as stageFullArchiveRestoreAssetForUser } from "./db/archiveRestore";
+export { fullArchiveRestoreInput } from "./db/archiveRestore";
+import type { FullArchiveRestoreInput } from "./db/archiveRestore";
 import { getOwnerOnThisDayMemoriesForDiary } from "./db/onThisDay";
 import type { OnThisDayRequest } from "./db/onThisDay";
 import {
@@ -167,6 +170,31 @@ export async function getFullDiaryArchive(userId: number) {
   const db = await requireDb();
   const diary = await getOwnedDiary(userId);
   return buildFullDiaryArchiveForDiary(db, diary);
+}
+
+/** Owner-only staged full-archive restore. Existing diary rows remain untouched until commit. */
+export async function prepareFullArchiveRestore(userId: number, input: FullArchiveRestoreInput) {
+  const db = await requireDb();
+  const diary = await getOwnedDiary(userId);
+  return prepareFullArchiveRestoreForDiary(db, diary, userId, input);
+}
+
+export async function stageFullArchiveRestoreAsset(userId: number, input: { restoreId: string; assetId: string; base64: string }) {
+  const db = await requireDb();
+  await getOwnedDiary(userId);
+  return stageFullArchiveRestoreAssetForUser(db, userId, input);
+}
+
+export async function commitFullArchiveRestore(userId: number, restoreId: string) {
+  const db = await requireDb();
+  const diary = await getOwnedDiary(userId);
+  return commitFullArchiveRestoreForDiary(db, diary, userId, restoreId);
+}
+
+export async function cancelFullArchiveRestore(userId: number, restoreId: string) {
+  const db = await requireDb();
+  await getOwnedDiary(userId);
+  return cancelFullArchiveRestoreForUser(db, userId, restoreId);
 }
 
 export async function getDiaryOnThisDayMemories(userId: number, input: OnThisDayRequest & { diaryId?: number }) {

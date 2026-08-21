@@ -32,6 +32,15 @@ describe("Chronicle 全量資料封存", () => {
     expect(payload).not.toContain("storageKey");
     expect(archive.manifest.assets[0]).toMatchObject({ path: "assets/001-stage-photo.png", byteLength: 11 });
     expect(archive.manifest.payload.sha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(restored.assets[0]).toMatchObject({ id: "event-1-media-1", fileName: "stage-photo.png", byteLength: 11 });
+    await expect(restored.assets[0]?.blob.text()).resolves.toBe("image-bytes");
+  });
+
+  it("在準備、逐項附件讀取、封裝與完成時回報不偽造的封存進度", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(new Blob(["image-bytes"], { type: "image/png" }), { status: 200 })));
+    const progress: string[] = [];
+    await createFullDiaryArchive(source, "2026-08-22T00:00:00.000Z", (item) => progress.push(`${item.stage}:${item.completed}/${item.total}`));
+    expect(progress).toEqual(["preparing:0/1", "reading-assets:0/1", "reading-assets:1/1", "packaging:1/1", "complete:1/1"]);
   });
 
   it("拒絕有分享憑證或來源 URL 的資料 payload，避免建立不安全的封存", async () => {

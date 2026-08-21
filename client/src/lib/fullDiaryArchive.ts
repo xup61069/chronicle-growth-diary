@@ -4,7 +4,7 @@ const ARCHIVE_FORMAT = "chronicle-full-archive";
 const ARCHIVE_VERSION = 1;
 const DATA_PATH = "data/chronicle-full.json";
 const MAX_ARCHIVE_BYTES = 100 * 1024 * 1024;
-const MAX_ASSET_BYTES = 20 * 1024 * 1024;
+const MAX_ASSET_BYTES = 16 * 1024 * 1024;
 const MAX_ASSETS = 120;
 
 export type FullDiaryArchiveAssetSource = {
@@ -20,7 +20,7 @@ export type FullDiaryArchiveSource = {
   assets: FullDiaryArchiveAssetSource[];
 };
 
-type ArchiveManifest = {
+export type ArchiveManifest = {
   format: typeof ARCHIVE_FORMAT;
   version: typeof ARCHIVE_VERSION;
   exportedAt: string;
@@ -28,6 +28,15 @@ type ArchiveManifest = {
   assets: Array<{ id: string; kind: FullDiaryArchiveAssetSource["kind"]; path: string; fileName: string; mimeType: string | null; sha256: string; byteLength: number }>;
   exclusions: string[];
 };
+
+export type FullDiaryArchiveProgress = {
+  stage: "preparing" | "reading-assets" | "packaging" | "complete";
+  completed: number;
+  total: number;
+  currentFileName: string | null;
+};
+
+export type FullDiaryArchiveImportAsset = ArchiveManifest["assets"][number] & { blob: Blob };
 
 function safeFileName(value: string, fallback: string) {
   const normalized = value.normalize("NFKC").replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
@@ -66,9 +75,10 @@ function download(blob: Blob, fileName: string) {
   URL.revokeObjectURL(url);
 }
 
-export async function createFullDiaryArchive(source: FullDiaryArchiveSource, exportedAt = new Date().toISOString()) {
+export async function createFullDiaryArchive(source: FullDiaryArchiveSource, exportedAt = new Date().toISOString(), onProgress?: (progress: FullDiaryArchiveProgress) => void) {
   if (source.assets.length > MAX_ASSETS) throw new Error(`單次全量封存最多可包含 ${MAX_ASSETS} 個附件。`);
   assertPortableData(source.data);
+  onProgress?.({ stage: "preparing", completed: 0, total: source.assets.length, currentFileName: null });
   const data: Record<string, unknown> = { ...source.data, exportedAt };
   const payload = JSON.stringify(data, null, 2);
   const payloadBlob = new Blob([payload], { type: "application/json;charset=utf-8" });
@@ -79,15 +89,17 @@ export async function createFullDiaryArchive(source: FullDiaryArchiveSource, exp
 
   for (let index = 0; index < source.assets.length; index += 1) {
     const asset = source.assets[index]!;
+    onProgress?.({ stage: "reading-assets", completed: index, total: source.assets.length, currentFileName: asset.fileName });
     const response = await fetch(asset.sourceUrl, { credentials: "omit" });
     if (!response.ok) throw new Error(`無法讀取第 ${index + 1} 個附件；未建立部分封存。`);
     const blob = await response.blob();
-    if (!blob.size || blob.size > MAX_ASSET_BYTES) throw new Error(`第 ${index + 1} 個附件超過 20MB 或內容無效；未建立部分封存。`);
+    if (!blob.size || blob.size > MAX_ASSET_BYTES) throw new Error(`第 ${index + 1} 個附件超過 16MB 或內容無效；未建立部分封存。`);
     uncompressedBytes += blob.size;
     if (uncompressedBytes > MAX_ARCHIVE_BYTES) throw new Error("全量封存超過 100MB 安全上限；未建立部分封存。");
     const path = assetPath(index, asset);
     zip.file(path, await blob.arrayBuffer(), { binary: true });
     manifestAssets.push({ id: asset.id, kind: asset.kind, path, fileName: safeFileName(asset.fileName, asset.id), mimeType: asset.mimeType, sha256: await sha256(blob), byteLength: blob.size });
+    onProgress?.({ stage: "reading-assets", completed: index + 1, total: source.assets.length, currentFileName: asset.fileName });
   }
 
   const manifest: ArchiveManifest = {
@@ -104,8 +116,10 @@ export async function createFullDiaryArchive(source: FullDiaryArchiveSource, exp
     ],
   };
   zip.file("manifest.json", JSON.stringify(manifest, null, 2));
+  onProgress?.({ stage: "packaging", completed: source.assets.length, total: source.assets.length, currentFileName: null });
   const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } });
   if (!blob.size || blob.size > MAX_ARCHIVE_BYTES) throw new Error("全量封存超過 100MB 安全上限；未建立部分封存。");
+  onProgress?.({ stage: "complete", completed: source.assets.length, total: source.assets.length, currentFileName: null });
   return { blob, assetCount: manifestAssets.length, eventCount: Array.isArray(data.events) ? data.events.length : 0, manifest };
 }
 
@@ -138,6 +152,7 @@ export async function readFullDiaryArchive(archive: Blob) {
   }
   assertPortableData(data);
   const expectedPaths = new Set(["manifest.json", DATA_PATH]);
+  const assets: FullDiaryArchiveImportAsset[] = [];
   for (const asset of manifest.assets) {
     if (!asset || typeof asset.id !== "string" || typeof asset.path !== "string" || !/^assets\/\d{3}-[a-zA-Z0-9._-]{1,120}$/.test(asset.path) || !Number.isInteger(asset.byteLength) || asset.byteLength <= 0 || asset.byteLength > MAX_ASSET_BYTES || !/^[a-f0-9]{64}$/.test(asset.sha256)) {
       throw new Error("全量封存附件描述格式無效。 ");
@@ -148,10 +163,11 @@ export async function readFullDiaryArchive(archive: Blob) {
     if (!entry || entry.dir) throw new Error("全量封存缺少附件。 ");
     const blob = await entry.async("blob");
     if (blob.size !== asset.byteLength || await sha256(blob) !== asset.sha256) throw new Error("全量封存附件完整性驗證失敗。 ");
+    assets.push({ ...asset, blob });
   }
   const unexpectedFile = Object.values(zip.files).find((entry) => !entry.dir && !expectedPaths.has(entry.name));
   if (unexpectedFile) throw new Error("全量封存包含未宣告的檔案。 ");
-  return { data: data as Record<string, unknown>, assetCount: manifest.assets.length, manifest };
+  return { data: data as Record<string, unknown>, assetCount: manifest.assets.length, manifest, assets };
 }
 
 export function downloadFullDiaryArchive(archive: Blob, baseName: string) {
