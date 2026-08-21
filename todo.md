@@ -35,7 +35,7 @@
 - [x] 依使用者選擇 A 啟用既有本機帳密登入 fallback：設定正式 `AUTH_DRIVER=local` 與 `VITE_AUTH_DRIVER=local`；local registration tRPC regression 已確認 scrypt 雜湊與安全 session cookie，未登入 HTTPS 開發版 `/editor` 已顯示既有 Email／密碼登入及建立帳號面板；不移除 Manus OAuth 程式碼。
 - [x] 正式 fallback UI 驗證：首次發布的舊入口資產不含 local mode；改為 server-driven `localAuthStatus` 後，帶版本查詢的正式桌面 `/editor` 已顯示 LocalAuthPanel，且只讀 375px 正式 smoke test 已確認 Email、password 與建立帳號入口，未建立帳號或寫入日記。
 - [ ] 使用者以自己的 Email、顯示名稱與至少 12 字元密碼建立首個本機帳號後，確認可進入工作台並依明確回覆啟用每日站內回憶檢查；該流程不得開啟 Email、推播或日記內容外送。
-- [ ] 調查並修復使用者回報的正式 `chronotime-w3ztsoiq.manus.space` `ERR_CONNECTION_ABORTED`；目前探針已確認 DNS 解析、TLS 驗證、HTTP 200 與獨立瀏覽器首頁渲染均正常，正式執行紀錄未見服務啟動錯誤。待使用者重新連線確認是否為短暫發布切換或其網路路徑中止，恢復後再重試 OAuth。
+- [x] 調查使用者回報的正式 `chronotime-w3ztsoiq.manus.space` `ERR_CONNECTION_ABORTED`：歷次探針確認 DNS、TLS、HTTP 200 與首頁渲染均正常；最新帶 `?release=6dd00382` 的正式 HTTPS 瀏覽亦完整顯示首頁，未再重現連線中止。判定為短暫發布切換或使用者網路路徑中止，未要求使用者重試登入或 OAuth。
 - [x] 定位並在開發版本修復使用者回報的正式站「整個沒畫面」故障：根因為匿名首頁的 `auth.me` 錯誤被全域自動導向 OAuth；已移除該跳轉、在未登入 HTTPS 開發首頁驗證可見性，並新增靜態回歸測試。
 - [x] 重新發布包含公開首頁未登入修正的正式版本到 `chronotime-w3ztsoiq.manus.space`。
 - [x] 在正式網域以未登入狀態驗證桌面與 375px 首頁可見性，確認不再自動跳轉 OAuth 且首頁內容可見；已定位並修復第二個根因：Recharts 的 `charts` 手動 chunk 在 React runtime 初始化前讀取 `forwardRef`，使入口 module 評估失敗且 root 空白。已移除此分包；正式桌面匿名頁已可見首頁內容、登入按鈕與搜尋控制，正式網域 375px `pnpm test:e2e:mobile-nav` 亦通過。PWA 另加入立即接管、舊快取清理與設定契約測試以降低舊入口殘留風險。
