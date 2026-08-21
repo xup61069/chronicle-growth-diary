@@ -21,15 +21,14 @@ import { registerOAuthRoutes } from "../../_core/oauth";
 
 type CallbackHandler = (req: any, res: any) => Promise<void>;
 
-function registerCallback(): CallbackHandler {
-  let callback: CallbackHandler | undefined;
+function registerCallbacks(): Map<string, CallbackHandler> {
+  const callbacks = new Map<string, CallbackHandler>();
   registerOAuthRoutes({
-    get: (_path: string, handler: CallbackHandler) => {
-      callback = handler;
+    get: (path: string, handler: CallbackHandler) => {
+      callbacks.set(path, handler);
     },
   } as any);
-  if (!callback) throw new Error("OAuth callback was not registered");
-  return callback;
+  return callbacks;
 }
 
 describe("OAuth callback", () => {
@@ -46,7 +45,8 @@ describe("OAuth callback", () => {
   });
 
   it("creates a session and opens the private editor after a successful login", async () => {
-    const callback = registerCallback();
+    const callback = registerCallbacks().get("/api/oauth/callback");
+    if (!callback) throw new Error("API OAuth callback was not registered");
     const nonce = "safe-login-nonce";
     const state = encodeOAuthState({
       redirectUri: "https://preview.example.com/api/oauth/callback",
@@ -78,6 +78,38 @@ describe("OAuth callback", () => {
       "session-token",
       expect.objectContaining({ httpOnly: true, secure: true, sameSite: "none" })
     );
+    expect(res.redirect).toHaveBeenCalledWith(302, "/editor");
+  });
+
+  it("registers the deployment runtime callback alias and preserves its state for token exchange", async () => {
+    const callbacks = registerCallbacks();
+    const callback = callbacks.get("/manus-oauth/callback");
+    if (!callback) throw new Error("Runtime OAuth callback was not registered");
+
+    const nonce = "runtime-login-nonce";
+    const state = encodeOAuthState({
+      redirectUri: "https://chronotime.example.com/manus-oauth/callback",
+      nonce,
+    });
+    const res = {
+      cookie: vi.fn(),
+      clearCookie: vi.fn(),
+      redirect: vi.fn(),
+      status: vi.fn().mockReturnThis(),
+      json: vi.fn(),
+    };
+
+    await callback(
+      {
+        query: { code: "runtime-authorization-code", state },
+        headers: { cookie: `${OAUTH_STATE_COOKIE}=${nonce}` },
+        protocol: "https",
+      },
+      res
+    );
+
+    expect(callbacks.has("/api/oauth/callback")).toBe(true);
+    expect(mocks.exchangeCodeForToken).toHaveBeenCalledWith("runtime-authorization-code", state);
     expect(res.redirect).toHaveBeenCalledWith(302, "/editor");
   });
 });

@@ -6,7 +6,7 @@
 
 | 範圍 | 狀態 | 可重現方法 |
 | --- | --- | --- |
-| 格式、型別、單元測試與正式建置 | 通過 | `pnpm lint && pnpm check && pnpm test`，再分別執行 `./node_modules/.bin/vite build` 與 `pnpm exec esbuild server/_core/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist`。目前基準為 **69 個測試檔、191 項 Vitest**。 |
+| 格式、型別、單元測試與正式建置 | 通過 | `pnpm lint && pnpm check && pnpm test`，再分別執行 `./node_modules/.bin/vite build` 與 `pnpm exec esbuild server/_core/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist`。目前基準為 **69 個測試檔、192 項 Vitest**。 |
 | 公開首頁 375px | 通過 | 設定 HTTPS `CHRONICLE_E2E_BASE_URL` 後執行 `pnpm test:e2e:mobile-nav`。覆蓋跳至主要內容、行動導覽、範例入口、時間帶鍵盤探索、事件類型篩選的 `aria-pressed`、僅公開欄位的關鍵字搜尋、自動完成的 Escape／Arrow／Enter 選取、搜尋命中 `mark`、日期與類型交集篩選、由新到舊／由舊到新排序、搜尋欄一鍵清除、網址參數同步與分享連結還原、每批三筆的載入更多、零結果插圖、近期事件建議、零結果清除、減少動態下無結果過渡與離線紀錄入口。首頁改採事件、日期、資料可見範圍與操作流程等直接產品文案，已以桌面與 375px 檢查可讀性。 |
 | 公開首頁未登入可見性 | 通過 | 移除 QueryClient 對任何 `auth.me` 401 的全域 OAuth 自動跳轉；匿名訪客現在可保留在公開首頁，登入只由使用者在公開 CTA 或私人工具台的明確按鈕觸發。`publicAuthRedirect.test.ts` 防止全域 redirect 邏輯回歸；未登入瀏覽器實際載入開發 HTTPS 首頁，確認首頁標題、導覽、搜尋與工作台 CTA 可見。 |
 | 正式首頁空白修復與 PWA 升級 | 通過 | 正式網域曾因 Recharts 被手動抽出 `charts` chunk，於 React runtime export 初始化前存取 `forwardRef` 而使入口 module 評估失敗、root 空白；已移除該分包，並保留 Recharts 在延遲載入的 GrowthDashboard 路由。`viteCodeSplitting.test.ts` 防止 charts chunk 回歸，`pwaCacheUpgrade.test.ts` 保護 `skipWaiting`、`clientsClaim` 與過期 precache 清理。正式 `chronotime-w3ztsoiq.manus.space` 已以匿名桌面瀏覽器確認首頁內容、登入按鈕與搜尋控制可見，並以 `pnpm test:e2e:mobile-nav` 對同一正式網域確認 375px 導覽、搜尋、篩選、URL 清除、零結果與鍵盤回歸通過；正式 `/sw.js` 亦實際含有 `skipWaiting`、`clientsClaim` 與 `cleanupOutdatedCaches`，且 root 已有渲染節點。 |

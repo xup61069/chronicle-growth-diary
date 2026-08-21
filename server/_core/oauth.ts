@@ -12,7 +12,7 @@ function getQueryParam(req: Request, key: string): string | undefined {
 }
 
 export function registerOAuthRoutes(app: Express) {
-  app.get("/api/oauth/callback", async (req: Request, res: Response) => {
+  const callback = async (req: Request, res: Response) => {
     const code = getQueryParam(req, "code");
     const state = getQueryParam(req, "state");
 
@@ -62,5 +62,13 @@ export function registerOAuthRoutes(app: Express) {
       console.error("[OAuth] Callback failed", error);
       res.status(500).json({ error: "OAuth callback failed" });
     }
-  });
+  };
+
+  // The public client starts OAuth with `/api/oauth/callback`. Manus's deployed
+  // runtime may normalize that callback to `/manus-oauth/callback` before it
+  // returns from its hosted sign-in page. Both paths must reach the same nonce
+  // validation and code exchange handler; an unmatched runtime path otherwise
+  // falls through to the SPA and becomes a misleading frontend 404.
+  app.get("/api/oauth/callback", callback);
+  app.get("/manus-oauth/callback", callback);
 }

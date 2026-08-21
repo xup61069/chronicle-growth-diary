@@ -95,6 +95,10 @@ git diff --check
 
 下一位 AI 不得為了清除 TODO 而偽造 OAuth 成功、繞過登入、弱化 ownership，或把 local-auth 結果宣稱為正式 OAuth 成功。外部入口恢復可用後，才依 [`docs/VALIDATION_LOG.md`](./VALIDATION_LOG.md) 的邊界重跑正式登入與 `diary.get` 實證。
 
+### 6.0.1 部署 runtime OAuth callback 相容性
+
+前端的 `startLogin()` 正確以 `window.location.origin` 建立 `/api/oauth/callback`。但已觀測到 Manus 的部署 runtime 在 hosted sign-in 完成後實際回傳 `/manus-oauth/callback`；若 Express 只掛載 API 路徑，請求會落入 SPA fallback 並顯示前端 404。`server/_core/oauth.ts` 因此必須讓 `/api/oauth/callback` 與 `/manus-oauth/callback` 共用**同一個** callback handler，兩者皆不可跳過 nonce cookie 比對、原始 `state` token exchange 或固定 `/editor` 導向。`server/__tests__/auth/oauth.callback.test.ts` 覆蓋兩條路徑。這只是 callback 路徑相容修復，仍不等同於正式使用者 session 與 `diary.get` 已驗證成功。
+
 ## 6.1 回憶每日檢查（使用者選擇 A）
 
 使用者選擇先建立**不外送**的基礎，而不是直接串接 Email 或 Web Push。`growth_diary_recall_preferences` 只保存 owner-only 的啟用狀態、瀏覽器時區 offset、Heartbeat `taskUid`、最後檢查時間、兩種符合項目的計數與狀態；不保存標題、正文、媒體、位置、語音、收件地址或任何通知內容。資料表由 `drizzle/0017_freezing_bishop.sql` 建立。
@@ -105,7 +109,7 @@ git diff --check
 
 ## 7. 建議後續優先順序
 
-1. **正式 OAuth 恢復後驗證**：只在外部登入頁能到達時，實證登入、`diary.get`、編輯器載入與 callback；更新 blocker 記錄。
+1. **正式 OAuth 恢復後驗證**：已加入 `/manus-oauth/callback` 相容別名；待使用者完成實際登入後，實證 session、`diary.get`、編輯器載入與 callback；更新 blocker 記錄。
 2. **輸出端與回訪機制**：維持目前「讓過去的記錄主動回來找你」方向，優先評估可由使用者主動觸發且不需背景資料外送的輸出能力。
 3. **私有匯入完善**：先保持照片流程私有優先；任何支援新格式、地圖或外部來源的擴張都要先寫資料邊界與測試。
 4. **協作能力**：家庭留言或即時共編屬較高風險範圍，需先完成成員角色、事件範圍、刪除與審計設計。
