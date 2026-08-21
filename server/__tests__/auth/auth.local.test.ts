@@ -75,7 +75,7 @@ describe("auth local credentials", () => {
     expect(cookie).toHaveBeenCalledWith(
       COOKIE_NAME,
       "local-session-token",
-      expect.objectContaining({ httpOnly: true, secure: true, sameSite: "none" })
+      expect.objectContaining({ httpOnly: true, secure: true, sameSite: "lax" })
     );
   });
 

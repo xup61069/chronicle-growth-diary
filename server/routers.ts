@@ -40,15 +40,18 @@ export const appRouter = router({
   system: systemRouter,
   auth: router({
     me: publicProcedure.query((opts) => opts.ctx.user),
+    localAuthStatus: publicProcedure.query(() => ({
+      enabled: ENV.authDriver === "local",
+    })),
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
-      ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
+      ctx.res.clearCookie(COOKIE_NAME, cookieOptions);
       return { success: true } as const;
     }),
     deleteAccount: protectedProcedure.input(z.object({ confirmation: z.string().trim().refine((value) => value === "刪除我的帳號", "請輸入「刪除我的帳號」以確認。") })).mutation(async ({ ctx }) => {
       const result = await deleteAccount(ctx.user.id);
       const cookieOptions = getSessionCookieOptions(ctx.req);
-      ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
+      ctx.res.clearCookie(COOKIE_NAME, cookieOptions);
       return result;
     }),
     localRegister: publicProcedure.input(localCredentialInput.extend({ name: z.string().trim().min(1, "請輸入顯示名稱。").max(100) })).mutation(async ({ ctx, input }) => {

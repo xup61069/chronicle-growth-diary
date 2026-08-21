@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/sidebar";
 import { startLogin } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
+import { trpc } from "@/lib/trpc";
 import { Archive, BarChart3, Home, LogOut, PanelLeft, RefreshCw } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -39,7 +40,6 @@ const SIDEBAR_WIDTH_KEY = "sidebar-width";
 const DEFAULT_WIDTH = 280;
 const MIN_WIDTH = 200;
 const MAX_WIDTH = 480;
-const isLocalAuthEnabled = import.meta.env.VITE_AUTH_DRIVER === "local";
 
 export default function DashboardLayout({
   children,
@@ -51,6 +51,8 @@ export default function DashboardLayout({
     return saved ? parseInt(saved, 10) : DEFAULT_WIDTH;
   });
   const { loading, user, error, refresh } = useAuth();
+  const localAuthStatusQuery = trpc.auth.localAuthStatus.useQuery(undefined, { staleTime: 60_000 });
+  const isLocalAuthEnabled = localAuthStatusQuery.data?.enabled === true;
 
   useEffect(() => {
     localStorage.setItem(SIDEBAR_WIDTH_KEY, sidebarWidth.toString());
@@ -72,7 +74,9 @@ export default function DashboardLayout({
               ? "暫時無法確認登入狀態。你可以重新檢查，或直接重新登入。"
               : "你的記憶與影像只屬於你。登入後，即可開始建立私人時間帶。"}
           </span>
-          {isLocalAuthEnabled ? (
+          {localAuthStatusQuery.isLoading ? (
+            <p className="text-sm text-muted-foreground">正在確認登入方式…</p>
+          ) : isLocalAuthEnabled ? (
             <LocalAuthPanel />
           ) : (
             <div className="flex flex-wrap justify-center gap-3">

@@ -93,11 +93,17 @@ git diff --check
 
 正式 Manus OAuth 的 `https://manus.im/app-auth` 曾於 Chronicle callback **之前**回傳 CloudFront 403。因此主開發站的正式 `diary.get` 成功載入還沒有有效證據。使用者已要求先跳過，並以隔離 local-auth 回歸持續驗證私人流程。
 
+使用者已明確要求跳過所有需要本人操作的步驟。後續 AI **不得**要求、代為或反覆提示使用者建立本機帳號、登入、OAuth 授權、填寫個人資料、確認開啟功能，或建立／啟用每日回憶排程。LocalAuthPanel 僅保留為可用入口；沒有真實使用者帳號時不得偽造登入或以測試身分建立正式資料。每日回憶檢查保持預設關閉、零 Email／推播／內容外送，直到使用者日後主動撤回這項限制。
+
 下一位 AI 不得為了清除 TODO 而偽造 OAuth 成功、繞過登入、弱化 ownership，或把 local-auth 結果宣稱為正式 OAuth 成功。外部入口恢復可用後，才依 [`docs/VALIDATION_LOG.md`](./VALIDATION_LOG.md) 的邊界重跑正式登入與 `diary.get` 實證。
 
 ### 6.0.1 部署 runtime OAuth callback 相容性
 
 前端的 `startLogin()` 必須以 `window.location.origin` 建立 `/api/oauth/callback`，並使用 Manus OAuth 的正式 `/login` 入口與 `app_id`、`redirect_url`、`state` 參數；不可傳送舊版 `/app-auth`、camelCase 參數或 `type=signIn`，否則 hosted sign-in 可能只回傳 `state` 而沒有授權 `code`。但已觀測到 Manus 的部署 runtime 在 hosted sign-in 完成後實際回傳 `/manus-oauth/callback`；若 Express 只掛載 API 路徑，請求會落入 SPA fallback 並顯示前端 404。`server/_core/oauth.ts` 因此必須讓 `/api/oauth/callback` 與 `/manus-oauth/callback` 共用**同一個** callback handler，兩者皆不可跳過 nonce cookie 比對、原始 `state` token exchange 或固定 `/editor` 導向。`client/src/__tests__/entry/const.test.ts`、`e2e/home-login-redirect.mjs` 與 `server/__tests__/auth/oauth.callback.test.ts` 覆蓋登入參數、授權 code 與兩條 callback 路徑。這些修復仍不等同於正式使用者 session 與 `diary.get` 已驗證成功。
+
+### 6.0.2 Session 與 OAuth state cookie 邊界
+
+`app_session_id` 由 `server/_core/cookies.ts` 統一設定為 `HttpOnly`、HTTPS 時 `Secure`、`Path=/` 與 `SameSite=Lax`。本機帳密登入、OAuth callback、登出與刪除帳號都必須使用同一份 options；不得為方便跨站請求把 session 降回 `SameSite=None`。OAuth 所需的跨站流程僅由前端短效、host-only 的 `__Host-oauth_state` nonce cookie 使用 `SameSite=None; Secure`，並在 callback 比對後清除。回歸位置為 `server/__tests__/auth/auth.local.test.ts`、`oauth.callback.test.ts`、`auth.logout.test.ts` 與 `server/routers/localAuthDriver.test.ts`；更改其中任一 cookie 策略時必須同步驗證 callback nonce 與 session 屬性。
 
 ## 6.1 回憶每日檢查（使用者選擇 A）
 

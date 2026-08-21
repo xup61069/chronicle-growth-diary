@@ -42,7 +42,10 @@ export function getSessionCookieOptions(
   return {
     httpOnly: true,
     path: "/",
-    sameSite: "none",
+    // Session cookies only serve same-site tRPC calls after the OAuth callback.
+    // The cross-site OAuth nonce remains a separate, short-lived cookie, so Lax
+    // reduces CSRF exposure without changing the callback's state binding.
+    sameSite: "lax",
     secure: isSecureRequest(req),
   };
 }

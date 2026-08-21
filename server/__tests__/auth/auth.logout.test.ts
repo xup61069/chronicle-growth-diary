@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { appRouter } from "../../routers";
 import { COOKIE_NAME } from "../../../shared/const";
 import type { TrpcContext } from "../../_core/context";
@@ -52,11 +54,19 @@ describe("auth.logout", () => {
     expect(clearedCookies).toHaveLength(1);
     expect(clearedCookies[0]?.name).toBe(COOKIE_NAME);
     expect(clearedCookies[0]?.options).toMatchObject({
-      maxAge: -1,
       secure: true,
-      sameSite: "none",
+      sameSite: "lax",
       httpOnly: true,
       path: "/",
     });
+    expect(clearedCookies[0]?.options).not.toHaveProperty("maxAge");
+    expect(clearedCookies[0]?.options).not.toHaveProperty("expires");
+  });
+
+  it("uses Express's native expiry for logout and account deletion", () => {
+    const routerSource = readFileSync(resolve(process.cwd(), "server/routers.ts"), "utf8");
+
+    expect(routerSource).toContain("ctx.res.clearCookie(COOKIE_NAME, cookieOptions)");
+    expect(routerSource).not.toContain("clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge");
   });
 });

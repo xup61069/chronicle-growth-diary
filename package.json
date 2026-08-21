@@ -5,7 +5,7 @@
   "license": "MIT",
   "scripts": {
     "dev": "NODE_ENV=development tsx watch server/_core/index.ts",
-    "build": "vite build && esbuild server/_core/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
+    "build": "vite build && pnpm verify:lazy-routes && esbuild server/_core/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
     "start": "NODE_ENV=production node dist/index.js",
     "check": "tsc --noEmit",
     "lint": "prettier --check package.json .github/workflows/ci.yml",
@@ -15,8 +15,10 @@
     "test:e2e:document-export": "node e2e/document-export-browser-download.mjs",
     "test:e2e:editor-document-export": "node e2e/editor-document-export-click.mjs",
     "test:e2e:login": "node e2e/home-login-redirect.mjs",
+    "test:e2e:local-auth-panel": "node e2e/local-auth-panel-smoke.mjs",
     "test:e2e:mobile-nav": "node e2e/mobile-navigation-accessibility.mjs",
     "test:e2e:shared-story-voice-isolation": "node e2e/shared-story-voice-isolation.mjs",
+    "verify:lazy-routes": "node scripts/verify-lazy-route-chunks.mjs",
     "db:push": "drizzle-kit generate && drizzle-kit migrate"
   },
   "dependencies": {

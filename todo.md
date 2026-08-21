@@ -4,6 +4,18 @@
 
 ## Active
 
+- [ ] 使用者已要求跳過所有手動操作；不得代為建立本機帳號、登入、OAuth 授權、填寫個人資料或建立／啟用每日回憶排程。本機登入只保留入口，回憶檢查維持預設關閉且不外送內容。
+- [x] 將全域 JSON／urlencoded request body 限制由 50MB 收斂為一般端點 2MB，媒體 base64 tRPC 僅在 `/api/trpc` 使用 25MB 專用上限；超限一般請求固定回傳 413 `request-body-too-large`。已以實際 Express 3MB request 回歸確認一般端點拒絕、tRPC 路徑通過，並完成全量品質驗證。
+- [x] 新增 production build lazy-route chunk 健康檢查，驗證六個核心延後載入頁面在建置產物中存在並由入口參照，且公開首頁不會重引入曾導致初始化順序故障的 Recharts `charts` 手動共享 chunk；已接入 `pnpm build` 與 CI。
+- [x] 盤點並收斂 Drizzle migration 目錄：確認 `drizzle.config.ts` 只輸出至根 `drizzle/`，移除空的舊 `drizzle/migrations/.gitkeep`，文件化 SQL／meta 唯一來源並補足 migration layout 契約測試避免 schema 漂移。
+- [x] 漸進拆分過大的 `DiaryEditor.tsx`：已抽出不改資料寫入邊界的每日回憶、回憶檢查、未來信件與月度摘要展示區塊至 `PrivateMemoryStudios`；通過 server-render、隱私契約、lint、型別、全量 Vitest、build 與既有隔離 local-auth 桌面／375px 工作台回歸，確認 owner-only 可見性、鎖定遮罩與列印入口均維持可用，測試資料已清理。
+- [x] 移除 Express `res.clearCookie` 已廢棄的 `maxAge`／`expires` 清除選項；登出與帳號刪除改由 Express 原生過期機制處理，保留 Path、HttpOnly、Secure、SameSite=Lax 契約，並補足兩條清除路徑的回歸。
+
+- [x] 驗證本機與 Manus session cookie 的 SameSite、Secure、HttpOnly 與 Path 契約；session 改為 `SameSite=Lax`，OAuth state nonce 維持獨立的 cross-site cookie，並補足 local register、OAuth callback、logout 的安全回歸。安全修正版正式 `/editor?release=13defe98` 亦已確認仍顯示本機帳密面板。
+- [x] 更新安全與 AI 交接文件，記錄 session cookie 的 `SameSite=Lax` 邊界、獨立 OAuth state nonce 的 `SameSite=None` 理由，以及對應回歸測試位置。
+- [x] 將每日回憶排程 callback 的未預期 500 回應改為固定、安全的 `recall-check-failed` 錯誤碼與 server-side context log，不向平台回傳資料庫或內部錯誤原文，並補足 cron-only／失敗路徑測試。
+- [x] 移除未設定 analytics endpoint 時由 `client/index.html` 產生的無效 Umami script request；僅於 endpoint 與 website ID 都存在時動態載入，並通過 source／正式 HTML 產物契約驗證。
+
 - [x] 統一測試放置與文件規則，確認並補強 CI 的 lint、型別、測試、建置與公開／隔離 E2E 範圍；整理 ideas、template 與 pnpm patches 的治理說明，執行工作樹秘密模式掃描、供應鏈盤點與 GitHub 分支保護設定。完整 Git 差異歷史掃描曾超時，且帳號無 secret alert API 讀取權；此限制已記錄於 AI handoff，持續依賴 GitHub secret scanning／push protection 與每次交接的受控掃描。
 - [x] 建立使用者可控且預設關閉的「那年今日」與未來信件提醒偏好／遞送基礎，通知不含日記內文；未設定可用郵件或推播提供者時必須優雅停用，並補足 owner、private、到期與失敗路徑測試。（使用者選擇 A：此階段只建立站內的最小檢查狀態，不寄送 Email 或推播。）
 - [x] 依使用者選擇 A，實作不依賴外部寄信或推播服務的 owner-only 回憶偏好與每日檢查：預設關閉、可停用、只保存最小檢查狀態、不建立外送內容，並預留日後安全接上遞送提供者的邊界。
@@ -13,6 +25,12 @@
 - [ ] 使用者重新嘗試後仍只收到 state-only `/api/oauth/callback`，代表其登入路徑未使用新版 `responseType=code` 或 hosted sign-in 未支援該參數；正常正式頁面曾載入舊 `index-fzdnzrFG.js`，但帶 `?release=f32c3362` 的導覽已取得 `index-CnwkAW3T.js`，其中含 `responseType` 且不含 `signIn`。需用新版入口完成實際登入驗證，必要時再建立 state-only callback 相容流程。
 - [ ] 使用者已以新版入口重試，仍只得到 state-only callback；停止將問題歸因於 PWA 快取，改為盤點 hosted sign-in 實際回呼契約、可驗證的 server-side exchange 與不降低 nonce／owner 資料邊界的相容方案。
 - [ ] 依正式 Manus OAuth 規範將登入入口改為 `/login`，使用 `app_id`、`redirect_url` 與 `state`，保留 host-only nonce cookie、原始 state token exchange 和固定工作台導向；新增契約回歸並以正式登入驗證 code、session 與 `/editor`。
+- [ ] 使用者目前被導至 `https://manus.im/app?app_id=…&from=google&redirect_url=…&state=…`，但未回到 Chronicle callback；盤點外部 Manus app 授權頁所需動作／限制，並選擇不繞過 OAuth、保留 owner 資料邊界的可行登入方案。
+- [ ] 已確認 `manus.im/app` 會自動導至 Manus 的 `/login?redirectUrl=…`，並顯示 Google、Email、passkey 等登入選項；需使用者完成其 Manus 帳號登入後才會繼續回到 Chronicle callback，再驗證 code、session 與 `/editor`。
+- [ ] 使用者在外部 Google／文件授權階段收到 403「沒有存取這個文件的權限」，拒絕尚未到達 Chronicle callback；保留 OAuth nonce 與 owner 邊界，盤點外部限制並設計使用者可控的安全替代登入方案。
+- [x] 依使用者選擇 A 啟用既有本機帳密登入 fallback：設定正式 `AUTH_DRIVER=local` 與 `VITE_AUTH_DRIVER=local`；local registration tRPC regression 已確認 scrypt 雜湊與安全 session cookie，未登入 HTTPS 開發版 `/editor` 已顯示既有 Email／密碼登入及建立帳號面板；不移除 Manus OAuth 程式碼。
+- [x] 正式 fallback UI 驗證：首次發布的舊入口資產不含 local mode；改為 server-driven `localAuthStatus` 後，帶版本查詢的正式桌面 `/editor` 已顯示 LocalAuthPanel，且只讀 375px 正式 smoke test 已確認 Email、password 與建立帳號入口，未建立帳號或寫入日記。
+- [ ] 使用者以自己的 Email、顯示名稱與至少 12 字元密碼建立首個本機帳號後，確認可進入工作台並依明確回覆啟用每日站內回憶檢查；該流程不得開啟 Email、推播或日記內容外送。
 - [ ] 調查並修復使用者回報的正式 `chronotime-w3ztsoiq.manus.space` `ERR_CONNECTION_ABORTED`；目前探針已確認 DNS 解析、TLS 驗證、HTTP 200 與獨立瀏覽器首頁渲染均正常，正式執行紀錄未見服務啟動錯誤。待使用者重新連線確認是否為短暫發布切換或其網路路徑中止，恢復後再重試 OAuth。
 - [x] 定位並在開發版本修復使用者回報的正式站「整個沒畫面」故障：根因為匿名首頁的 `auth.me` 錯誤被全域自動導向 OAuth；已移除該跳轉、在未登入 HTTPS 開發首頁驗證可見性，並新增靜態回歸測試。
 - [x] 重新發布包含公開首頁未登入修正的正式版本到 `chronotime-w3ztsoiq.manus.space`。
