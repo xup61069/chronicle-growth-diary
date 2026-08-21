@@ -5,6 +5,23 @@ export type DeidentifiedPhoto = {
   faceCount: number;
 };
 
+export type BlurMaskRegion = FaceRegion & { id: string; source: "detected" | "manual" };
+
+export function clampBlurMask(region: FaceRegion, imageWidth: number, imageHeight: number): FaceRegion | null {
+  if (![region.xMin, region.yMin, region.width, region.height].every(Number.isFinite) || region.width <= 0 || region.height <= 0) return null;
+  const xMin = Math.min(Math.max(0, region.xMin), imageWidth);
+  const yMin = Math.min(Math.max(0, region.yMin), imageHeight);
+  const xMax = Math.min(imageWidth, xMin + region.width);
+  const yMax = Math.min(imageHeight, yMin + region.height);
+  return xMax > xMin && yMax > yMin ? { xMin, yMin, width: xMax - xMin, height: yMax - yMin } : null;
+}
+
+export function createManualBlurMask(imageWidth: number, imageHeight: number, id = crypto.randomUUID()): BlurMaskRegion {
+  const width = Math.max(1, Math.round(imageWidth * 0.22));
+  const height = Math.max(1, Math.round(imageHeight * 0.22));
+  return { id, source: "manual", xMin: Math.round((imageWidth - width) / 2), yMin: Math.round((imageHeight - height) / 2), width, height };
+}
+
 export function padFaceRegions(regions: FaceRegion[], imageWidth: number, imageHeight: number, paddingRatio = 0.28): FaceRegion[] {
   return regions
     .filter((region) => Number.isFinite(region.xMin) && Number.isFinite(region.yMin) && region.width > 0 && region.height > 0)
@@ -29,12 +46,17 @@ function loadImage(blob: Blob) {
   });
 }
 
+export async function getPhotoDimensions(source: Blob) {
+  const image = await loadImage(source);
+  return { width: image.naturalWidth, height: image.naturalHeight };
+}
+
 function canvasToJpeg(canvas: HTMLCanvasElement) {
   return new Promise<Blob>((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("無法建立去識別化圖片。")), "image/jpeg", 0.9));
 }
 
 /** Draws source pixels and blurs padded face rectangles in an in-memory browser canvas. */
-export async function blurPhotoRegions(source: Blob, regions: FaceRegion[], outputName: string): Promise<DeidentifiedPhoto> {
+export async function blurPhotoMasks(source: Blob, regions: FaceRegion[], outputName: string, blurStrength = 1): Promise<DeidentifiedPhoto> {
   const image = await loadImage(source);
   const canvas = document.createElement("canvas");
   canvas.width = image.naturalWidth;
@@ -42,8 +64,8 @@ export async function blurPhotoRegions(source: Blob, regions: FaceRegion[], outp
   const context = canvas.getContext("2d");
   if (!context) throw new Error("目前瀏覽器無法建立本機影像畫布。" );
   context.drawImage(image, 0, 0);
-  const padded = padFaceRegions(regions, canvas.width, canvas.height);
-  for (const region of padded) {
+  const masks = regions.map((region) => clampBlurMask(region, canvas.width, canvas.height)).filter((region): region is FaceRegion => Boolean(region));
+  for (const region of masks) {
     const blurPadding = Math.ceil(Math.max(region.width, region.height) * 0.15);
     const sourceX = Math.max(0, Math.floor(region.xMin - blurPadding));
     const sourceY = Math.max(0, Math.floor(region.yMin - blurPadding));
@@ -56,12 +78,18 @@ export async function blurPhotoRegions(source: Blob, regions: FaceRegion[], outp
     if (!patchContext) continue;
     patchContext.drawImage(canvas, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, sourceWidth, sourceHeight);
     context.save();
-    context.filter = `blur(${Math.max(12, Math.round(Math.max(region.width, region.height) * 0.28))}px)`;
+    context.filter = `blur(${Math.max(8, Math.round(Math.max(region.width, region.height) * 0.28 * Math.min(Math.max(blurStrength, 0.5), 2)))}px)`;
     context.drawImage(patch, sourceX, sourceY, sourceWidth, sourceHeight);
     context.restore();
   }
   const jpeg = await canvasToJpeg(canvas);
-  return { file: new File([jpeg], outputName.replace(/\.[^.]+$/, "") + "-blurred.jpg", { type: "image/jpeg" }), faceCount: padded.length };
+  return { file: new File([jpeg], outputName.replace(/\.[^.]+$/, "") + "-blurred.jpg", { type: "image/jpeg" }), faceCount: masks.length };
+}
+
+/** Draws source pixels and blurs detector regions after locally adding a protective padding. */
+export async function blurPhotoRegions(source: Blob, regions: FaceRegion[], outputName: string): Promise<DeidentifiedPhoto> {
+  const { width, height } = await getPhotoDimensions(source);
+  return blurPhotoMasks(source, padFaceRegions(regions, width, height), outputName);
 }
 
 /** Runs a TensorFlow.js detector in the browser. Photo bytes and detected regions never leave the device. */

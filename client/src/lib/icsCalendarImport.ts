@@ -2,6 +2,10 @@ import ICAL from "ical.js";
 
 export const MAX_ICS_IMPORT_BYTES = 2 * 1024 * 1024;
 export const MAX_ICS_IMPORT_EVENTS = 250;
+export const MAX_ICS_RECURRING_OCCURRENCES = 12;
+export const MAX_ICS_CONFIRMED_OCCURRENCES = 250;
+
+export type IcsRecurrenceHandling = "base" | "next_4" | "next_12";
 
 export type IcsImportCandidate = {
   id: string;
@@ -12,6 +16,9 @@ export type IcsImportCandidate = {
   datePrecision: "day";
   allDay: boolean;
   isRecurring: boolean;
+  recurrenceRule: string | null;
+  recurrenceOccurrences: number[];
+  recurrenceHandling: IcsRecurrenceHandling;
   selected: boolean;
 };
 
@@ -27,6 +34,31 @@ function compactText(value: unknown, maxLength: number) {
 
 function localDateStart(value: { year: number; month: number; day: number }) {
   return new Date(value.year, value.month - 1, value.day).getTime();
+}
+
+function occurrenceTimestamp(value: ICAL.Time) {
+  return value.isDate ? localDateStart(value) : value.toJSDate().getTime();
+}
+
+function getRecurringOccurrenceTimestamps(component: ICAL.Component, fallback: number) {
+  try {
+    const iterator = new ICAL.Event(component).iterator();
+    const occurrences: number[] = [];
+    for (let index = 0; index < MAX_ICS_RECURRING_OCCURRENCES; index += 1) {
+      const next = iterator.next();
+      if (!next) break;
+      const timestamp = occurrenceTimestamp(next);
+      if (Number.isFinite(timestamp) && !occurrences.includes(timestamp)) occurrences.push(timestamp);
+    }
+    return occurrences.length ? occurrences : [fallback];
+  } catch {
+    return [fallback];
+  }
+}
+
+function requestedOccurrenceCount(candidate: IcsImportCandidate) {
+  if (!candidate.isRecurring || candidate.recurrenceHandling === "base") return 1;
+  return candidate.recurrenceHandling === "next_4" ? 4 : MAX_ICS_RECURRING_OCCURRENCES;
 }
 
 /** Parses a selected ICS file in-browser. It never dereferences URLs or imports alarm/attendee data. */
@@ -64,7 +96,9 @@ export function parseIcsCalendar(raw: string): IcsImportPreview {
       continue;
     }
     const recurring = component.hasProperty("rrule") || component.hasProperty("rdate");
-    if (recurring) warnings.push("偵測到重複事件；目前只保留其起始事件，不展開後續週期。");
+    const recurrenceRule = recurring ? compactText(component.getFirstPropertyValue("rrule")?.toString() ?? component.getFirstPropertyValue("rdate")?.toString(), 240) || null : null;
+    const recurrenceOccurrences = recurring ? getRecurringOccurrenceTimestamps(component, occurredAt) : [occurredAt];
+    if (recurring) warnings.push("偵測到重複事件；預設只匯入起始事件。你可在下方選擇有限次數的本機展開，確認前不會建立任何事件。");
     candidates.push({
       id: `${uid}-${index}`,
       sourceUid: uid,
@@ -74,6 +108,9 @@ export function parseIcsCalendar(raw: string): IcsImportPreview {
       datePrecision: "day",
       allDay,
       isRecurring: recurring,
+      recurrenceRule,
+      recurrenceOccurrences,
+      recurrenceHandling: "base",
       selected: true,
     });
   }
@@ -81,10 +118,27 @@ export function parseIcsCalendar(raw: string): IcsImportPreview {
   return { candidates, skipped, warnings: Array.from(new Set(warnings)) };
 }
 
-export function updateIcsImportCandidate(preview: IcsImportPreview, candidateId: string, updates: Partial<Pick<IcsImportCandidate, "title" | "body" | "occurredAt" | "selected">>): IcsImportPreview {
+export function updateIcsImportCandidate(preview: IcsImportPreview, candidateId: string, updates: Partial<Pick<IcsImportCandidate, "title" | "body" | "occurredAt" | "selected" | "recurrenceHandling">>): IcsImportPreview {
   return { ...preview, candidates: preview.candidates.map((candidate) => candidate.id === candidateId ? { ...candidate, ...updates } : candidate) };
 }
 
 export function selectedIcsImportCandidates(preview: IcsImportPreview) {
   return preview.candidates.filter((candidate) => candidate.selected);
+}
+
+export function getIcsOccurrenceImportPlan(preview: IcsImportPreview) {
+  const candidates = selectedIcsImportCandidates(preview);
+  const requested = candidates.flatMap((candidate) => {
+    const count = Math.min(requestedOccurrenceCount(candidate), candidate.recurrenceOccurrences.length);
+    return candidate.recurrenceOccurrences.slice(0, count).map((occurredAt, occurrenceIndex) => ({
+      ...candidate,
+      id: `${candidate.id}-occurrence-${occurrenceIndex + 1}`,
+      occurredAt,
+      recurrenceHandling: "base" as const,
+    }));
+  });
+  return {
+    candidates: requested.slice(0, MAX_ICS_CONFIRMED_OCCURRENCES),
+    omittedCount: Math.max(0, requested.length - MAX_ICS_CONFIRMED_OCCURRENCES),
+  };
 }
