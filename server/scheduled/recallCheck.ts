@@ -14,10 +14,10 @@ export async function handleRecallCheck(req: Request, res: Response) {
     const result = await runDiaryRecallCheckByTaskUid(user.taskUid);
     if (!result) return res.json({ ok: true, skipped: "orphan_or_disabled", delivery: "none" });
     return res.json({ ok: true, status: result.status, delivery: "none" });
-  } catch (error) {
+  } catch {
     console.error("[Recall check] callback failed", {
-      path: "/api/scheduled/recall-check",
-      error: error instanceof Error ? error.message : String(error),
+      operation: "scheduled_recall_check",
+      code: "recall-check-failed",
     });
     return res.status(500).json({ error: "recall-check-failed" });
   }

@@ -112,4 +112,46 @@ describe("OAuth callback", () => {
     expect(mocks.exchangeCodeForToken).toHaveBeenCalledWith("runtime-authorization-code", state);
     expect(res.redirect).toHaveBeenCalledWith(302, "/editor");
   });
+
+  it("redacts token exchange failures from the callback log and response", async () => {
+    const callback = registerCallbacks().get("/api/oauth/callback");
+    if (!callback) throw new Error("API OAuth callback was not registered");
+    const nonce = "failed-login-nonce";
+    const state = encodeOAuthState({
+      redirectUri: "https://preview.example.com/api/oauth/callback",
+      nonce,
+    });
+    const privateFailure = "token exchange failed: authorization-code=private-code";
+    mocks.exchangeCodeForToken.mockRejectedValueOnce(new Error(privateFailure));
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const res = {
+      cookie: vi.fn(),
+      clearCookie: vi.fn(),
+      redirect: vi.fn(),
+      status: vi.fn().mockReturnThis(),
+      json: vi.fn(),
+    };
+
+    try {
+      await callback(
+        {
+          query: { code: "private-code", state },
+          headers: { cookie: `${OAUTH_STATE_COOKIE}=${nonce}` },
+          protocol: "https",
+        },
+        res
+      );
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({ error: "OAuth callback failed" });
+      expect(JSON.stringify(res.json.mock.calls)).not.toContain(privateFailure);
+      expect(errorSpy).toHaveBeenCalledWith("[OAuth] Callback failed", {
+        operation: "oauth_callback",
+        code: "oauth-callback-failed",
+      });
+      expect(JSON.stringify(errorSpy.mock.calls)).not.toContain(privateFailure);
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
 });
