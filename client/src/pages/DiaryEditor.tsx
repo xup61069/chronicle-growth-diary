@@ -7,6 +7,8 @@ import { DiaryEditorHeader } from "@/components/DiaryEditorHeader";
 import { DiaryLoadState } from "@/components/DiaryLoadState";
 import { FutureLettersStudio, MonthlyDigestStudio, OnThisDayStudio, RecallCheckStudio } from "@/components/PrivateMemoryStudios";
 import { PrivateBackfillAssistant } from "@/components/PrivateBackfillAssistant";
+import { PrivateIcsCalendarImport } from "@/components/PrivateIcsCalendarImport";
+import { PrivateSharePhotoDeidentification } from "@/components/PrivateSharePhotoDeidentification";
 import { PrivateVoiceDiary } from "@/components/PrivateVoiceDiary";
 import { annualReviewTemplates, buildAnnualReview, createAnnualReviewFrontmatter, type AnnualReviewTemplate } from "@/lib/annualReview";
 import { consumeTagInputEnter, diaryColors, eventTypes, formatDate, formatInputDate, makeEmptyForm, parseCoordinateE6, readImage, toTimestamp, type DatePrecision, type EventForm, type EventType, type PendingImage } from "@/lib/diaryEditor";
@@ -14,13 +16,14 @@ import { filterDiaryEvents, type DiarySortOrder } from "@/lib/diaryFilters";
 import { getDiaryLoadStatus } from "@/lib/diaryLoadState";
 import { exportDiaryAsLongImage, exportDiaryAsPdf } from "@/lib/diaryExport";
 import { createMediaArchive, downloadMediaArchive, readMediaArchive, type ImportedMediaArchive } from "@/lib/diaryMediaArchive";
-import { applyPhotoCapturedAt, hasValidPhotoLocation, preparePhotoExifImport, staticMapPointToCoordinate, updatePhotoCapturedAt, updatePhotoLocation, type PhotoExifImportCandidate, type PhotoExifImportPreview } from "@/lib/photoExifImport";
+import { applyPhotoCapturedAt, hasValidPhotoLocation, preparePhotoExifImport, preparePhotoFileForUpload, staticMapPointToCoordinate, updatePhotoCapturedAt, updatePhotoLocation, type PhotoExifImportCandidate, type PhotoExifImportPreview } from "@/lib/photoExifImport";
 import { createPortableDiaryExport, downloadPortableDiary } from "@/lib/diaryPortable";
 import { parseChronicleImport, type ChronicleImportPreview } from "@/lib/diaryImport";
 import { appendWritingGuide, getLocalWritingGuides } from "@/lib/writingGuide";
 import { getComparisonPair } from "@/lib/beforeAfter";
 import { formatCapsuleCountdown, getLifeProgress, getTimeCapsuleStatus } from "@/lib/lifeProgress";
 import { getVisualExportRecord } from "@/lib/visualExport";
+import { getPrimaryStaticImage } from "@/lib/mediaPresentation";
 import { createChronicleFrontmatter, downloadChronicleFrontmatter, parseChronicleFrontmatter } from "@/lib/diaryFrontmatter";
 import { openPrintBook } from "@/lib/printBook";
 import { downloadMilestoneCard } from "@/lib/socialMilestoneCard";
@@ -221,6 +224,7 @@ function DiaryEditorContent() {
   const saveMutation = trpc.diary.createEvent.useMutation();
   const updateMutation = trpc.diary.updateEvent.useMutation();
   const uploadMutation = trpc.diary.uploadImage.useMutation();
+  const uploadLivePhotoMotionMutation = trpc.diary.uploadLivePhotoMotion.useMutation();
   const photoMapPreviewMutation = trpc.photoMap.preview.useMutation();
   const deleteMutation = trpc.diary.deleteEvent.useMutation();
   const deleteImageMutation = trpc.diary.deleteImage.useMutation();
@@ -1077,7 +1081,7 @@ function DiaryEditorContent() {
       setPhotoExifBatchIncrementSeconds("0");
       setPhotoExifMapPreview(null);
       if (!preview.photos.length) {
-        toast.error("沒有可用的 JPEG 照片；略過原因已保留在下方預覽。 ");
+        toast.error("沒有可用的 JPEG、HEIC 或 HEIF 照片；略過原因已保留在下方預覽。 ");
       } else if (!preview.groups.length) {
         toast.error("這批照片需要先手動填入拍攝日期與時間，才會建立事件。 ");
       }
@@ -1159,7 +1163,8 @@ function DiaryEditorContent() {
     }
     if (!photoExifPreview.groups.length) return;
     setIsPhotoExifImporting(true);
-    const total = photoExifPreview.groups.reduce((count, group) => count + group.files.length, 0);
+    const importPhotos = photoExifPreview.photos.filter((photo) => photoExifPreview.groups.some((group) => group.photoIds.includes(photo.id)));
+    const total = importPhotos.reduce((count, photo) => count + 1 + (photo.livePhotoCompanion ? 1 : 0), 0);
     setPhotoExifUploadProgress({ total, uploaded: 0, currentFileName: null });
     try {
       let createdCount = 0;
@@ -1172,11 +1177,19 @@ function DiaryEditorContent() {
           mapLatitudeE6: group.mapLatitudeE6, mapLongitudeE6: group.mapLongitudeE6, locationPrivacy: group.mapLatitudeE6 !== null && group.mapLongitudeE6 !== null ? "precise" : "none", soundtrackTitle: null, soundtrackUrl: null,
           shareScope: "private", ...(requestedDiaryId ? { diaryId: requestedDiaryId } : {}),
         });
-        for (const file of group.files) {
-          setPhotoExifUploadProgress((progress) => progress ? { ...progress, currentFileName: file.name } : progress);
-          const image = await readImage(file);
+        const groupPhotos = photoExifPreview.photos.filter((photo) => group.photoIds.includes(photo.id));
+        for (const photo of groupPhotos) {
+          setPhotoExifUploadProgress((progress) => progress ? { ...progress, currentFileName: photo.file.name } : progress);
+          const uploadFile = await preparePhotoFileForUpload(photo.file);
+          const image = await readImage(uploadFile);
           await uploadMutation.mutateAsync({ eventId: saved.id, fileName: image.name, mimeType: image.type, base64: image.base64 });
           setPhotoExifUploadProgress((progress) => progress ? { ...progress, uploaded: progress.uploaded + 1 } : progress);
+          if (photo.livePhotoCompanion) {
+            setPhotoExifUploadProgress((progress) => progress ? { ...progress, currentFileName: photo.livePhotoCompanion!.name } : progress);
+            const motion = await readImage(photo.livePhotoCompanion);
+            await uploadLivePhotoMotionMutation.mutateAsync({ eventId: saved.id, fileName: motion.name, mimeType: "video/quicktime", base64: motion.base64 });
+            setPhotoExifUploadProgress((progress) => progress ? { ...progress, uploaded: progress.uploaded + 1 } : progress);
+          }
         }
         createdCount += 1;
       }
@@ -1230,7 +1243,7 @@ function DiaryEditorContent() {
   return (
     <div className="diary-editor">
       <DiaryEditorHeader title={data?.diary.title ?? "我的成長史"} eventCountLabel={eventCountLabel} mediaCount={hasMedia} />
-      <input ref={photoExifInputRef} type="file" accept="image/jpeg" multiple onChange={handlePhotoExifFiles} hidden />
+      <input ref={photoExifInputRef} type="file" accept="image/jpeg,image/heic,image/heif,video/quicktime,.jpg,.jpeg,.heic,.heif,.mov" multiple onChange={handlePhotoExifFiles} hidden />
       {!isOwner ? <section className="family-access-notice" aria-label="家庭共寫權限"><ShieldCheck size={17} /><div><b>{accessRole === "editor" ? "共同編輯權限" : "註解權限"}</b><p>{accessRole === "editor" ? "你可新增、編輯、排序事件與圖片，也可與家人以註解交流；分享、AI、階段設定與成員管理仍只由日記擁有者控制。" : "你可閱讀事件並新增註解；日記內容、圖片、排序、分享與帳號設定均維持由日記擁有者管理。"}</p></div></section> : null}
 
       {isOwner ? <section className="diary-profile-studio" aria-labelledby="diary-profile-title"><div><p className="editor-kicker"><span /> PERSONAL ARCHIVE / OWNER ONLY</p><h2 id="diary-profile-title">為這本成長史留下側寫</h2><p>以標題和短句定義這段人生的閱讀方式。側寫預設只留在私人日記中；此處不蒐集聯絡方式、完整出生日期或其他敏感個資。</p></div><form className="diary-profile-form" onSubmit={saveDiaryProfile}><label>成長史標題<input value={profileTitle} onChange={(event) => setProfileTitle(event.target.value)} maxLength={160} required /></label><label>副標題（選填）<textarea value={profileSubtitle} onChange={(event) => setProfileSubtitle(event.target.value)} maxLength={240} placeholder="例如：把重要轉折、學習與日常心緒慢慢編成一條時間帶。" /></label><footer><span>{profileSubtitle.length}/240 · 僅日記擁有者可修改</span><button type="submit" disabled={profileMutation.isPending}>{profileMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} 保存側寫</button></footer></form></section> : null}
@@ -1286,7 +1299,7 @@ function DiaryEditorContent() {
         <div className="import-actions"><button type="button" onClick={() => setImportPreview(null)} disabled={importMutation.isPending}>取消</button><button type="button" onClick={confirmImport} disabled={importMutation.isPending}>{importMutation.isPending ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />} 確認建立 {importPreview.events.length} 段事件</button></div>
       </section> : null}
       {isOwner ? <PrivateBackfillAssistant snapshot={backfillAssistantSnapshot} onChoosePhotos={selectPhotoExifFiles} /> : null}
-      {isOwner ? <section className="import-studio" aria-labelledby="photo-exif-entry-title"><div><p className="editor-kicker"><span /> PHOTO DATE + GPS / PRIVATE</p><h2 id="photo-exif-entry-title">從照片資料開始整理</h2><p>選取 JPEG 後，拍攝日期與內嵌 GPS 只在目前瀏覽器讀取並分組預覽；確認前不會上傳任何照片或建立事件。</p></div><div className="import-warning"><LockKeyhole size={15} /> 每次最多 24 張、每張 4MB。你可在確認前校正日期時間與座標；位置只會隨 private 事件保存。</div><div className="import-actions"><button type="button" onClick={selectPhotoExifFiles}><ImagePlus size={15} /> 選擇 JPEG 照片</button></div></section> : null}
+      {isOwner ? <section className="import-studio" aria-labelledby="photo-exif-entry-title"><div><p className="editor-kicker"><span /> IPHONE PHOTO + GPS / PRIVATE</p><h2 id="photo-exif-entry-title">從 iPhone 照片資料開始整理</h2><p>選取 JPEG、HEIC 或 HEIF 後，拍攝日期與內嵌 GPS 只在目前瀏覽器讀取並分組預覽。HEIC 只會在你確認匯入時於本機轉成 JPEG；同名 MOV 會標示為可審核的 Live Photo 動態片段。</p></div><div className="import-warning"><LockKeyhole size={15} /> 每次最多 24 張靜態照片、每張 4MB。確認前不會上傳、轉檔或建立事件；位置只會隨 private 事件保存。</div><div className="import-actions"><button type="button" onClick={selectPhotoExifFiles}><ImagePlus size={15} /> 選擇 iPhone 照片</button></div></section> : null}
       {photoExifPreview ? <section className="import-studio" aria-labelledby="photo-exif-import-title">
         <div><p className="editor-kicker"><span /> PHOTO DATA / LOCAL REVIEW</p><h2 id="photo-exif-import-title">確認照片的時間與位置</h2><p>拍攝日期與 GPS 只在這個瀏覽器讀取。你可在確認前逐張微調日期、時間與座標；沒有 EXIF 的 JPEG 也可手動補填。地圖只在你按下更新時依目前座標載入；確認前不會上傳任何照片或建立事件。</p></div>
         <div className="photo-exif-batch-controls">
@@ -1296,19 +1309,33 @@ function DiaryEditorContent() {
           <button type="button" disabled={isPhotoExifImporting || !selectedPhotoExifIds.length || !photoExifBatchCapturedAt} onClick={() => setPhotoExifPreview((current) => current ? applyPhotoCapturedAt(current, selectedPhotoExifIds, photoExifBatchCapturedAt, Number(photoExifBatchIncrementSeconds)) : current)}>套用至 {selectedPhotoExifIds.length} 張</button>
         </div>
         <div className="photo-exif-adjustments" aria-label="照片拍攝日期與位置">
-          <p>日期相同的照片會整理為同一段記錄。若填入完整緯經度，系統只會以 private precise 位置隨該段事件保存。</p>
+          <p>日期相同的照片會整理為同一段記錄。HEIC 會在確認後於本機轉成 JPEG；同名 MOV 僅作為 Live Photo companion 上傳至同一 private 事件。若填入完整緯經度，系統只會以 private precise 位置隨該段事件保存。</p>
           {photoExifPreview.photos.map((photo) => <article key={photo.id}>
-            <header><span><b>{photo.file.name}</b><small>{photo.source === "exif" ? "拍攝時間已從照片讀取，可自行微調" : "尚未讀到 EXIF 時間，請手動輸入"} · {photo.gpsSource === "exif" ? "GPS 已從照片讀取，可自行微調" : photo.gpsSource === "manual" ? "座標已手動校正" : "未讀到 GPS，可選擇手動填入"}</small></span><label className="photo-exif-select"><input type="checkbox" aria-label={`選取 ${photo.file.name} 以批次套用日期`} checked={selectedPhotoExifIds.includes(photo.id)} onChange={(event) => setSelectedPhotoExifIds((ids) => event.target.checked ? [...ids, photo.id] : ids.filter((id) => id !== photo.id))} disabled={isPhotoExifImporting} /> 批次選取</label></header>
+            <header><span><b>{photo.file.name}</b><small>{photo.format === "heic" ? "HEIC／HEIF：確認後只在本機轉為 JPEG" : "JPEG：保留原檔格式"}{photo.livePhotoCompanion ? ` · 已找到待確認的 Live Photo MOV：${photo.livePhotoCompanion.name}` : ""} · {photo.source === "exif" ? "拍攝時間已從照片讀取，可自行微調" : "尚未讀到 EXIF 時間，請手動輸入"} · {photo.gpsSource === "exif" ? "GPS 已從照片讀取，可自行微調" : photo.gpsSource === "manual" ? "座標已手動校正" : "未讀到 GPS，可選擇手動填入"}</small></span><label className="photo-exif-select"><input type="checkbox" aria-label={`選取 ${photo.file.name} 以批次套用日期`} checked={selectedPhotoExifIds.includes(photo.id)} onChange={(event) => setSelectedPhotoExifIds((ids) => event.target.checked ? [...ids, photo.id] : ids.filter((id) => id !== photo.id))} disabled={isPhotoExifImporting} /> 批次選取</label></header>
             <div className="photo-exif-fields"><label>拍攝日期與時間<input aria-label={`${photo.file.name} 的拍攝日期與時間`} type="datetime-local" step="1" value={photo.capturedAt} onChange={(event) => setPhotoExifPreview((current) => current ? updatePhotoCapturedAt(current, photo.id, event.target.value) : current)} disabled={isPhotoExifImporting} /></label><label>緯度<input aria-label={`${photo.file.name} 的緯度`} type="number" step="0.000001" min="-90" max="90" value={photo.latitude} onChange={(event) => { setPhotoExifMapPreview(null); setPhotoExifPreview((current) => current ? updatePhotoLocation(current, photo.id, event.target.value, photo.longitude) : current); }} disabled={isPhotoExifImporting} /></label><label>經度<input aria-label={`${photo.file.name} 的經度`} type="number" step="0.000001" min="-180" max="180" value={photo.longitude} onChange={(event) => { setPhotoExifMapPreview(null); setPhotoExifPreview((current) => current ? updatePhotoLocation(current, photo.id, photo.latitude, event.target.value) : current); }} disabled={isPhotoExifImporting} /></label></div>
             <div className="photo-exif-map-tools"><button type="button" onClick={() => previewPhotoExifMap(photo)} disabled={isPhotoExifImporting || photoMapPreviewMutation.isPending || !hasValidPhotoLocation(photo)}>{photoMapPreviewMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : null}{photoExifMapPreview?.photoId === photo.id ? "重新整理位置地圖" : "確認位置地圖"}</button><small>{hasValidPhotoLocation(photo) ? "地圖依目前緯經度顯示，調整座標後請重新整理。" : "填入完整緯度與經度後可確認位置地圖。"}</small></div>
             {photoExifMapPreview?.photoId === photo.id && photoExifMapPreview.latitude === photo.latitude && photoExifMapPreview.longitude === photo.longitude ? <figure className="photo-exif-map-preview"><button type="button" className="photo-exif-map-canvas" aria-label={`點選或拖曳 ${photo.file.name} 的地圖標記以調整 GPS 位置`} onClick={(event) => adjustPhotoExifMapByClick(photo, event)} onPointerDown={(event) => startPhotoExifMapDrag(photo, event)} onPointerMove={(event) => movePhotoExifMapDrag(photo, event)} onPointerUp={(event) => finishPhotoExifMapDrag(photo, event)}><img src={photoExifMapPreview.dataUrl} alt={`${photo.file.name} 的 GPS 位置地圖預覽`} /><span aria-hidden="true" style={photoExifMapDrag?.photoId === photo.id ? { left: `${photoExifMapDrag.x}%`, top: `${photoExifMapDrag.y}%` } : undefined} /></button><figcaption>點選地圖，或拖曳標記後放開，可直接更新本機緯經度；更新後請重新整理地圖確認位置。確認建立後才會以 private precise 位置保存。</figcaption></figure> : null}
           </article>)}
         </div>
-        <div className="import-preview-list">{photoExifPreview.groups.map((group) => <article key={group.id}><span>{group.date}</span><b>{group.title}</b><small>{group.files.length} 張 JPEG · 將建立為 private 事件{group.mapLatitudeE6 !== null ? " · 私有座標已帶入" : ""}</small></article>)}{photoExifPreview.skipped.map((item, index) => <article key={`${item.name}-${index}`}><span>略過</span><b>{item.name}</b><small>{item.reason}</small></article>)}{!photoExifPreview.groups.length ? <p>填入至少一張可用照片的日期與時間後，才會出現可建立的事件。</p> : null}</div>
+        <div className="import-preview-list">{photoExifPreview.groups.map((group) => <article key={group.id}><span>{group.date}</span><b>{group.title}</b><small>{group.files.length} 張照片 · 將建立為 private 事件{photoExifPreview.photos.filter((photo) => group.photoIds.includes(photo.id) && photo.livePhotoCompanion).length ? " · 含已確認的 Live Photo MOV" : ""}{group.mapLatitudeE6 !== null ? " · 私有座標已帶入" : ""}</small></article>)}{photoExifPreview.skipped.map((item, index) => <article key={`${item.name}-${index}`}><span>略過</span><b>{item.name}</b><small>{item.reason}</small></article>)}{!photoExifPreview.groups.length ? <p>填入至少一張可用照片的日期與時間後，才會出現可建立的事件。</p> : null}</div>
         {photoExifUploadProgress ? <div className="photo-exif-progress" role="status" aria-live="polite"><div><b>正在上傳 {photoExifUploadProgress.uploaded}／{photoExifUploadProgress.total} 張</b><small>{photoExifUploadProgress.currentFileName ? `目前處理：${photoExifUploadProgress.currentFileName}` : "正在建立私人事件…"}</small></div><div role="progressbar" aria-label="照片上傳進度" aria-valuemin={0} aria-valuemax={photoExifUploadProgress.total} aria-valuenow={photoExifUploadProgress.uploaded}><span style={{ width: `${photoExifUploadProgress.total ? (photoExifUploadProgress.uploaded / photoExifUploadProgress.total) * 100 : 0}%` }} /></div></div> : null}
         <div className="import-warning"><LockKeyhole size={15} /> {photoExifPreview.photos.some((photo) => !photo.capturedAt) ? "請先補齊每張 JPEG 的日期與時間；在此之前不會上傳或建立事件。GPS、地圖與手動座標只留在目前瀏覽器。" : photoExifPreview.groups.length ? "確認後才會上傳所列照片，並建立 private 事件；完整座標只會以 precise private 位置隨事件保存。" : "這批照片不會上傳，也不會建立事件。"}</div>
         <div className="import-actions"><button type="button" onClick={() => { setPhotoExifPreview(null); setSelectedPhotoExifIds([]); setPhotoExifBatchCapturedAt(""); setPhotoExifBatchIncrementSeconds("0"); setPhotoExifMapPreview(null); }} disabled={isPhotoExifImporting}>取消</button>{photoExifPreview.groups.length ? <button type="button" onClick={confirmPhotoExifImport} disabled={isPhotoExifImporting || photoExifPreview.photos.some((photo) => !photo.capturedAt)}>{isPhotoExifImporting ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />} 確認建立 {photoExifPreview.groups.length} 段私人記錄</button> : null}</div>
       </section> : null}
+      {isOwner ? <PrivateIcsCalendarImport isImporting={importMutation.isPending} onConfirm={async (candidates) => {
+        await importMutation.mutateAsync({
+          ...(requestedDiaryId ? { diaryId: requestedDiaryId } : {}),
+          events: candidates.map((candidate) => ({
+            occurredAt: candidate.occurredAt, datePrecision: "day" as const, eventType: "memory" as const, title: candidate.title.trim() || "未命名行事曆事件", body: candidate.body,
+            ageLabel: null, place: null, color: "#587A8B" as const, tagNames: ["行事曆匯入"], skillNames: [], phaseKeywords: ["行事曆"], track: "life" as const,
+            milestoneType: "standard" as const, milestoneWeight: 1, comparisonGroup: null, unlocksAt: null, mapLatitudeE6: null, mapLongitudeE6: null, locationPrivacy: "none" as const,
+            soundtrackTitle: null, soundtrackUrl: null, shareScope: "private" as const,
+          })),
+        });
+        await utils.diary.get.invalidate();
+        toast.success(`已建立 ${candidates.length} 段私人行事曆記錄。`);
+      }} /> : null}
+      {isOwner ? <PrivateSharePhotoDeidentification events={events.map((event) => ({ id: event.id, title: event.title, shareScope: event.shareScope, media: event.media.map((media) => ({ id: media.id, url: media.url, fileName: media.fileName, mediaKind: media.mediaKind, shareSafeEnabled: media.shareSafeEnabled, shareSafeUrl: media.shareSafeUrl })) }))} /> : null}
       {mediaArchivePreview ? <section className="import-studio" aria-labelledby="media-import-title"><div><p className="editor-kicker"><span /> MEDIA ARCHIVE / VERIFIED</p><h2 id="media-import-title">確認要還原的事件圖片</h2><p>已驗證媒體封存的 manifest、事件標題與發生時間。這次將把 {mediaArchivePreview.items.length} 張圖片加回目前相符的事件；不會接受外部 URL、儲存金鑰、分享設定或帳號資料。</p></div><div className="import-warning"><Archive size={15} /> 只接受 JPG、PNG、WebP、GIF；單張最大 4MB，封存與解壓後總量皆受 25MB 上限保護。</div><div className="import-actions"><button type="button" onClick={() => setMediaArchivePreview(null)} disabled={isMediaArchiveImporting}>取消</button><button type="button" onClick={confirmMediaArchiveImport} disabled={isMediaArchiveImporting}>{isMediaArchiveImporting ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />} 匯入 {mediaArchivePreview.items.length} 張圖片</button></div></section> : null}
       {socialPreview ? <section className="import-studio" aria-labelledby="social-import-title"><div><p className="editor-kicker"><span /> SOCIAL DRAFT / LOCAL ONLY</p><h2 id="social-import-title">先檢視，再帶進成長史</h2><p>已在此裝置解析 {socialPreview.length} 則候選；系統已依來源 ID 去重。確認前不會寫入日記，也不會連接社群帳號。</p></div><div className="import-preview-list">{socialPreview.slice(0, 5).map((candidate) => <article key={candidate.sourceId}><span>{formatDate(candidate.occurredAt, "day")}</span><b>{candidate.title}</b><small>{candidate.isSignificant ? "重大事件候選" : "一般候選"}</small></article>)}</div><div className="import-warning"><Archive size={15} /> 確認後一律建立為私人事件，並標記「社群匯入」。請先檢視原始內容。</div><div className="import-actions"><button type="button" onClick={() => setSocialPreview(null)} disabled={importMutation.isPending}>取消</button><button type="button" onClick={confirmSocialImport} disabled={importMutation.isPending}>{importMutation.isPending ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />} 確認建立 {socialPreview.length} 段事件</button></div></section> : null}
 
@@ -1681,7 +1708,7 @@ function DiaryEditorContent() {
           {timelineViewMode === "bento" ? <section className="bento-timeline" aria-labelledby="bento-timeline-title">
             <header><div><p>BENTO / PRIORITY</p><h3 id="bento-timeline-title">把重要時刻放大</h3></div><small>{bentoEvents.length.toString().padStart(2, "0")} 段</small></header>
             {bentoEvents.length ? <div className="bento-event-grid">{bentoEvents.map((event) => <button type="button" key={event.id} className={`bento-event bento-${getBentoSpan(event.milestoneWeight)} ${selectedEvent?.id === event.id ? "is-selected" : ""}`} onClick={() => { setSelectedId(event.id); setMobileWorkspacePanel("preview"); }}>
-              {event.media[0] ? <img src={event.media[0].url} alt={event.media[0].caption ?? event.title} /> : <span className="bento-color-field" style={{ backgroundColor: event.color }} />}
+              {getPrimaryStaticImage(event.media) ? <img src={getPrimaryStaticImage(event.media)!.url} alt={getPrimaryStaticImage(event.media)!.caption ?? event.title} /> : <span className="bento-color-field" style={{ backgroundColor: event.color }} />}
               <span className="bento-event-copy"><small>{new Date(event.occurredAt).getFullYear()} · {event.track}</small><b>{event.title}</b>{event.place ? <em><MapPin size={11} /> {event.place}</em> : null}</span><i aria-label={`里程碑權重 ${event.milestoneWeight}／5`}>{event.milestoneWeight}</i>
             </button>)}</div> : <p className="view-empty-note">目前篩選範圍尚未有可排入精華格的事件。</p>}
           </section> : null}
@@ -1696,7 +1723,7 @@ function DiaryEditorContent() {
               <div className="preview-date"><span>{formatDate(selectedEvent.occurredAt, selectedEvent.datePrecision)}</span><i style={{ backgroundColor: selectedEvent.color }} /></div>
               <article className={`preview-card ${selectedCapsuleStatus.isLocked ? "is-capsule-locked" : ""}`}>
                 {selectedCapsuleStatus.isLocked ? <section className="capsule-lock-notice" aria-label="時空膠囊鎖定中"><LockKeyhole size={23} /><p>TIME CAPSULE / SEALED</p><h3>這段記憶正在等待未來的你。</h3><strong>{formatCapsuleCountdown(selectedCapsuleStatus.daysRemaining)}</strong><span>解鎖日：{new Date(selectedCapsuleStatus.unlocksAt!).toLocaleDateString("zh-TW", { year: "numeric", month: "long", day: "numeric" })}</span></section> : null}
-                {selectedEvent.media[0] ? <div className="preview-image"><img src={selectedEvent.media[0].url} alt={selectedEvent.media[0].caption ?? selectedEvent.title} /></div> : null}
+                {getPrimaryStaticImage(selectedEvent.media) ? <div className="preview-image"><img src={getPrimaryStaticImage(selectedEvent.media)!.url} alt={getPrimaryStaticImage(selectedEvent.media)!.caption ?? selectedEvent.title} /></div> : null}
                 <p className="preview-type">{eventTypes.find((type) => type.value === selectedEvent.eventType)?.label} {selectedEvent.ageLabel ? `/ ${selectedEvent.ageLabel}` : ""}</p>
                 <h3>{selectedEvent.title}</h3>
                 <p className="preview-body">{selectedEvent.body || "這段記憶還在等待你寫下細節。"}</p>
@@ -1706,7 +1733,7 @@ function DiaryEditorContent() {
                 {canEdit && (selectedEvent.milestoneType !== "standard" || selectedEvent.milestoneWeight >= 3) ? <section className="social-card-actions" aria-label="里程碑社群卡"><div><span>SHARE CARD / SVG</span><small>使用這筆真實事件資料輸出向量圖；不會自動發布到社群。</small></div><div><button type="button" onClick={() => downloadMilestoneCard(selectedEvent, "square")}>下載 1:1</button><button type="button" onClick={() => downloadMilestoneCard(selectedEvent, "portrait")}>下載 9:16</button></div></section> : null}
                 <div className="preview-tags">{selectedEvent.tags.map((tag) => <span key={tag.id}>{tag.name}</span>)}</div>
                 <div className="event-visibility-control"><span>{selectedEvent.shareScope === "public" ? <Globe2 size={13} /> : <LockKeyhole size={13} />}{selectedEvent.shareScope === "public" ? "公開故事可閱" : selectedEvent.shareScope === "link" ? "僅私密連結／密碼分享可閱" : "完全私人"}</span>{canEdit ? <select aria-label="更新事件分享範圍" value={selectedEvent.shareScope} onChange={async (event) => { try { await visibilityMutation.mutateAsync({ id: selectedEvent.id, shareScope: event.target.value as "private" | "public" | "link" }); await utils.diary.get.invalidate(); toast.success("事件分享範圍已更新。"); } catch (visibilityError) { toast.error(visibilityError instanceof Error ? visibilityError.message : "無法更新事件分享範圍。"); } }} disabled={visibilityMutation.isPending}><option value="private">私人</option><option value="link">連結／密碼</option><option value="public">公開</option></select> : null}</div>
-                {selectedEvent.media.length ? <section className="media-editor" aria-label={canEdit ? "事件圖片編輯" : "事件圖片"}><header><span><GripVertical size={13} /> {canEdit ? "圖片排序與說明" : "事件圖片"}</span><b>{selectedEvent.media.length.toString().padStart(2, "0")} 張</b></header>{selectedEvent.media.map((media) => <article key={media.id} draggable={canEdit && selectedEvent.media.length > 1} onDragStart={() => canEdit && setDraggedMediaId(media.id)} onDragOver={(event) => canEdit && event.preventDefault()} onDrop={() => canEdit && dropImageAt(media.id)} onDragEnd={() => setDraggedMediaId(null)}><img src={media.url} alt={media.caption ?? selectedEvent.title} /><div>{canEdit ? <><input value={mediaCaptionDrafts[media.id] ?? media.caption ?? ""} onChange={(event) => setMediaCaptionDrafts((current) => ({ ...current, [media.id]: event.target.value }))} placeholder="為這張圖片寫下說明" maxLength={240} /><div><button type="button" onClick={() => saveImageCaption(media.id)} disabled={updateImageMutation.isPending}><Save size={12} /> 儲存說明</button><button type="button" onClick={() => removeImage(media.id)}><Trash2 size={12} /> 移除</button></div></> : <p className="media-caption-readonly">{media.caption ?? "未提供圖片說明"}</p>}</div></article>)}</section> : null}
+                {selectedEvent.media.length ? <section className="media-editor" aria-label={canEdit ? "事件媒體編輯" : "事件媒體"}><header><span><GripVertical size={13} /> {canEdit ? "圖片排序、Live Photo 與說明" : "事件媒體"}</span><b>{selectedEvent.media.length.toString().padStart(2, "0")} 個項目</b></header>{selectedEvent.media.map((media) => <article key={media.id} draggable={canEdit && selectedEvent.media.length > 1} onDragStart={() => canEdit && setDraggedMediaId(media.id)} onDragOver={(event) => canEdit && event.preventDefault()} onDrop={() => canEdit && dropImageAt(media.id)} onDragEnd={() => setDraggedMediaId(null)}>{media.mediaKind === "live_motion" ? <video controls preload="metadata" src={media.url}>瀏覽器不支援這個 Live Photo 動態片段。</video> : <img src={media.url} alt={media.caption ?? selectedEvent.title} />}<div>{media.mediaKind === "live_motion" ? <p className="media-caption-readonly">Live Photo 動態片段只保留在私人工作台，不會投影到分享頁。</p> : canEdit ? <><input value={mediaCaptionDrafts[media.id] ?? media.caption ?? ""} onChange={(event) => setMediaCaptionDrafts((current) => ({ ...current, [media.id]: event.target.value }))} placeholder="為這張圖片寫下說明" maxLength={240} /><div><button type="button" onClick={() => saveImageCaption(media.id)} disabled={updateImageMutation.isPending}><Save size={12} /> 儲存說明</button><button type="button" onClick={() => removeImage(media.id)}><Trash2 size={12} /> 移除</button></div></> : <p className="media-caption-readonly">{media.caption ?? "未提供圖片說明"}</p>}</div></article>)}</section> : null}
                 <PrivateVoiceDiary shareScope={selectedEvent.shareScope} canEdit={canEdit} isRecording={isRecordingVoice} isPreparing={isPreparingVoice} isUploading={uploadVoiceMutation.isPending} isDeleting={deleteVoiceMutation.isPending} drafts={voiceDrafts} voiceNotes={selectedEvent.voiceNotes ?? []} aiConsent={voiceAiConsent} onConsentChange={setVoiceAiConsent} onStartRecording={startVoiceRecording} onStopRecording={stopVoiceRecording} onDiscardDraft={discardVoiceDraft} onUploadDraft={uploadVoiceDraft} onDeleteVoiceNote={deleteVoiceNote} />
                 {canEdit ? <section className="event-revisions" aria-label="事件版本歷程">
                   <button type="button" className="event-revisions-toggle" onClick={() => setShowRevisions((visible) => !visible)}><History size={13} /> {showRevisions ? "收起版本歷程" : "查看版本歷程"}</button>

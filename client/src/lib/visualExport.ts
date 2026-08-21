@@ -11,12 +11,12 @@ export type VisualExportEvent = {
   color: string;
   unlocksAt?: number | null;
   tags: Array<{ id: number; name: string }>;
-  media: Array<{ url: string; caption?: string | null }>;
+  media: Array<{ url: string; caption?: string | null; mediaKind?: "image" | "live_motion" }>;
 };
 
 export function getVisualExportRecord<T extends VisualExportEvent>(event: T, now = Date.now()) {
   const capsule = getTimeCapsuleStatus(event.unlocksAt, now);
-  if (!capsule.isLocked) return { ...event, isTimeCapsuleLocked: false, capsule };
+  if (!capsule.isLocked) return { ...event, media: getStaticImageMedia(event.media), isTimeCapsuleLocked: false, capsule };
   return {
     ...event,
     title: "時空膠囊鎖定中",
@@ -29,3 +29,4 @@ export function getVisualExportRecord<T extends VisualExportEvent>(event: T, now
     capsule,
   };
 }
+import { getStaticImageMedia } from "./mediaPresentation";

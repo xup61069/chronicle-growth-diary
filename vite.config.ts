@@ -186,6 +186,10 @@ const plugins = [
       skipWaiting: true,
       navigateFallback: "/index.html",
       globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
+      // HEIC conversion is invoked only after an owner confirms an import. It
+      // remains a dynamic browser chunk instead of adding ~3MB to every PWA
+      // installation precache.
+      globIgnores: ["**/heic-to-*.js"],
       runtimeCaching: [],
     },
   }),

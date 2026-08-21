@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyPhotoCapturedAt, preparePhotoExifImport, staticMapPointToCoordinate, updatePhotoCapturedAt, updatePhotoLocation } from "./photoExifImport";
+import { applyPhotoCapturedAt, isHeicPhotoFile, preparePhotoExifImport, staticMapPointToCoordinate, updatePhotoCapturedAt, updatePhotoLocation } from "./photoExifImport";
 
 const file = (name: string, type = "image/jpeg", size = 100) => ({ name, type, size } as File);
 
@@ -59,13 +59,26 @@ describe("photo EXIF import", () => {
     });
     expect(preview.groups).toEqual([]);
     expect(preview.skipped.map((item) => item.reason)).toEqual([
-      "目前只讀取 JPEG 的拍攝日期",
+      "只支援 JPEG、HEIC 或 HEIF 照片",
       "單張照片超過 4MB",
     ]);
     expect(preview.photos.map((photo) => ({ name: photo.file.name, capturedAt: photo.capturedAt, source: photo.source }))).toEqual([
       { name: "missing.jpg", capturedAt: "", source: "manual" },
       { name: "broken.jpg", capturedAt: "", source: "manual" },
     ]);
+  });
+
+  it("accepts HEIC candidates and marks a same-stem MOV as a reviewable Live Photo companion", async () => {
+    const preview = await preparePhotoExifImport([
+      file("IMG_2048.HEIC", "image/heic"),
+      file("IMG_2048.MOV", "video/quicktime"),
+      file("orphan.MOV", "video/quicktime"),
+    ], async () => new Date(2026, 7, 23, 10, 12), async () => null);
+    expect(isHeicPhotoFile(file("no-mime.heic", ""))).toBe(true);
+    expect(preview.photos.map((photo) => ({ name: photo.file.name, format: photo.format, companion: photo.livePhotoCompanion?.name ?? null, capturedAt: photo.capturedAt }))).toEqual([
+      { name: "IMG_2048.HEIC", format: "heic", companion: "IMG_2048.MOV", capturedAt: "2026-08-23T10:12" },
+    ]);
+    expect(preview.skipped).toEqual([{ name: "orphan.MOV", reason: "找不到同名 JPEG／HEIC 靜態照片，未作為 Live Photo 匯入" }]);
   });
 
   it("rebuilds date groups after a user manually fills or adjusts a captured local date and time", async () => {

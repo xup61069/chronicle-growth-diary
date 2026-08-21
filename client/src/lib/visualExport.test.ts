@@ -9,4 +9,12 @@ describe("visual export records", () => {
 
     expect(record).toMatchObject({ title: "時空膠囊鎖定中", body: "", ageLabel: null, place: null, media: [], tags: [], isTimeCapsuleLocked: true, capsule: { isLocked: true } });
   });
+
+  it("uses only still images for an unlocked visual export record", () => {
+    const record = getVisualExportRecord({
+      id: 2, occurredAt: Date.UTC(2026, 0, 2), datePrecision: "day", title: "Live Photo", body: "私人影片與照片", color: "#EE623B", tags: [],
+      media: [{ url: "https://example.test/motion.mov", mediaKind: "live_motion" as const }, { url: "https://example.test/still.jpg", mediaKind: "image" as const }],
+    });
+    expect(record.media).toEqual([{ url: "https://example.test/still.jpg", mediaKind: "image" }]);
+  });
 });
