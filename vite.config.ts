@@ -165,6 +165,15 @@ const plugins = [
       description: "將事件、影像與反思編排成屬於自己的成長時間帶。",
       lang: "zh-Hant",
       start_url: "/quick-note",
+      share_target: {
+        action: "/quick-note",
+        method: "GET",
+        params: {
+          title: "title",
+          text: "text",
+          url: "url",
+        },
+      },
       display: "standalone",
       background_color: "#F6F1E8",
       theme_color: "#14263A",

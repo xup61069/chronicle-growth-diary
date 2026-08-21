@@ -1,7 +1,8 @@
 import { formatQuickNoteForClipboard, parseQuickNoteDraft, QUICK_NOTE_STORAGE_KEY } from "@/lib/quickNote";
 import { connectionStatusLabel, getConnectionStatus } from "@/lib/connectionStatus";
+import { createSharedQuickNoteFragment, mergeSharedQuickNoteDraft } from "@/lib/quickNote";
 import { Check, ClipboardCopy, CloudOff, Eraser, FilePenLine, Wifi, WifiOff } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
 import { toast } from "sonner";
 
@@ -20,6 +21,8 @@ export default function QuickNote() {
   const [online, setOnline] = useState(() => typeof navigator === "undefined" || navigator.onLine);
   const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null);
   const [lastSaved, setLastSaved] = useState(() => readDraft().updatedAt);
+  const [sharedIntoDraft, setSharedIntoDraft] = useState(false);
+  const didReadShareTarget = useRef(false);
 
   useEffect(() => {
     const setConnected = () => setOnline(true);
@@ -43,6 +46,21 @@ export default function QuickNote() {
     window.localStorage.setItem(QUICK_NOTE_STORAGE_KEY, JSON.stringify(saved));
     setLastSaved(saved.updatedAt);
   }, [draft.body]);
+
+  useEffect(() => {
+    if (didReadShareTarget.current) return;
+    didReadShareTarget.current = true;
+    const params = new URLSearchParams(window.location.search);
+    const fragment = createSharedQuickNoteFragment({ title: params.get("title"), text: params.get("text"), url: params.get("url") });
+    if (!fragment) return;
+    setDraft((current) => mergeSharedQuickNoteDraft(current, fragment));
+    setSharedIntoDraft(true);
+    const cleanUrl = new URL(window.location.href);
+    cleanUrl.searchParams.delete("title");
+    cleanUrl.searchParams.delete("text");
+    cleanUrl.searchParams.delete("url");
+    window.history.replaceState(null, "", cleanUrl);
+  }, []);
 
   const copyDraft = async () => {
     if (!draft.body.trim()) return toast.info("先寫下一段文字，才有內容可以複製。");
@@ -84,6 +102,7 @@ export default function QuickNote() {
           <p className="mb-4 font-mono text-[11px] tracking-[0.2em] text-[#bd4d34]">QUICK NOTE / LOCAL FIRST</p>
           <h1 className="max-w-2xl font-serif text-5xl leading-[1.05] sm:text-7xl">先記下來，<br /><em className="text-[#ee623b]">再整理成故事。</em></h1>
           <p className="mt-6 max-w-xl leading-7 text-[#405365]">這則草稿只會保存在目前裝置的瀏覽器中。即使離線也可以使用；重新連線後，複製內容並登入完整編輯器，即可整理成正式事件。</p>
+          {sharedIntoDraft ? <p role="status" className="mt-4 max-w-xl border-l-2 border-[#ee623b] pl-3 font-mono text-xs leading-5 text-[#405365]">系統分享內容已合併到本機草稿；尚未建立正式事件，也沒有上傳。</p> : null}
         </section>
 
         <section className="border border-[#14263a] bg-[#fffdf8] shadow-[8px_8px_0_#ee623b]">

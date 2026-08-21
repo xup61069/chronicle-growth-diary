@@ -11,5 +11,11 @@ describe("PWA upgrade safety", () => {
     expect(config).toContain("clientsClaim: true");
     expect(config).toContain("skipWaiting: true");
     expect(config).toContain('globIgnores: ["**/heic-to-*.js"]');
+    expect(config).toContain("share_target:");
+    expect(config).toContain('action: "/quick-note"');
+    expect(config).toContain('method: "GET"');
+    expect(config).toContain('title: "title"');
+    expect(config).toContain('text: "text"');
+    expect(config).toContain('url: "url"');
   });
 });
