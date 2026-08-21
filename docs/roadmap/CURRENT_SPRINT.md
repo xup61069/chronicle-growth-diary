@@ -39,3 +39,5 @@
 三項私有媒體交付已完成。HEIC／HEIF 只在擁有者確認匯入時於瀏覽器轉為 JPEG，並可將同名 MOV 作為明確可審核的 Live Photo companion 保存至同一 private 事件。ICS 僅在瀏覽器解析為可勾選、可修改的 private 草稿，且不帶入受邀者、提醒、外部 URL、附件或重複展開結果。分享去識別化使用瀏覽器內的人臉偵測與 Canvas 模糊；若副本被移除，分享頁會隱藏該媒體，絕不回退顯示私人原圖。
 
 後續強化已完成：週期性 ICS 預設保留起始事件，擁有者可在本機審核時選擇有限的 4 次或 12 次展開，超過 250 段確認上限即停止寫入。照片去識別化可加入、修改或移除手動遮罩並調整模糊強度；每次修改都必須重建本機預覽後才可上傳副本。HEIC／HEIF 審核區會依檔案大小顯示原始來源、預估 JPEG 轉檔與 Live Photo MOV 的容量，原始 HEIC 不會因估算而被讀取或上傳。
+
+最新治理與輸入入口已完成：PR 僅能包含單一功能或不可分割修復，私人元件依 diary、import、sharing 領域分層，既有 `docs/README.md` 維持文件入口。CI 新增真實瀏覽器的 mock OAuth callback 回歸與不輸出內容的 Git 歷史 secret scan；Axios、Drizzle ORM、Nanoid 與 Express 已更新，Express wildcard 亦已遷移至命名 splat，production dependency audit 回報為零漏洞。PWA manifest 已宣告 Web Share Target，系統分享的標題、文字與 HTTPS／HTTP 來源連結只會合併至裝置本機 QuickNote 草稿，隨即移除網址參數，不會建立事件或上傳內容。

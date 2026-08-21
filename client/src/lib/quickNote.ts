@@ -5,6 +5,47 @@ export type QuickNoteDraft = {
   updatedAt: number;
 };
 
+export type WebShareTargetPayload = {
+  title?: string | null;
+  text?: string | null;
+  url?: string | null;
+};
+
+const MAX_QUICK_NOTE_LENGTH = 8_000;
+
+function cleanSharedText(value: string | null | undefined, limit = MAX_QUICK_NOTE_LENGTH) {
+  return (value ?? "").replace(/\r\n?/g, "\n").trim().slice(0, limit);
+}
+
+function safeSharedUrl(value: string | null | undefined) {
+  if (!value) return "";
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "https:" || parsed.protocol === "http:" ? parsed.href : "";
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Transforms a PWA Web Share Target query payload into local-only draft text.
+ * No event, media, account, or network write occurs here.
+ */
+export function createSharedQuickNoteFragment(payload: WebShareTargetPayload) {
+  const title = cleanSharedText(payload.title, 240);
+  const text = cleanSharedText(payload.text);
+  const url = safeSharedUrl(payload.url);
+  const parts = [title ? `# ${title}` : "", text, url ? `來源：${url}` : ""].filter(Boolean);
+  return parts.join("\n\n").slice(0, MAX_QUICK_NOTE_LENGTH);
+}
+
+export function mergeSharedQuickNoteDraft(existing: QuickNoteDraft, fragment: string, updatedAt = Date.now()): QuickNoteDraft {
+  const incoming = cleanSharedText(fragment);
+  if (!incoming || existing.body.includes(incoming)) return existing;
+  const body = existing.body.trim() ? `${existing.body.trim()}\n\n---\n\n${incoming}` : incoming;
+  return createQuickNoteDraft(body.slice(0, MAX_QUICK_NOTE_LENGTH), updatedAt);
+}
+
 export function createQuickNoteDraft(body = "", updatedAt = Date.now()): QuickNoteDraft {
   return { body, updatedAt };
 }
