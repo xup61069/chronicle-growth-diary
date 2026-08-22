@@ -1,6 +1,6 @@
 # Chronicle AI 交接手冊
 
-> **交接狀態：** 已完成預設深色主題、照片 EXIF／GPS 私人匯入與可編輯的本機旅程候選、Day One 本機審核匯入、具選擇性受眾的 family-only 大事記、Web Share Target、全量 ZIP 封存／還原，以及可審核的 owner-only AI 精選建議。下一位 AI 應從本檔與根目錄 [`AGENTS.md`](../AGENTS.md) 開始，而不是從 commit history 或舊對話推測狀態。
+> **交接狀態：** 已完成預設深色主題、照片 EXIF／GPS 私人匯入與可編輯的本機旅程候選、Day One／Journey 本機審核匯入、具選擇性受眾與變更前二次確認的 family-only 大事記、Web Share Target、全量 ZIP 封存／還原，以及可審核的 owner-only AI 精選建議。下一位 AI 應從本檔與根目錄 [`AGENTS.md`](../AGENTS.md) 開始，而不是從 commit history 或舊對話推測狀態。
 
 ## 1. 產品定位與不可變更原則
 
@@ -95,13 +95,21 @@ corepack pnpm install --frozen-lockfile
 
 確認時 `mergePhotoJourneyImportGroups` 會將已選候選轉成既有照片匯入群組，並從普通日期群組排除相同 photo ID，因此每張照片只可進入一個事件。仍由既有確認流程建立 `private` 事件、受控附件與 `precise/private` 位置；圖片完成保存後，`saveJourneyDetails` 才可由 owner 寫入範圍與同 event image 封面。未選候選和缺少 GPS 的照片維持普通日期分組。不得將候選、中心座標、地圖、路徑或封面關聯投影到 public／link 分享。最低回歸為 `photoJourneyCandidates.test.ts`、`server/routers/diary.test.ts`、`pnpm test:e2e:isolated` 及 `CHRONICLE_E2E_VIEWPORT=desktop pnpm test:e2e:isolated`。
 
-## 4.4 Day One 與家庭大事記：先最小化，再分享摘要
+## 4.4 Day One、Journey 與家庭大事記：先最小化，再分享摘要
 
 `client/src/lib/dayOneImport.ts` 只支援使用者選取的 Day One JSON 或根目錄唯一 `Journal.json` ZIP。解析器限制 32MB archive、4MB JSON 與 250 筆 entries，拒絕不安全 ZIP path；每筆只取 creation date、純文字和最多八個短標籤。媒體、位置、天氣、裝置、rich text、來源 URL、ZIP 與 UUID 不得持久化。`PrivateDayOneImport` 的 preview、勾選與去重皆為本機 state；只有使用者確認後才藉既有 `diary.importEvents` 寫入 private 事件。不得擴充為自動同步、背景掃描、跨帳號連結或媒體上傳。
 
+`client/src/lib/journeyImport.ts` 只接受使用者選取的 Journey ZIP。它先拒絕不安全 archive path、超過 32MB archive、超過 1,000 檔案、超過 4MB 的單一 JSON 與超過 250 筆可審核候選；接著處理所有安全 path 的 JSON entry，但只有具有效 `date_journal`（毫秒 UTC）與可淨化 `text` 的 entry 可成為草稿。HTML 必須降為純文字；只保留最多八個短標籤。provider `id` 只在本機 preview 優先去重，缺少時才以 `date_journal + sanitized text` 去重；它不會寫入事件。photos、音訊、lat/lon、地址、天氣、時區、裝置、來源 ID、ZIP 檔名與未知欄位一律丟棄。`PrivateJourneyImport` 可在目前瀏覽器以 `journeyImportDraft.ts` 逐項微調 parser 產生的標題與本地日期時間，也可把一組已驗證日期時間**只套用至目前勾選草稿**；每筆可重設或取消。日期須回轉為合法 UTC timestamp，標題最多 180 字元。只有 owner 勾選並按下確認後，才沿用既有 `diary.importEvents` 建立 private 事件；成功 Toast 僅顯示建立數量並尊重 reduced motion，失敗或取消不得顯示成功。不得支援背景同步、媒體上傳、帳號連結或將原始 JSON、provider ID 或草稿保存到伺服器。
+
 `growth_family_milestones` 是與事件投影分離的 family-only 表。owner 可寫入日期、精度、標題、短摘要與可選的同 diary sourceEventId；資料層必須拒絕跨 diary source。`audienceMode` 為 `all_accepted` 或 `selected_members`：舊資料由 migration 保持 `all_accepted`，新建項目預設 `selected_members` 且至少選擇一位 accepted member。`growth_family_milestone_audiences` 只連結 milestone 與 diary membership ID，不複製名字、email、摘要、事件或媒體。
 
-已接受成員只讀取自己獲授權項目的日期、精度、標題與摘要，絕不能取得 sourceEventId、受眾模式、其他成員、原事件正文、媒體、語音、GPS 或 AI 輸出。owner 才能建立、更新或刪除，範圍調整只留下不含摘要與收件者資料的 audit action。移除 membership 的外鍵 cascade 會撤銷該指定關聯；日後重新接受邀請會使用新的 membership，不得自動恢復先前的項目可見性。資料庫變更由 `0021_huge_caretaker.sql` 與 `0022_minor_george_stacy.sql` 建立，任何改動都要同時更新 schema、migration、router regression 與隔離 E2E。
+已接受成員只讀取自己獲授權項目的日期、精度、標題與摘要，絕不能取得 sourceEventId、受眾模式、其他成員、原事件正文、媒體、語音、GPS 或 AI 輸出。owner 才能建立、更新或刪除，範圍調整只留下不含摘要與收件者資料的 audit action。新建項目可直接建立；但 owner 編輯既有項目且有效受眾或選擇政策變更時，`FamilyMilestoneLayer` 必須先顯示目前／提議、加入／移除成員的**本機預覽**，並要求第二次「確認變更」才可呼叫 update mutation。加入、移除與規則調整必須同時使用文字、符號與語意色彩，動畫只可使用 transform／opacity，並尊重 `prefers-reduced-motion`。`getFamilyMilestoneAudienceAudit` 只能由 owner 呼叫，且僅投影 audit id、時間、固定 action 與 milestone ID；可選日期區間最多 366 天並只作既有最小投影的 timestamp predicate。不可回傳摘要、受眾、成員、actor、metadata、source event、媒體或位置，開啟、篩選或清除檢視也不得建立 audit、通知或背景輪詢。若 accepted member 名冊或選擇在預覽開啟後改變，必須使預覽失效並要求重選，不得套用舊差異。移除 membership 的外鍵 cascade 會撤銷該指定關聯；日後重新接受邀請會使用新的 membership，不得自動恢復先前的項目可見性。資料庫變更由 `0021_huge_caretaker.sql` 與 `0022_minor_george_stacy.sql` 建立，任何改動都要同時更新 schema、migration、router regression 與隔離 E2E。
+
+最低回歸為 `client/src/lib/dayOneImport.test.ts`、`journeyImport.test.ts`、`journeyImportDraft.test.ts`、`familyAudienceAuditRange.test.ts`、`familyAudiencePreview.test.ts`、`server/db/familyCollaboration.test.ts`、既有 family router／資料層測試，以及 `pnpm test:e2e:isolated` 與 `CHRONICLE_E2E_VIEWPORT=desktop pnpm test:e2e:isolated`。桌面隔離 E2E 必須攔截 Journey import mutation，驗證 preview 前為零寫入、selected-only 批次時間可重設且確認後只產生 private payload／數量型成功 Toast，並驗證 family update 在 preview 前為零寫入、僅第二次確認後呼叫一次，以及 owner audit 依日期篩選後仍不投影摘要或成員。
+
+`PrivateHighlightAssistant.test.tsx` 與 `FamilyMilestoneLayer.test.tsx` 現已 co-locate，分別以匿名 fixture 覆蓋 AI 明確同意／暫態候選，以及 owner 最小稽核／非 owner 隔離；元件在 Vitest server render 下需保留 React JSX runtime import。這些測試不呼叫模型、地圖、儲存、正式 OAuth 或真實家庭資料。任何新 diary 元件應同時補齊自己的 co-located 測試，避免只依賴 E2E。
+
+跨匯入去重尚未交付。GitHub Issue [#47](https://github.com/xup61069/chronicle-growth-diary/issues/47) 與 [`IMPORT_DEDUPLICATION_RESEARCH.md`](./research/IMPORT_DEDUPLICATION_RESEARCH.md) 定義未來工作：source key、目前選檔 checksum、明確觸發的本機感知雜湊與短標題／UTC 日期只可產生「可能重複」候選；不得背景掃描、外送資料、自動刪除或跨帳號保存圖譜。實作前仍須完成依賴、bundle、效能、授權與隔離 E2E 審查。
 
 ## 5. 驗證流程
 

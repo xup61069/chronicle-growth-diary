@@ -1,4 +1,4 @@
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, gte, lte } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import { randomBytes } from "node:crypto";
 import {
@@ -142,4 +142,15 @@ export async function getDiaryAuditLogsForDiary(db: DbClient, diaryId: number) {
   return db.select({ id: growthDiaryAuditLogs.id, action: growthDiaryAuditLogs.action, targetType: growthDiaryAuditLogs.targetType, targetId: growthDiaryAuditLogs.targetId, metadata: growthDiaryAuditLogs.metadata, createdAt: growthDiaryAuditLogs.createdAt, actorName: users.name })
     .from(growthDiaryAuditLogs).innerJoin(users, eq(growthDiaryAuditLogs.actorUserId, users.id))
     .where(eq(growthDiaryAuditLogs.diaryId, diaryId)).orderBy(desc(growthDiaryAuditLogs.createdAt)).limit(50);
+}
+
+/** Owner-only minimum projection for reviewing confirmed family audience scope changes. */
+export async function getFamilyMilestoneAudienceAuditForDiary(db: DbClient, diaryId: number, range?: { from?: number; to?: number }) {
+  const conditions = [eq(growthDiaryAuditLogs.diaryId, diaryId), eq(growthDiaryAuditLogs.action, "family_milestone_audience_updated"), eq(growthDiaryAuditLogs.targetType, "family_milestone")];
+  if (range?.from !== undefined) conditions.push(gte(growthDiaryAuditLogs.createdAt, new Date(range.from)));
+  if (range?.to !== undefined) conditions.push(lte(growthDiaryAuditLogs.createdAt, new Date(range.to)));
+  return db.select({ id: growthDiaryAuditLogs.id, action: growthDiaryAuditLogs.action, targetId: growthDiaryAuditLogs.targetId, createdAt: growthDiaryAuditLogs.createdAt })
+    .from(growthDiaryAuditLogs)
+    .where(and(...conditions))
+    .orderBy(desc(growthDiaryAuditLogs.createdAt)).limit(50);
 }

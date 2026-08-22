@@ -85,6 +85,11 @@
 .mobile-workspace-panel { display: none; }
 .mobile-workspace-panel.is-active { display: block; }
 .event-index, .timeline-preview { padding: 26px 19px; background: rgba(232,226,213,.48); }
+.journey-draft-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(180px, .72fr) auto; align-items: end; gap: 8px; margin-top: 8px; padding: 9px; border-left: 2px solid #587A8B; background: rgba(88,122,139,.07); }.journey-draft-fields > label { display: grid; gap: 5px; color: #39536a; font: 600 9px "IBM Plex Mono", monospace; }.journey-draft-fields input { box-sizing: border-box; width: 100%; min-width: 0; border: 1px solid rgba(20,38,58,.32); color: var(--ink); background: var(--card); padding: 8px; font: 500 11px "IBM Plex Mono", monospace; }.journey-draft-fields input:focus { outline: 0; border-color: var(--cinnabar); box-shadow: 0 0 0 2px rgba(238,98,59,.16); }.journey-draft-fields button { display: inline-flex; align-items: center; gap: 5px; justify-content: center; min-height: 33px; border: 1px solid rgba(20,38,58,.42); color: var(--ink); background: transparent; padding: 0 8px; font: 500 9px "IBM Plex Mono", monospace; white-space: nowrap; }.journey-draft-fields button:focus-visible { outline: 2px solid var(--cinnabar); outline-offset: 2px; }
+.journey-batch-date-controls { display: grid; grid-template-columns: minmax(0,1fr) minmax(180px,.7fr) auto; gap: 9px; align-items: end; margin: 14px 0; padding: 11px; border: 1px solid rgba(20,38,58,.34); border-left: 3px solid #587A8B; background: rgba(88,122,139,.075); }.journey-batch-date-controls > div { display: grid; gap: 4px; }.journey-batch-date-controls b { display: inline-flex; align-items: center; gap: 6px; color: #14263a; font-size: 11px; }.journey-batch-date-controls small { color: #39536a; font-size: 10px; line-height: 1.5; }.journey-batch-date-controls label { display: grid; gap: 5px; color: #39536a; font: 600 9px "IBM Plex Mono", monospace; }.journey-batch-date-controls input { box-sizing: border-box; width: 100%; min-width: 0; border: 1px solid rgba(20,38,58,.34); outline: 0; color: var(--ink); background: var(--card); padding: 8px; font: 500 10px "IBM Plex Mono", monospace; }.journey-batch-date-controls input:focus { border-color: var(--cinnabar); box-shadow: 0 0 0 2px rgba(238,98,59,.16); }.journey-batch-date-controls button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 34px; border: 1px solid var(--ink); color: var(--paper); background: var(--ink); padding: 0 9px; font: 500 10px "IBM Plex Mono", monospace; white-space: nowrap; }.journey-batch-date-controls button:focus-visible { outline: 2px solid var(--cinnabar); outline-offset: 2px; }
+[data-sonner-toast].journey-import-success-toast { border-left: 3px solid var(--cinnabar) !important; }
+@media (prefers-reduced-motion: no-preference) { [data-sonner-toast].journey-import-success-toast { animation: journeyImportSuccessToast 190ms cubic-bezier(.23,1,.32,1) both; } }
+@keyframes journeyImportSuccessToast { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 .event-index { border-right: 1px solid rgba(20,38,58,.24); }
 .timeline-preview { border-left: 1px solid rgba(20,38,58,.24); }
 .editor-form-panel { padding: 35px clamp(22px,3vw,48px) 42px; }
@@ -115,6 +120,8 @@
   .editor-stats { min-width: 0; }
   .phase-anchor-fields, .share-mode-options { grid-template-columns: 1fr; }
   .share-mode-options button { min-height: 60px; }
+  .journey-batch-date-controls, .journey-draft-fields { grid-template-columns: 1fr; }
+  .journey-batch-date-controls button { min-height: 36px; }
   .share-access-summary { gap: 12px; }
   .photo-exif-adjustments label { grid-template-columns: 1fr; gap: 8px; }
   .photo-exif-batch-controls, .photo-exif-fields { grid-template-columns: 1fr; }
@@ -128,4 +135,5 @@
   .full-archive-restore > div:not(.full-archive-progress) { align-items: stretch; }
   .deidentify-preview { grid-template-columns: 1fr; }
   .deidentify-mask-editor fieldset { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .journey-draft-fields { grid-template-columns: 1fr; }
 }

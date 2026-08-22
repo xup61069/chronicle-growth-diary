@@ -11,6 +11,7 @@ import {
   createDiaryInviteForDiary,
   createEventCommentForUser,
   getDiaryAuditLogsForDiary,
+  getFamilyMilestoneAudienceAuditForDiary,
   getDiaryMembersForDiary,
   getEventCommentsForUser,
   getEventReactionsForUser,
@@ -505,6 +506,12 @@ export async function getDiaryAuditLogs(userId: number) {
   const db = await requireDb();
   const diary = await getOwnedDiary(userId);
   return getDiaryAuditLogsForDiary(db, diary.id);
+}
+
+export async function getFamilyMilestoneAudienceAudit(userId: number, range?: { from?: number; to?: number }) {
+  const db = await requireDb();
+  const diary = await getOwnedDiary(userId);
+  return getFamilyMilestoneAudienceAuditForDiary(db, diary.id, range);
 }
 
 /** Dashboard statistics are intentionally limited to the diary owner. */

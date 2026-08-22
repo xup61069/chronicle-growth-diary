@@ -1,9 +1,11 @@
 import { chromium } from '@playwright/test';
+import JSZip from 'jszip';
 
 // Usage: AUTH_DRIVER=local must run at an HTTPS origin; provide that origin explicitly.
 const baseUrl = process.env.CHRONICLE_E2E_BASE_URL;
 if (!baseUrl) throw new Error('請設定 CHRONICLE_E2E_BASE_URL 為已啟動 local-auth 服務的 HTTPS 網址。');
 const email = `mobile-editor-${Date.now()}@example.test`;
+const familyMemberEmail = `family-member-${Date.now()}@example.test`;
 const password = 'local-validation-passphrase';
 const eventTitle = '375px 工作區驗證事件';
 const anniversaryTitle = '兩年前的同日驗證事件';
@@ -37,6 +39,31 @@ function makeExifJpeg(date = '2026:08:20 09:30:00') {
   const payload = new Uint8Array([0x45, 0x78, 0x69, 0x66, 0x00, 0x00, ...tiff]);
   const length = payload.length + 2;
   return Buffer.from(new Uint8Array([0xff, 0xd8, 0xff, 0xe1, length >> 8, length & 0xff, ...payload, 0xff, 0xd9]));
+}
+
+async function makeJourneyZip(includeSecondEntry = false) {
+  const zip = new JSZip();
+  zip.file('entries/e2e-journey.json', JSON.stringify({
+    id: 'isolated-journey-entry',
+    date_journal: Date.parse('2026-08-22T09:00:00.000Z'),
+    text: '<h1>Journey 隔離驗證記事</h1><p>只保留純文字</p>',
+    tags: ['遷移'],
+    photos: ['private.jpg'],
+    lat: 25.03,
+    lon: 121.56,
+    address: '不得匯入',
+  }));
+  zip.file('photos/private.jpg', 'raw private bytes');
+  if (includeSecondEntry) zip.file('entries/e2e-journey-second.json', JSON.stringify({
+    id: 'isolated-journey-entry-second',
+    date_journal: Date.parse('2026-08-24T09:00:00.000Z'),
+    text: '<h1>Journey 第二筆記事</h1><p>不應被批次時間改寫</p>',
+    tags: ['遷移'],
+    photos: ['private-two.jpg'],
+    lat: 25.03,
+    lon: 121.56,
+  }));
+  return zip.generateAsync({ type: 'nodebuffer' });
 }
 
 function assert(condition, message) {
@@ -90,6 +117,8 @@ const browser = await chromium.launch({
 });
 const context = await browser.newContext({ viewport });
 const page = await context.newPage();
+let familyMemberContext;
+let familyMemberPage;
 const findings = { email, checks: [], cleaned: false };
 
 try {
@@ -232,6 +261,25 @@ try {
     shareScope: 'private',
   });
   assert(readyFutureLetterCreation.status === 200, '無法建立隔離已解鎖未來信件。');
+  const familyInvite = await trpcMutation(page, 'diary.createFamilyInvite', {
+    email: familyMemberEmail,
+    role: 'commenter',
+    expiresAt: Date.now() + 60 * 60 * 1000,
+  });
+  const familyInviteToken = getTrpcResult(familyInvite)?.token;
+  assert(familyInvite.status === 200 && typeof familyInviteToken === 'string', '無法建立隔離家庭邀請。');
+  familyMemberContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  familyMemberPage = await familyMemberContext.newPage();
+  await familyMemberPage.goto(`${baseUrl}/editor`, { waitUntil: 'domcontentloaded' });
+  const familyMemberRegistration = await trpcMutation(familyMemberPage, 'auth.localRegister', {
+    name: 'Family Audience Validation',
+    email: familyMemberEmail,
+    password,
+  });
+  assert(familyMemberRegistration.status === 200, '無法建立隔離家庭成員帳號。');
+  const familyInviteAcceptance = await trpcMutation(familyMemberPage, 'diary.acceptFamilyInvite', { token: familyInviteToken });
+  assert(familyInviteAcceptance.status === 200, '隔離家庭成員無法接受邀請。');
+  findings.checks.push('accepted isolated family member for audience preview');
 
   if (viewport.width > 375) {
     await page.reload({ waitUntil: 'domcontentloaded' });
@@ -345,6 +393,36 @@ try {
     await page.getByText('已建立 1 段 private Day One 記錄。', { exact: true }).waitFor({ timeout: 10_000 });
     assert(dayOneImportRequestCount === 1, 'Day One 只能在明確確認後呼叫一次 private 匯入。');
     await page.unroute('**/api/trpc/diary.importEvents**');
+    const journeyImport = page.locator('.journey-import');
+    await journeyImport.getByRole('heading', { name: '先審核，再帶入 Journey 日記' }).waitFor({ timeout: 10_000 });
+    let journeyImportRequestCount = 0;
+    const journeyImportPayloads = [];
+    await page.route('**/api/trpc/diary.importEvents**', async (route) => { journeyImportRequestCount += 1; journeyImportPayloads.push(route.request().postData() ?? ''); await route.continue(); });
+    await journeyImport.locator('input[type="file"]').setInputFiles({ name: 'journey-e2e.zip', mimeType: 'application/zip', buffer: await makeJourneyZip(true) });
+    await journeyImport.getByTestId('journey-import-preview').waitFor({ timeout: 10_000 });
+    assert(journeyImportRequestCount === 0, 'Journey ZIP 解析後未確認前不得建立任何事件。');
+    const journeyTitleInput = journeyImport.getByRole('textbox', { name: 'Journey 草稿標題 isolated-journey-entry', exact: true });
+    const journeyDateInput = journeyImport.getByRole('textbox', { name: 'Journey 草稿日期 isolated-journey-entry', exact: true });
+    const secondJourneyDateInput = journeyImport.getByRole('textbox', { name: 'Journey 草稿日期 isolated-journey-entry-second', exact: true });
+    const firstJourneyDraft = journeyImport.getByTestId('journey-draft-isolated-journey-entry');
+    assert(await journeyTitleInput.inputValue() === 'Journey 隔離驗證記事', 'Journey 本機預覽應只將已轉為純文字的候選標題帶入可編輯草稿。');
+    await journeyTitleInput.fill('暫時標題');
+    await firstJourneyDraft.getByRole('button', { name: '重設此筆' }).click();
+    assert(await journeyTitleInput.inputValue() === 'Journey 隔離驗證記事', 'Journey 草稿重設必須回到 parser 產生的標題，且不能重新讀取 ZIP。');
+    await journeyImport.getByLabel('選取 Journey 第二筆記事').uncheck();
+    const preservedSecondDate = await secondJourneyDateInput.inputValue();
+    await journeyImport.getByLabel('Journey 批次日期與時間').fill('2026-08-23T10:30');
+    await journeyImport.getByRole('button', { name: '套用至已選草稿' }).click();
+    assert(await journeyDateInput.inputValue() === '2026-08-23T10:30' && await secondJourneyDateInput.inputValue() === preservedSecondDate, 'Journey 批次時間只能套用到目前勾選草稿，不能改寫未選草稿。');
+    if (process.env.CHRONICLE_E2E_JOURNEY_BATCH_SCREENSHOT_PATH) await journeyImport.screenshot({ path: process.env.CHRONICLE_E2E_JOURNEY_BATCH_SCREENSHOT_PATH });
+    await journeyTitleInput.fill('Journey 自訂標題');
+    assert(journeyImportRequestCount === 0, 'Journey 標題或日期微調不得在確認前建立事件。');
+    await journeyImport.getByRole('button', { name: '確認建立 1 段 private 記錄' }).click();
+    await page.getByText('已建立 1 段 private Journey 記錄。', { exact: true }).waitFor({ timeout: 10_000 });
+    await page.locator('.journey-import-success-toast').getByText('已建立 1 段 private Journey 記錄。', { exact: true }).waitFor({ timeout: 10_000 });
+    assert(journeyImportRequestCount === 1 && journeyImportPayloads[0]?.includes('private') && journeyImportPayloads[0]?.includes('Journey 自訂標題') && !journeyImportPayloads[0]?.includes('不得匯入'), 'Journey 只能在明確確認後建立 private 事件，並只帶入已審核的標題／日期，不可包含地址或來源 metadata。');
+    await page.unroute('**/api/trpc/diary.importEvents**');
+    await page.reload({ waitUntil: 'domcontentloaded' });
     const familyMilestones = page.locator('.family-milestone-layer');
     await familyMilestones.getByRole('heading', { name: '把要一起記得的事，另寫成家庭大事記' }).waitFor({ timeout: 10_000 });
     await familyMilestones.getByRole('button', { name: '新增大事記' }).click();
@@ -356,11 +434,42 @@ try {
     if (process.env.CHRONICLE_E2E_FAMILY_AUDIENCE_SCREENSHOT_PATH) {
       await familyMilestones.screenshot({ path: process.env.CHRONICLE_E2E_FAMILY_AUDIENCE_SCREENSHOT_PATH });
     }
-    await familyMilestones.getByRole('radio', { name: /所有已接受的家庭成員/ }).check();
+    await familyMilestones.getByLabel('選擇 Family Audience Validation').check();
+    let familyCreateRequestCount = 0;
+    await page.route('**/api/trpc/diary.createFamilyMilestone**', async (route) => { familyCreateRequestCount += 1; await route.continue(); });
     await familyMilestones.getByRole('button', { name: '加入 family-only 圖層' }).click();
     await familyMilestones.getByText('家庭旅程摘要', { exact: true }).waitFor({ timeout: 10_000 });
+    assert(familyCreateRequestCount === 1, '新建家庭大事記不需受眾預覽，應直接以 owner 明確選取的成員建立。');
+    await page.unroute('**/api/trpc/diary.createFamilyMilestone**');
     assert(await familyMilestones.getByText('只分享給已接受邀請家人的短摘要。', { exact: true }).isVisible(), '家庭大事記應只顯示 owner 明確填寫的摘要。');
-    findings.checks.push('desktop Day One local review confirmation and family-only milestone summary');
+    let familyUpdateRequestCount = 0;
+    await page.route('**/api/trpc/diary.updateFamilyMilestone**', async (route) => { familyUpdateRequestCount += 1; await route.continue(); });
+    await familyMilestones.getByRole('button', { name: '編輯' }).first().click();
+    await familyMilestones.getByRole('radio', { name: /所有已接受的家庭成員/ }).check();
+    await familyMilestones.getByRole('button', { name: '更新摘要' }).click();
+    const audiencePreview = familyMilestones.getByRole('dialog', { name: '家庭大事記受眾變更預覽' });
+    await audiencePreview.getByRole('heading', { name: '先確認誰會看到這筆摘要' }).waitFor({ timeout: 10_000 });
+    assert(familyUpdateRequestCount === 0, '受眾變更預覽出現前不得送出更新 mutation。');
+    assert(await audiencePreview.getByText('Family Audience Validation', { exact: true }).count() >= 2, '受眾預覽必須同時列出目前與提議的有效成員。');
+    assert(await audiencePreview.locator('.family-audience-scope-current').count() === 1 && await audiencePreview.locator('.family-audience-scope-proposed').count() === 1, '受眾預覽必須以目前／提議範圍的非僅色彩視覺群組呈現。');
+    assert(await audiencePreview.getByText('範圍規則調整', { exact: false }).isVisible(), '有效受眾相同但政策改變時，預覽必須清楚標示未來規則差異。');
+    if (process.env.CHRONICLE_E2E_AUDIENCE_PREVIEW_SCREENSHOT_PATH) await audiencePreview.screenshot({ path: process.env.CHRONICLE_E2E_AUDIENCE_PREVIEW_SCREENSHOT_PATH });
+    await audiencePreview.getByRole('button', { name: '確認變更' }).click();
+    await page.getByText('已更新 family-only 大事記摘要。', { exact: true }).waitFor({ timeout: 10_000 });
+    assert(familyUpdateRequestCount === 1, '只有 owner 第二次確認受眾變更後才可更新 family-only 摘要。');
+    const audienceAudit = familyMilestones.locator('.family-audience-audit');
+    await audienceAudit.locator('summary').click();
+    await audienceAudit.getByText('已確認受眾範圍變更', { exact: true }).waitFor({ timeout: 10_000 });
+    assert((await audienceAudit.innerText()).includes('大事記 #') && !(await audienceAudit.innerText()).includes('家庭旅程摘要') && !(await audienceAudit.innerText()).includes('Family Audience Validation'), 'owner 受眾稽核檢視只能顯示時間、動作與識別碼，不可投影摘要或成員資料。');
+    await audienceAudit.getByLabel('受眾稽核開始日期').fill('2099-01-01');
+    await audienceAudit.getByLabel('受眾稽核結束日期').fill('2099-01-01');
+    await audienceAudit.getByText('此日期區間沒有已確認的受眾範圍變更。', { exact: true }).waitFor({ timeout: 10_000 });
+    assert(!(await audienceAudit.innerText()).includes('家庭旅程摘要') && !(await audienceAudit.innerText()).includes('Family Audience Validation'), '稽核日期篩選不可使摘要或成員資料進入 owner 最小投影。');
+    if (process.env.CHRONICLE_E2E_AUDIENCE_AUDIT_RANGE_SCREENSHOT_PATH) await audienceAudit.screenshot({ path: process.env.CHRONICLE_E2E_AUDIENCE_AUDIT_RANGE_SCREENSHOT_PATH });
+    await audienceAudit.getByRole('button', { name: '清除日期' }).click();
+    await audienceAudit.getByText('已確認受眾範圍變更', { exact: true }).waitFor({ timeout: 10_000 });
+    await page.unroute('**/api/trpc/diary.updateFamilyMilestone**');
+    findings.checks.push('desktop Day One and editable Journey review, selected-only batch datetime, private import toast, family-only summary, semantic audience preview and filtered minimum owner audit');
     const desktopFutureLetters = page.locator('.future-letters-studio');
     await desktopFutureLetters.getByRole('heading', { name: '寫給以後的自己' }).waitFor({ timeout: 10_000 });
     assert(await desktopFutureLetters.getByText(readyFutureLetterTitle, { exact: true }).isVisible(), '桌面未來信件索引未顯示已解鎖事件。');
@@ -702,6 +811,14 @@ try {
   findings.status = 'passed';
   console.log(JSON.stringify(findings));
 } finally {
+  if (familyMemberPage) {
+    try {
+      await trpcMutation(familyMemberPage, 'auth.deleteAccount', { confirmation: '刪除我的帳號' });
+    } catch {
+      // 保留原始失敗原因，但盡力清理隔離家庭成員帳號。
+    }
+  }
+  await familyMemberContext?.close();
   if (!findings.cleaned) {
     try {
       await trpcMutation(page, 'auth.deleteAccount', { confirmation: '刪除我的帳號' });

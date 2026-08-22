@@ -106,3 +106,49 @@
 ### 下一輪完成狀態
 
 **已完成。** `0022_minor_george_stacy.sql` 已審閱並套用，為舊項目加入向後相容的 `all_accepted` 預設，並建立可 cascade 撤銷的 milestone-to-membership audience 關聯。新項目預設選擇成員，未選人員時不能儲存；owner 可切換所有已接受成員或指定成員。資料層將 non-owner 查詢過濾到自身授權項目，且 projection 不含 source event、受眾資訊或私人媒體欄位。91 個測試檔／256 項、桌面與 375px local-auth E2E、直接 Vite PWA build、lazy-route、server bundle、secret scan、production audit 與 diff check 均通過。
+
+## 本輪交付：Journey 本機審核與家庭受眾變更前預覽
+
+| 範圍 | 資料與權限邊界 | 驗收 |
+| --- | --- | --- |
+| Journey ZIP 草稿 | owner 選檔後才在瀏覽器處理所有安全 ZIP path 的 JSON entry；只取有效 `date_journal`、HTML 轉純文字的 `text` 與受限標籤。provider ID 僅供本機優先去重；缺少時退回日期加淨化文字。 | 拒絕不安全 path、超限 archive／entry／檔案數與無效資料；不保存 ZIP、來源 ID、檔名、媒體、音訊、GPS、地址、天氣、時區、裝置或未知欄位。確認前沒有 mutation；確認後只由既有 batch import 建立 private 事件。 |
+| 家庭受眾預覽 | 新建項目維持直接建立；只有編輯既有項目且有效受眾集合或 `all_accepted`／`selected_members` 政策變更時，owner 才會先看到目前／提議、加入／移除的本機差異。 | 預覽前 update mutation 為零；只有第二次「確認變更」才送出。若 family member 名冊或選擇變動，預覽立即失效並要求重選；無效 membership ID 不會進入 update payload。 |
+
+### 本輪完成狀態
+
+**已完成。** `journeyImport.ts`、`PrivateJourneyImport.tsx` 與既有 `diary.importEvents` 接線已交付；`journeyImport.test.ts` 覆蓋巢狀安全 JSON path、HTML 欄位最小化、provider ID 優先及 fallback 去重。`FamilyMilestoneLayer` 以 `familyAudiencePreview.ts` 計算有效對象、政策切換和名冊 signature，並在更新前建立可取消的本機差異預覽。隔離桌面 local-auth 回歸新增 Journey 確認前零寫入／確認後 private payload，及 family preview 前零 update／二次確認後單次 update；375px 私人工作台回歸亦通過。實際通過 `pnpm lint`、`pnpm check`、93 個測試檔／262 項、桌面與 375px 隔離 E2E、受限 heap 的 Vite PWA build、lazy route verifier、server bundle、178 revisions secret scan、production audit 與 diff check。
+
+## 下一輪：私有審核可讀性與 Journey 草稿微調
+
+| 交付 | 資料與隱私邊界 | 驗收 |
+| --- | --- | --- |
+| 受眾差異可讀性 | 現有本機 preview 只增進加入、移除與政策變更的視覺層次；不新增受眾資料、不把名冊或摘要送往公開／link 分享，也不減少第二次確認。 | 加入與移除有清楚、非僅色彩的狀態；鍵盤與 reduced motion 使用者仍可理解變更，preview 前不得 update。 |
+| owner 稽核檢視 | 僅 owner 可讀取既有不含摘要、收件者、正文、媒體、位置或 AI 的 audience audit metadata。檢視不得建立追蹤或通知。 | UI 只呈現時間、動作、目標 milestone ID 與 actor 自身可見的最小欄位；非 owner／public／link 不可讀取。 |
+| Journey 草稿微調 | 僅在瀏覽器記憶體中允許 owner 編輯已解析候選的標題與 UTC 日期；確認前不 mutation、不保存 provider ID 或 raw export。 | 標題與日期必須受限、可取消、重置原候選；確認後一律 private，payload 不可含剝除欄位。 |
+
+> 視覺驗證紀錄：隔離 desktop 的受眾預覽截圖確認「目前／提議」scope、加入／移除狀態及規則調整均以文字、符號與色彩共同呈現；scope 成員標籤已調整為高對比前景色。此檢查不使用真實帳號或家庭資料。
+
+## 下一輪：私有審核效率與回饋
+
+| 交付 | 資料與隱私邊界 | 驗收 |
+| --- | --- | --- |
+| owner 稽核日期區間 | 日期控制只存在 owner 工作台；選擇後以可選 UTC 毫秒界線呼叫既有 owner-only 最小 audit read model。回應仍只能有時間、固定 action 與 milestone ID；不因篩選而回傳摘要、成員、actor、metadata、來源事件、媒體或位置。 | 拒絕無效／反轉範圍；owner 只能得到範圍內結果；清除篩選與空結果不產生 audit、通知或背景輪詢。 |
+| Journey 批次日期時間 | 只對 owner 明確勾選、目前瀏覽器記憶體中的草稿套用一組日期時間；不重新讀 ZIP、不改未選草稿、不保存批次規則。 | 以純函式驗證本地輸入與 UTC 轉換；無效值不改草稿；每筆可重設；確認前零 mutation，確認 payload 仍不含被剝除來源欄位。 |
+| Journey 成功回饋 | 只有既有 private batch-import 成功後顯示具 reduced-motion 支援的短 Toast 與過渡；文案僅包含建立數量。 | mutation 前、失敗或取消時不出現成功 Toast；Toast 不含標題、正文、日期、標籤、來源、位置或 provider ID，也不觸發額外寫入、上傳或通知。 |
+
+> 視覺檢查：隔離 desktop 已確認 owner 稽核日期範圍的深色面板、清除控制與空結果只呈現時間範圍的狀態，未顯示家庭內容。Journey 批次工具提高紙色面前景對比後，已確認標題、輔助文字、日期欄與逐項草稿均可辨識；兩項檢查皆不使用真實帳號或家庭資料。
+
+**已完成。** owner 稽核可用最多 366 天的本機日期區間查詢既有最小投影，反轉、無效與過長範圍在送出前拒絕。Journey 草稿可把一組合法日期時間只套用至已選項目，未選項與來源 ZIP 保持不變；private batch import 成功後才以 reduced-motion-safe Toast 顯示建立數量。完整 lint、型別、95 個測試檔／270 項、桌面與 375px 隔離 E2E、Vite PWA build、lazy route verifier、server bundle、secret scan、production audit 與 diff check 均通過。
+
+## 下一輪：治理補強與跨匯入資料品質
+
+| 交付 | 資料與隱私邊界 | 驗收 |
+| --- | --- | --- |
+| 秘密與依賴基準 | 使用既有不輸出內容的 Git 歷史掃描與 production-only audit；不把掃描文字、環境值或真實憑證寫入測試、Issue 或文件。 | 記錄實際 revision 數與 audit 結果；若失敗只回報類型與安全處置，不回顯候選秘密。 |
+| 元件測試補強 | `PrivateHighlightAssistant` 與 `FamilyMilestoneLayer` 使用匿名、暫態 fixture，覆蓋同意／採用、受眾預覽、最小稽核、日期範圍與無內容狀態。 | co-locate Vitest；不得建立真實家庭、兒童、日記或評論資料；測試不呼叫模型、地圖、儲存或正式 OAuth。 |
+| Issue 與依賴紀律 | 每輪先核對 open Issue 與既有依賴決策，將未實作的跨匯入去重列入可追蹤條目。 | 不以例行驗證另開 PR；新功能先有 Issue 或明確判定與既有 Issue 的關聯。 |
+| 去重引擎預研 | 只規畫瀏覽器本機、明確觸發的候選比較；不得背景掃描既有私人媒體、不得將原圖、雜湊、GPS、來源 ID 或文字內容送往第三方。衝突必須保留使用者選擇，不得自動刪除或合併。 | 設計比較層級、誤判處理、私人資料保存期與四條匯入路徑的接線邊界；未完成前不宣稱已有跨來源去重。 |
+
+去重預研採四層候選設計：現有 source key、目前選檔的本機 checksum、明確觸發的 Canvas pHash／dHash，以及正規化短標題與 UTC 日期窗口。`imagehash-web` 具 browser hash 與 Hamming distance 範例但社群規模小，因此目前只作原型參考；`jsdiff` 雖成熟，仍不適合把完整日記作比較輸入。完整評估見 [`IMPORT_DEDUPLICATION_RESEARCH.md`](../research/IMPORT_DEDUPLICATION_RESEARCH.md)。
+
+**已完成。** 秘密掃描以七類模式檢查 181 個 revisions 並通過；production audit 為零已知漏洞。本輪補齊 `PrivateHighlightAssistant` 與 `FamilyMilestoneLayer` 的 co-located 測試，現有元件、資料層與文件回歸共 97 個檔案／274 項通過。依賴基準與現有重量級載入理由已在 CONTRIBUTING 記錄。既有 Issue #9–#12 已核對，新的私有跨匯入去重設計以 Issue #47 建檔，不在本輪假稱已實作。
