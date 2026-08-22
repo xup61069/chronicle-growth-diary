@@ -21,6 +21,7 @@
 - [x] 核對發布與 GitHub main，補齊 AI 交接、架構、安全、驗證與協作指引。
 - [ ] 將 AI 文件治理 PR 合併並核對 GitHub main SHA。
 - [ ] 保存文件治理 checkpoint。
+- [x] 修復 GitHub Chromium mock OAuth callback 的冷啟動逾時，讓文件治理 PR 的必要 CI 可穩定通過。
 
 ## 已確認的非執行限制
 
