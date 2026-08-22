@@ -1,5 +1,5 @@
 import { Check, Edit3, History, Loader2, LockKeyhole, Minus, Plus, Trash2, UsersRound, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { diffFamilyAudience, effectiveFamilyAudienceMemberIds, familyAudienceFingerprint, familyAudienceRosterSignature, type FamilyAudienceDiff } from "@/lib/familyAudiencePreview";
 import type { FamilyAudienceAuditDateRange } from "@/lib/familyAudienceAuditRange";
 

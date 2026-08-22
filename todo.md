@@ -1,20 +1,20 @@
 # TODO
 
-> 見 [CURRENT_SPRINT](./docs/roadmap/CURRENT_SPRINT.md)、[FEATURES](./docs/roadmap/FEATURES.md)、[AI_HANDOFF](./docs/AI_HANDOFF.md)。
+> [CURRENT_SPRINT](./docs/roadmap/CURRENT_SPRINT.md) · [AI_HANDOFF](./docs/AI_HANDOFF.md)
 
-- [x] 完成治理、CI 防護與補記 MVP。
-- [x] 完成 HEIC／Live Photo 私有匯入。
-- [x] 完成 ICS private 草稿匯入。
-- [x] 完成私有分享影像去識別化。
-- [x] 限制 Live Photo MOV 不做事件主圖。
-- [x] 核對已發布版本與 GitHub main。
+- [x] 治理與補記 MVP。
+- [x] HEIC／Live Photo 私有匯入。
+- [x] ICS private 草稿匯入。
+- [x] 私有分享影像去識別化。
+- [x] Live Photo 主圖限制。
+- [x] 發布／main 核對。
 - [x] 完成 ICS 週期性審核。
 - [x] 加入私有分享影像手動遮罩。
 - [x] 加入 HEIC 批次匯入容量估算。
-- [x] 制定單一功能 PR 與文件治理規則。
-- [x] 完成 mock OAuth callback 防護與供應鏈稽核。
+- [x] 單一功能 PR 與文件治理。
+- [x] mock OAuth／供應鏈稽核。
 - [x] 建立 PWA private QuickNote 入口。
-- [x] 修補 Express 5 wildcard 路由安全回歸。
+- [x] Express 5 路由回歸。
 - [x] 全量封存驗證完成。
 - [x] 完成可審核全量 ZIP 還原。
 - [x] 全量 ZIP 匯出進度。
@@ -41,6 +41,9 @@
 - [x] owner 受眾稽核日期區間篩選。
 - [x] Journey 草稿批次套用日期與時間。
 - [x] Journey 確認後成功 Toast 與過渡回饋。
+- [x] 重新驗證秘密掃描與 production 依賴稽核。
+- [x] 補齊 Highlight 與家庭大事記元件測試。
+- [x] 核對 GitHub Issue backlog 與去重引擎私有設計。
 
 ## 已確認的非執行限制
 

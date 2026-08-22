@@ -107,6 +107,10 @@ corepack pnpm install --frozen-lockfile
 
 最低回歸為 `client/src/lib/dayOneImport.test.ts`、`journeyImport.test.ts`、`journeyImportDraft.test.ts`、`familyAudienceAuditRange.test.ts`、`familyAudiencePreview.test.ts`、`server/db/familyCollaboration.test.ts`、既有 family router／資料層測試，以及 `pnpm test:e2e:isolated` 與 `CHRONICLE_E2E_VIEWPORT=desktop pnpm test:e2e:isolated`。桌面隔離 E2E 必須攔截 Journey import mutation，驗證 preview 前為零寫入、selected-only 批次時間可重設且確認後只產生 private payload／數量型成功 Toast，並驗證 family update 在 preview 前為零寫入、僅第二次確認後呼叫一次，以及 owner audit 依日期篩選後仍不投影摘要或成員。
 
+`PrivateHighlightAssistant.test.tsx` 與 `FamilyMilestoneLayer.test.tsx` 現已 co-locate，分別以匿名 fixture 覆蓋 AI 明確同意／暫態候選，以及 owner 最小稽核／非 owner 隔離；元件在 Vitest server render 下需保留 React JSX runtime import。這些測試不呼叫模型、地圖、儲存、正式 OAuth 或真實家庭資料。任何新 diary 元件應同時補齊自己的 co-located 測試，避免只依賴 E2E。
+
+跨匯入去重尚未交付。GitHub Issue [#47](https://github.com/xup61069/chronicle-growth-diary/issues/47) 與 [`IMPORT_DEDUPLICATION_RESEARCH.md`](./research/IMPORT_DEDUPLICATION_RESEARCH.md) 定義未來工作：source key、目前選檔 checksum、明確觸發的本機感知雜湊與短標題／UTC 日期只可產生「可能重複」候選；不得背景掃描、外送資料、自動刪除或跨帳號保存圖譜。實作前仍須完成依賴、bundle、效能、授權與隔離 E2E 審查。
+
 ## 5. 驗證流程
 
 一般變更完成後，至少執行：
