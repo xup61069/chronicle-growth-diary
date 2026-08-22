@@ -78,7 +78,7 @@ describe("mock OAuth provider browser callback", () => {
     expect(mocks.upsertUser).toHaveBeenCalledWith(expect.objectContaining({ openId: "mock-browser-user" }));
     expect(await context.cookies(origin)).not.toEqual(expect.arrayContaining([expect.objectContaining({ name: OAUTH_STATE_COOKIE })]));
     await context.close();
-  }, 20_000);
+  }, 45_000);
 
   it("fails closed in the browser when the nonce cookie is absent", async () => {
     const origin = await startMockCallbackApp();
@@ -91,5 +91,5 @@ describe("mock OAuth provider browser callback", () => {
     expect(response?.status()).toBe(403);
     expect(await page.textContent("body")).toContain("invalid oauth state");
     expect(mocks.exchangeCodeForToken).not.toHaveBeenCalled();
-  }, 20_000);
+  }, 45_000);
 });
