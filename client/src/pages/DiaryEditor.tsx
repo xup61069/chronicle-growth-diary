@@ -42,6 +42,7 @@ import { parseSocialDraftCsv, parseSocialDraftJson, type SocialDraftCandidate } 
 import { buildTrackRows, filterEventsBySkill, getTimelineInsights, getTimelineSkills, isTimeCapsuleLocked, milestoneLabels } from "@/lib/multitrackTimeline";
 import { buildPlaceFootprints, buildSpatialFootprints, getBentoSpan, timelineViewOptions, type TimelineViewMode } from "@/lib/timelineViews";
 import { getBackfillAssistantSnapshot } from "@/lib/backfillAssistant";
+import { getFamilyAudienceAuditQueryRange, type FamilyAudienceAuditDateRange } from "@/lib/familyAudienceAuditRange";
 import { listVoiceDrafts, makeVoiceDraftFileName, queueVoiceDraft, removeVoiceDraft, voiceBlobToBase64, type QueuedVoiceDraft } from "@/lib/voiceDrafts";
 import { trpc } from "@/lib/trpc";
 import { canEditFamilyDiary, canManageAnnualReview, canManageFamilyDiarySettings, describeFamilyAuditAction, type FamilyDiaryAccessRole } from "@/lib/familyCollaboration";
@@ -133,6 +134,7 @@ function DiaryEditorContent() {
   const [familyInviteEmail, setFamilyInviteEmail] = useState("");
   const [familyInviteRole, setFamilyInviteRole] = useState<"editor" | "commenter">("commenter");
   const [familyInviteUrl, setFamilyInviteUrl] = useState<string | null>(null);
+  const [familyAudienceAuditRange, setFamilyAudienceAuditRange] = useState<FamilyAudienceAuditDateRange>({ fromDate: "", toDate: "" });
   const [filterType, setFilterType] = useState<"all" | EventType>("all");
   const [filterTag, setFilterTag] = useState("all");
   const [phaseFilter, setPhaseFilter] = useState("all");
@@ -356,7 +358,8 @@ function DiaryEditorContent() {
     onError: (error) => toast.error(error.message),
   });
   const familyAuditQuery = trpc.diary.getFamilyAudit.useQuery(undefined, { enabled: isOwner });
-  const familyAudienceAuditQuery = trpc.diary.getFamilyMilestoneAudienceAudit.useQuery(undefined, { enabled: isOwner, staleTime: 0 });
+  const familyAudienceAuditRangeResult = useMemo(() => getFamilyAudienceAuditQueryRange(familyAudienceAuditRange), [familyAudienceAuditRange]);
+  const familyAudienceAuditQuery = trpc.diary.getFamilyMilestoneAudienceAudit.useQuery(familyAudienceAuditRangeResult.input, { enabled: isOwner && !familyAudienceAuditRangeResult.error, staleTime: 0 });
   const removeFamilyMemberMutation = trpc.diary.removeFamilyMember.useMutation({
     onSuccess: async () => {
       await Promise.all([utils.diary.getFamilyMembers.invalidate(), utils.diary.getFamilyMilestones.invalidate(), utils.diary.getFamilyAudit.invalidate()]);
@@ -1553,7 +1556,7 @@ function DiaryEditorContent() {
         toast.success(`已建立 ${result.importedCount} 段 private Day One 記錄。`);
       }} /> : null}
       {isOwner ? <PrivateJourneyImport disabled={importMutation.isPending} onConfirm={async (candidates) => {
-        if (!candidates.length) return;
+        if (!candidates.length) return { importedCount: 0 };
         const result = await importMutation.mutateAsync({
           ...(requestedDiaryId ? { diaryId: requestedDiaryId } : {}),
           events: candidates.map((candidate) => ({
@@ -1564,9 +1567,9 @@ function DiaryEditorContent() {
           })),
         });
         await utils.diary.get.invalidate();
-        toast.success(`已建立 ${result.importedCount} 段 private Journey 記錄。`);
+        return result;
       }} /> : null}
-      <FamilyMilestoneLayer milestones={familyMilestonesQuery.data ?? []} canManage={isOwner} sourceEvents={isOwner ? events.map((event) => ({ id: event.id, title: event.title })) : []} familyMembers={isOwner ? familyMembersQuery.data ?? [] : []} audienceAudit={isOwner ? familyAudienceAuditQuery.data ?? [] : []} isLoadingAudienceAudit={familyAudienceAuditQuery.isLoading} isSaving={createFamilyMilestoneMutation.isPending || updateFamilyMilestoneMutation.isPending || deleteFamilyMilestoneMutation.isPending} onCreate={async (input) => { await createFamilyMilestoneMutation.mutateAsync(input); await Promise.all([utils.diary.getFamilyMilestones.invalidate(), utils.diary.getFamilyAudit.invalidate()]); toast.success("已加入 family-only 大事記；原始日記沒有被公開。 "); }} onUpdate={async (id, input) => { await updateFamilyMilestoneMutation.mutateAsync({ id, ...input }); await Promise.all([utils.diary.getFamilyMilestones.invalidate(), utils.diary.getFamilyAudit.invalidate(), utils.diary.getFamilyMilestoneAudienceAudit.invalidate()]); toast.success("已更新 family-only 大事記摘要。 "); }} onDelete={async (id) => { await deleteFamilyMilestoneMutation.mutateAsync({ id }); await Promise.all([utils.diary.getFamilyMilestones.invalidate(), utils.diary.getFamilyAudit.invalidate()]); toast.success("已從 family-only 大事記移除；原始日記仍保持不變。 "); }} />
+      <FamilyMilestoneLayer milestones={familyMilestonesQuery.data ?? []} canManage={isOwner} sourceEvents={isOwner ? events.map((event) => ({ id: event.id, title: event.title })) : []} familyMembers={isOwner ? familyMembersQuery.data ?? [] : []} audienceAudit={isOwner ? familyAudienceAuditQuery.data ?? [] : []} audienceAuditRange={familyAudienceAuditRange} audienceAuditRangeError={familyAudienceAuditRangeResult.error} onAudienceAuditRangeChange={setFamilyAudienceAuditRange} isLoadingAudienceAudit={familyAudienceAuditQuery.isLoading} isSaving={createFamilyMilestoneMutation.isPending || updateFamilyMilestoneMutation.isPending || deleteFamilyMilestoneMutation.isPending} onCreate={async (input) => { await createFamilyMilestoneMutation.mutateAsync(input); await Promise.all([utils.diary.getFamilyMilestones.invalidate(), utils.diary.getFamilyAudit.invalidate()]); toast.success("已加入 family-only 大事記；原始日記沒有被公開。 "); }} onUpdate={async (id, input) => { await updateFamilyMilestoneMutation.mutateAsync({ id, ...input }); await Promise.all([utils.diary.getFamilyMilestones.invalidate(), utils.diary.getFamilyAudit.invalidate(), utils.diary.getFamilyMilestoneAudienceAudit.invalidate()]); toast.success("已更新 family-only 大事記摘要。 "); }} onDelete={async (id) => { await deleteFamilyMilestoneMutation.mutateAsync({ id }); await Promise.all([utils.diary.getFamilyMilestones.invalidate(), utils.diary.getFamilyAudit.invalidate()]); toast.success("已從 family-only 大事記移除；原始日記仍保持不變。 "); }} />
       {isOwner ? <PrivateSharePhotoDeidentification events={events.map((event) => ({ id: event.id, title: event.title, shareScope: event.shareScope, media: event.media.map((media) => ({ id: media.id, url: media.url, fileName: media.fileName, mediaKind: media.mediaKind, shareSafeEnabled: media.shareSafeEnabled, shareSafeUrl: media.shareSafeUrl })) }))} /> : null}
       {mediaArchivePreview ? <section className="import-studio" aria-labelledby="media-import-title"><div><p className="editor-kicker"><span /> MEDIA ARCHIVE / VERIFIED</p><h2 id="media-import-title">確認要還原的事件圖片</h2><p>已驗證媒體封存的 manifest、事件標題與發生時間。這次將把 {mediaArchivePreview.items.length} 張圖片加回目前相符的事件；不會接受外部 URL、儲存金鑰、分享設定或帳號資料。</p></div><div className="import-warning"><Archive size={15} /> 只接受 JPG、PNG、WebP、GIF；單張最大 4MB，封存與解壓後總量皆受 25MB 上限保護。</div><div className="import-actions"><button type="button" onClick={() => setMediaArchivePreview(null)} disabled={isMediaArchiveImporting}>取消</button><button type="button" onClick={confirmMediaArchiveImport} disabled={isMediaArchiveImporting}>{isMediaArchiveImporting ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />} 匯入 {mediaArchivePreview.items.length} 張圖片</button></div></section> : null}
       {socialPreview ? <section className="import-studio" aria-labelledby="social-import-title"><div><p className="editor-kicker"><span /> SOCIAL DRAFT / LOCAL ONLY</p><h2 id="social-import-title">先檢視，再帶進成長史</h2><p>已在此裝置解析 {socialPreview.length} 則候選；系統已依來源 ID 去重。確認前不會寫入日記，也不會連接社群帳號。</p></div><div className="import-preview-list">{socialPreview.slice(0, 5).map((candidate) => <article key={candidate.sourceId}><span>{formatDate(candidate.occurredAt, "day")}</span><b>{candidate.title}</b><small>{candidate.isSignificant ? "重大事件候選" : "一般候選"}</small></article>)}</div><div className="import-warning"><Archive size={15} /> 確認後一律建立為私人事件，並標記「社群匯入」。請先檢視原始內容。</div><div className="import-actions"><button type="button" onClick={() => setSocialPreview(null)} disabled={importMutation.isPending}>取消</button><button type="button" onClick={confirmSocialImport} disabled={importMutation.isPending}>{importMutation.isPending ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />} 確認建立 {socialPreview.length} 段事件</button></div></section> : null}

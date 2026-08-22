@@ -127,3 +127,15 @@
 | Journey 草稿微調 | 僅在瀏覽器記憶體中允許 owner 編輯已解析候選的標題與 UTC 日期；確認前不 mutation、不保存 provider ID 或 raw export。 | 標題與日期必須受限、可取消、重置原候選；確認後一律 private，payload 不可含剝除欄位。 |
 
 > 視覺驗證紀錄：隔離 desktop 的受眾預覽截圖確認「目前／提議」scope、加入／移除狀態及規則調整均以文字、符號與色彩共同呈現；scope 成員標籤已調整為高對比前景色。此檢查不使用真實帳號或家庭資料。
+
+## 下一輪：私有審核效率與回饋
+
+| 交付 | 資料與隱私邊界 | 驗收 |
+| --- | --- | --- |
+| owner 稽核日期區間 | 日期控制只存在 owner 工作台；選擇後以可選 UTC 毫秒界線呼叫既有 owner-only 最小 audit read model。回應仍只能有時間、固定 action 與 milestone ID；不因篩選而回傳摘要、成員、actor、metadata、來源事件、媒體或位置。 | 拒絕無效／反轉範圍；owner 只能得到範圍內結果；清除篩選與空結果不產生 audit、通知或背景輪詢。 |
+| Journey 批次日期時間 | 只對 owner 明確勾選、目前瀏覽器記憶體中的草稿套用一組日期時間；不重新讀 ZIP、不改未選草稿、不保存批次規則。 | 以純函式驗證本地輸入與 UTC 轉換；無效值不改草稿；每筆可重設；確認前零 mutation，確認 payload 仍不含被剝除來源欄位。 |
+| Journey 成功回饋 | 只有既有 private batch-import 成功後顯示具 reduced-motion 支援的短 Toast 與過渡；文案僅包含建立數量。 | mutation 前、失敗或取消時不出現成功 Toast；Toast 不含標題、正文、日期、標籤、來源、位置或 provider ID，也不觸發額外寫入、上傳或通知。 |
+
+> 視覺檢查：隔離 desktop 已確認 owner 稽核日期範圍的深色面板、清除控制與空結果只呈現時間範圍的狀態，未顯示家庭內容。Journey 批次工具提高紙色面前景對比後，已確認標題、輔助文字、日期欄與逐項草稿均可辨識；兩項檢查皆不使用真實帳號或家庭資料。
+
+**已完成。** owner 稽核可用最多 366 天的本機日期區間查詢既有最小投影，反轉、無效與過長範圍在送出前拒絕。Journey 草稿可把一組合法日期時間只套用至已選項目，未選項與來源 ZIP 保持不變；private batch import 成功後才以 reduced-motion-safe Toast 顯示建立數量。完整 lint、型別、95 個測試檔／270 項、桌面與 375px 隔離 E2E、Vite PWA build、lazy route verifier、server bundle、secret scan、production audit 與 diff check 均通過。

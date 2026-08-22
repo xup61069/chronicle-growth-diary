@@ -96,6 +96,13 @@ function validateFamilyMilestoneAudience(input: { audienceMode: "all_accepted" |
 }
 const familyMilestoneInput = z.object(familyMilestoneFields).superRefine(validateFamilyMilestoneAudience);
 const familyMilestoneUpdateInput = z.object({ id: z.number().int().positive(), ...familyMilestoneFields }).superRefine(validateFamilyMilestoneAudience);
+const familyAudienceAuditRangeInput = z.object({
+  from: z.number().int().min(-2208988800000).max(4102444800000).optional(),
+  to: z.number().int().min(-2208988800000).max(4102444800000).optional(),
+}).superRefine((input, ctx) => {
+  if (input.from !== undefined && input.to !== undefined && input.from > input.to) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["to"], message: "開始日期不能晚於結束日期。" });
+  if (input.from !== undefined && input.to !== undefined && input.to - input.from > 366 * 24 * 60 * 60 * 1000) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["to"], message: "日期區間最多可查詢 366 天。" });
+});
 
 export const diaryRouter = router({
   get: protectedProcedure.input(z.object({ diaryId: z.number().int().positive().optional() }).optional()).query(({ ctx, input }) => input?.diaryId ? getDiarySnapshot(ctx.user.id, input.diaryId) : getDiarySnapshot(ctx.user.id)),
@@ -115,7 +122,7 @@ export const diaryRouter = router({
   getEventReactions: protectedProcedure.input(z.object({ eventId: z.number().int().positive() })).query(({ ctx, input }) => getEventReactions(ctx.user.id, input.eventId)),
   getFamilyMembers: protectedProcedure.query(({ ctx }) => getDiaryMembers(ctx.user.id)),
   getFamilyAudit: protectedProcedure.query(({ ctx }) => getDiaryAuditLogs(ctx.user.id)),
-  getFamilyMilestoneAudienceAudit: protectedProcedure.query(({ ctx }) => getFamilyMilestoneAudienceAudit(ctx.user.id)),
+  getFamilyMilestoneAudienceAudit: protectedProcedure.input(familyAudienceAuditRangeInput.optional()).query(({ ctx, input }) => getFamilyMilestoneAudienceAudit(ctx.user.id, input)),
   getFamilyMilestones: protectedProcedure.input(z.object({ diaryId: z.number().int().positive().optional() }).optional()).query(({ ctx, input }) => getFamilyMilestones(ctx.user.id, input?.diaryId)),
   createFamilyMilestone: protectedProcedure.input(familyMilestoneInput).mutation(({ ctx, input }) => createFamilyMilestone(ctx.user.id, input)),
   updateFamilyMilestone: protectedProcedure.input(familyMilestoneUpdateInput).mutation(({ ctx, input }) => { const { id, ...milestone } = input; return updateFamilyMilestone(ctx.user.id, id, milestone); }),

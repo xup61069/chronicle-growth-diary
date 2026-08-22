@@ -1,11 +1,12 @@
-import { Archive, Check, FileArchive, Loader2, RotateCcw, X } from "lucide-react";
+import { Archive, CalendarClock, Check, FileArchive, Loader2, RotateCcw, X } from "lucide-react";
 import { type ChangeEvent, useRef, useState } from "react";
-import { createJourneyReviewDraft, finalizeJourneyReviewDraft, type JourneyReviewDraft } from "@/lib/journeyImportDraft";
+import { applyJourneyReviewBatchDateTime, createJourneyReviewDraft, finalizeJourneyReviewDraft, type JourneyReviewDraft } from "@/lib/journeyImportDraft";
 import { readJourneyImport, type JourneyImportPreview } from "@/lib/journeyImport";
+import { toast } from "sonner";
 
 type PrivateJourneyImportProps = {
   disabled: boolean;
-  onConfirm: (candidates: JourneyImportPreview["candidates"]) => Promise<void>;
+  onConfirm: (candidates: JourneyImportPreview["candidates"]) => Promise<{ importedCount: number }>;
 };
 
 export function PrivateJourneyImport({ disabled, onConfirm }: PrivateJourneyImportProps) {
@@ -15,9 +16,10 @@ export function PrivateJourneyImport({ disabled, onConfirm }: PrivateJourneyImpo
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isReading, setIsReading] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
+  const [batchDateInput, setBatchDateInput] = useState("");
   const [error, setError] = useState<string | null>(null);
   const selected = new Set(selectedIds);
-  const clear = () => { setPreview(null); setDrafts([]); setSelectedIds([]); setError(null); };
+  const clear = () => { setPreview(null); setDrafts([]); setSelectedIds([]); setBatchDateInput(""); setError(null); };
   const onFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = "";
@@ -47,10 +49,11 @@ export function PrivateJourneyImport({ disabled, onConfirm }: PrivateJourneyImpo
     }
     setIsConfirming(true);
     try {
-      await onConfirm(selectedDrafts.flatMap((candidate) => {
+      const result = await onConfirm(selectedDrafts.flatMap((candidate) => {
         const finalized = finalizeJourneyReviewDraft(candidate);
         return finalized ? [finalized] : [];
       }));
+      toast.success(`已建立 ${result.importedCount} 段 private Journey 記錄。`, { className: "journey-import-success-toast" });
       clear();
     } catch (confirmError) {
       setError(confirmError instanceof Error ? confirmError.message : "Journey 匯入未完成，沒有保留審核草稿。 ");
@@ -66,10 +69,16 @@ export function PrivateJourneyImport({ disabled, onConfirm }: PrivateJourneyImpo
     const original = preview?.candidates.find((candidate) => candidate.sourceId === sourceId);
     if (original) updateDraft(sourceId, createJourneyReviewDraft(original));
   };
+  const applyBatchDateTime = () => {
+    const next = applyJourneyReviewBatchDateTime(drafts, selectedIds, batchDateInput);
+    if (!next) { setError("請輸入有效的批次日期與時間。 "); return; }
+    setDrafts(next);
+    setError(null);
+  };
   return <section className="import-studio journey-import" aria-labelledby="journey-import-title">
     <input ref={inputRef} type="file" accept="application/zip,.zip" hidden onChange={onFileChange} />
     <div><p className="editor-kicker"><span /> JOURNEY / LOCAL REVIEW</p><h2 id="journey-import-title">先審核，再帶入 Journey 日記</h2><p>你選擇 Journey ZIP 並按下讀取後，安全 ZIP 路徑中的 JSON 記事只在這個瀏覽器轉為暫態草稿。可逐項微調標題與日期時間；這一版只保留日期、純文字與受限標籤，媒體、位置、天氣、時區、裝置與來源 metadata 都會捨棄。</p></div>
     <div className="import-warning"><Archive size={15} /> 確認前不會上傳附件、建立事件、保留 ZIP 或連結 Journey 帳號。確認後所有項目一律建立為 private。</div>
-    {!preview ? <><div className="import-actions"><button type="button" onClick={() => inputRef.current?.click()} disabled={disabled || isReading}>{isReading ? <Loader2 size={15} className="animate-spin" /> : <FileArchive size={15} />} 選擇 Journey ZIP</button></div>{error ? <p className="import-error" role="alert">{error}</p> : null}</> : <><div className="import-preview-list journey-import-preview" data-testid="journey-import-preview">{drafts.map((candidate) => <article key={candidate.sourceId}><label><input type="checkbox" aria-label={`選取 ${candidate.title || "Journey 草稿"}`} checked={selected.has(candidate.sourceId)} onChange={(event) => setSelectedIds((ids) => event.target.checked ? Array.from(new Set([...ids, candidate.sourceId])) : ids.filter((id) => id !== candidate.sourceId))} disabled={disabled || isConfirming} /> 匯入為 private</label><div className="journey-draft-fields"><label>標題<input aria-label={`Journey 草稿標題 ${candidate.sourceId}`} value={candidate.title} maxLength={180} onChange={(event) => updateDraft(candidate.sourceId, { title: event.target.value.slice(0, 180) })} disabled={disabled || isConfirming} /></label><label>日期與時間<input aria-label={`Journey 草稿日期 ${candidate.sourceId}`} type="datetime-local" value={candidate.dateInput} onChange={(event) => updateDraft(candidate.sourceId, { dateInput: event.target.value })} disabled={disabled || isConfirming} /></label><button type="button" onClick={() => resetDraft(candidate.sourceId)} disabled={disabled || isConfirming}><RotateCcw size={13} /> 重設此筆</button></div><small>{candidate.tagNames.map((tag) => `#${tag}`).join(" ")}</small></article>)}</div><p className="day-one-import-summary">已從 Journey ZIP 建立 {preview.candidates.length} 個暫態草稿；略過 {preview.skippedCount} 筆不完整資料、排除 {preview.duplicateCount} 筆同檔重複資料。標題與日期微調只存在目前瀏覽器；檔名只作為目前預覽的去重鍵，不會保存。</p>{error ? <p className="import-error" role="alert">{error}</p> : null}<div className="import-actions"><button type="button" onClick={clear} disabled={isConfirming}><X size={15} /> 取消</button><button type="button" onClick={confirm} disabled={disabled || isConfirming || !selectedIds.length}>{isConfirming ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />} 確認建立 {selectedIds.length} 段 private 記錄</button></div></>}
+    {!preview ? <><div className="import-actions"><button type="button" onClick={() => inputRef.current?.click()} disabled={disabled || isReading}>{isReading ? <Loader2 size={15} className="animate-spin" /> : <FileArchive size={15} />} 選擇 Journey ZIP</button></div>{error ? <p className="import-error" role="alert">{error}</p> : null}</> : <><div className="journey-batch-date-controls"><div><b><CalendarClock size={14} />批次套用日期與時間</b><small>只更新目前勾選的 {selectedIds.length} 筆暫態草稿；不會重讀 ZIP、修改未選項目或建立事件。</small></div><label>日期與時間<input aria-label="Journey 批次日期與時間" type="datetime-local" value={batchDateInput} onChange={(event) => setBatchDateInput(event.target.value)} disabled={disabled || isConfirming} /></label><button type="button" onClick={applyBatchDateTime} disabled={disabled || isConfirming || !selectedIds.length}><CalendarClock size={14} />套用至已選草稿</button></div><div className="import-preview-list journey-import-preview" data-testid="journey-import-preview">{drafts.map((candidate) => <article key={candidate.sourceId} data-testid={`journey-draft-${candidate.sourceId}`}><label><input type="checkbox" aria-label={`選取 ${candidate.title || "Journey 草稿"}`} checked={selected.has(candidate.sourceId)} onChange={(event) => setSelectedIds((ids) => event.target.checked ? Array.from(new Set([...ids, candidate.sourceId])) : ids.filter((id) => id !== candidate.sourceId))} disabled={disabled || isConfirming} /> 匯入為 private</label><div className="journey-draft-fields"><label>標題<input aria-label={`Journey 草稿標題 ${candidate.sourceId}`} value={candidate.title} maxLength={180} onChange={(event) => updateDraft(candidate.sourceId, { title: event.target.value.slice(0, 180) })} disabled={disabled || isConfirming} /></label><label>日期與時間<input aria-label={`Journey 草稿日期 ${candidate.sourceId}`} type="datetime-local" value={candidate.dateInput} onChange={(event) => updateDraft(candidate.sourceId, { dateInput: event.target.value })} disabled={disabled || isConfirming} /></label><button type="button" onClick={() => resetDraft(candidate.sourceId)} disabled={disabled || isConfirming}><RotateCcw size={13} /> 重設此筆</button></div><small>{candidate.tagNames.map((tag) => `#${tag}`).join(" ")}</small></article>)}</div><p className="day-one-import-summary">已從 Journey ZIP 建立 {preview.candidates.length} 個暫態草稿；略過 {preview.skippedCount} 筆不完整資料、排除 {preview.duplicateCount} 筆同檔重複資料。標題與日期微調只存在目前瀏覽器；檔名只作為目前預覽的去重鍵，不會保存。</p>{error ? <p className="import-error" role="alert">{error}</p> : null}<div className="import-actions"><button type="button" onClick={clear} disabled={isConfirming}><X size={15} /> 取消</button><button type="button" onClick={confirm} disabled={disabled || isConfirming || !selectedIds.length}>{isConfirming ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />} 確認建立 {selectedIds.length} 段 private 記錄</button></div></>}
   </section>;
 }

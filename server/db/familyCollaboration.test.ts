@@ -63,4 +63,16 @@ describe("family collaboration data access", () => {
     ]);
     expect(Object.keys(select.mock.calls[0]?.[0] ?? {}).sort()).toEqual(["action", "createdAt", "id", "targetId"]);
   });
+
+  it("accepts owner-provided UTC bounds as query predicates without widening the audience audit projection", async () => {
+    const limit = vi.fn().mockResolvedValue([]);
+    const orderBy = vi.fn(() => ({ limit }));
+    const where = vi.fn(() => ({ orderBy }));
+    const from = vi.fn(() => ({ where }));
+    const select = vi.fn(() => ({ from }));
+
+    await expect(getFamilyMilestoneAudienceAuditForDiary({ select } as never, 7, { from: Date.parse("2026-08-01T00:00:00Z"), to: Date.parse("2026-08-02T00:00:00Z") })).resolves.toEqual([]);
+    expect(where).toHaveBeenCalledTimes(1);
+    expect(Object.keys(select.mock.calls[0]?.[0] ?? {}).sort()).toEqual(["action", "createdAt", "id", "targetId"]);
+  });
 });
