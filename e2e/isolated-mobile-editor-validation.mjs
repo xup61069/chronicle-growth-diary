@@ -329,7 +329,10 @@ try {
     assert(await photoExifPreview.getByLabel('captured-nearby.jpg 的拍攝日期與時間').inputValue() === '2026-08-21T06:30:14', '第三張照片也應依相同秒數遞增。');
     await photoExifPreview.getByText('2026-08-21', { exact: true }).waitFor({ timeout: 10_000 });
     const dedupeReview = photoExifPreview.locator('.photo-import-dedupe');
-    assert(await dedupeReview.getByText('這批目前沒有相同來源線索或本機 checksum 候選。', { exact: true }).isVisible(), '照片選取後不應自動讀取位元組或假設重複。');
+    assert(await dedupeReview.getByText('這批目前沒有相同來源線索、本機 checksum 或 dHash 候選。', { exact: true }).isVisible(), '照片選取後不應自動讀取、解碼位元組或假設重複。');
+    await dedupeReview.getByRole('button', { name: '以本機 dHash 尋找近似圖片' }).click();
+    await dedupeReview.getByRole('button', { name: 'dHash 比較已完成' }).waitFor({ timeout: 10_000 });
+    assert(await dedupeReview.getByText('這批目前沒有相同來源線索、本機 checksum 或 dHash 候選。', { exact: true }).isVisible(), '無法解碼的合成 EXIF fixture 應只略過 dHash 訊號，不得阻擋後續 private 匯入或產生遠端 fallback。');
     await dedupeReview.getByRole('button', { name: '以本機 SHA-256 再確認' }).click();
     await dedupeReview.getByText('完全相同檔案候選', { exact: true }).waitFor({ timeout: 10_000 });
     assert(await dedupeReview.getByText('SHA-256 相同；仍由你決定', { exact: true }).isVisible(), 'checksum 候選必須明示仍由 owner 決定，不能自動略過。');
@@ -391,7 +394,7 @@ try {
     assert(desktopJourneyDetailPayloads.length === 1 && desktopJourneyDetailPayloads[0].includes('2026') === false, '已選旅程候選應在圖片上傳後只保存一次數字化 private 範圍與封面媒體 ID。');
     await page.unroute('**/api/trpc/diary.createEvent**');
     await page.unroute('**/api/trpc/diary.saveJourneyDetails**');
-    findings.checks.push('desktop photo EXIF GPS preview, local source-key/checksum duplicate review, editable journey range and cover, explicit map request, correction, batch date apply, privacy boundary, upload progress and private event creation');
+    findings.checks.push('desktop photo EXIF GPS preview, local source-key/checksum/dHash duplicate review, editable journey range and cover, explicit map request, correction, batch date apply, privacy boundary, upload progress and private event creation');
     const dayOneImport = page.locator('.day-one-import');
     await dayOneImport.getByRole('heading', { name: '先審核，再帶入 Day One 日記' }).waitFor({ timeout: 10_000 });
     let dayOneImportRequestCount = 0;

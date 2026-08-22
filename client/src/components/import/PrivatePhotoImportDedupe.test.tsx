@@ -12,6 +12,7 @@ describe("PrivatePhotoImportDedupe", () => {
     const markup = renderToStaticMarkup(<PrivatePhotoImportDedupe photos={[{ id: "one", file: localFile("same.jpg", 12) }, { id: "two", file: localFile("same.jpg", 12) }]} excludedPhotoIds={[]} disabled={false} onExclude={() => undefined} onKeep={() => undefined} />);
     expect(markup).toContain("目前選取檔案");
     expect(markup).toContain("不會上傳、保存或與既有日記比較");
+    expect(markup).toContain("以本機 dHash 尋找近似圖片");
     expect(markup).toContain("略過後續 1 張");
     expect(markup).not.toContain("既有事件內容");
   });
