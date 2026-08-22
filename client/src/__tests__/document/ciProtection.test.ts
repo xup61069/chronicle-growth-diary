@@ -18,4 +18,11 @@ describe("CI regression protection", () => {
     const packageJson = readFileSync(resolve(root, "package.json"), "utf8");
     expect(packageJson).toMatch(/"build":\s*"vite build && pnpm verify:lazy-routes/);
   });
+
+  it("runs the same untrusted-code-safe validation workflow for dependent pull requests", () => {
+    const workflow = readFileSync(resolve(root, ".github/workflows/ci.yml"), "utf8");
+    expect(workflow).toMatch(/pull_request:\s*\n\s*\npermissions:/);
+    expect(workflow).not.toMatch(/pull_request:\s*\n\s+branches:/);
+    expect(workflow).toContain("contents: read");
+  });
 });
