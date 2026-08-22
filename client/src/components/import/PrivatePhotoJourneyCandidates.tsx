@@ -1,5 +1,5 @@
 import { Compass, Loader2, MapPin, X } from "lucide-react";
-import type { PhotoJourneyCandidate } from "@/lib/photoJourneyCandidates";
+import { isValidPhotoJourneyRange, type PhotoJourneyCandidate } from "@/lib/photoJourneyCandidates";
 
 type JourneyMapPreview = { candidateId: string; dataUrl: string } | null;
 
@@ -14,10 +14,13 @@ type PrivatePhotoJourneyCandidatesProps = {
   onClear: () => void;
   onToggle: (candidateId: string, selected: boolean) => void;
   onTitleChange: (candidateId: string, title: string) => void;
+  onRangeChange: (candidateId: string, field: "startedAt" | "endedAt", value: string) => void;
+  onCoverChange: (candidateId: string, photoId: string) => void;
+  photoLabels: Record<string, string>;
   onShowMap: (candidate: PhotoJourneyCandidate) => void;
 };
 
-export function PrivatePhotoJourneyCandidates({ candidates, selectedCandidateIds, disabled, isMapLoading, loadingCandidateId, mapPreview, onAnalyze, onClear, onToggle, onTitleChange, onShowMap }: PrivatePhotoJourneyCandidatesProps) {
+export function PrivatePhotoJourneyCandidates({ candidates, selectedCandidateIds, disabled, isMapLoading, loadingCandidateId, mapPreview, onAnalyze, onClear, onToggle, onTitleChange, onRangeChange, onCoverChange, photoLabels, onShowMap }: PrivatePhotoJourneyCandidatesProps) {
   const selected = new Set(selectedCandidateIds);
   return <section className="photo-journey-candidates" aria-labelledby="photo-journey-candidates-title">
     <header>
@@ -37,7 +40,10 @@ export function PrivatePhotoJourneyCandidates({ candidates, selectedCandidateIds
         <span>{candidate.photoIds.length} 張照片</span>
       </div>
       <label>候選標題<input aria-label={`${candidate.title} 的候選標題`} value={candidate.title} onChange={(event) => onTitleChange(candidate.id, event.target.value)} maxLength={180} disabled={disabled} /></label>
+      <div className="photo-journey-range-fields"><label>旅程開始<input aria-label={`${candidate.title} 的旅程開始時間`} type="datetime-local" step="1" value={candidate.startedAt} onChange={(event) => onRangeChange(candidate.id, "startedAt", event.target.value)} disabled={disabled} /></label><label>旅程結束<input aria-label={`${candidate.title} 的旅程結束時間`} type="datetime-local" step="1" value={candidate.endedAt} onChange={(event) => onRangeChange(candidate.id, "endedAt", event.target.value)} disabled={disabled} /></label></div>
+      <label>旅程封面照片<select aria-label={`${candidate.title} 的旅程封面照片`} value={candidate.coverPhotoId} onChange={(event) => onCoverChange(candidate.id, event.target.value)} disabled={disabled}>{candidate.photoIds.map((photoId) => <option value={photoId} key={photoId}>{photoLabels[photoId] ?? "候選中的照片"}</option>)}</select></label>
       <p>{new Date(candidate.startedAt).toLocaleString("zh-TW")} — {new Date(candidate.endedAt).toLocaleString("zh-TW")}</p>
+      {!isValidPhotoJourneyRange(candidate) ? <small className="photo-journey-invalid">旅程結束時間必須等於或晚於開始時間，才能建立 private 事件。</small> : null}
       <small>{candidate.reason}</small>
       <div className="photo-journey-map-action"><button type="button" onClick={() => onShowMap(candidate)} disabled={disabled || isMapLoading}>{loadingCandidateId === candidate.id ? <Loader2 size={14} className="animate-spin" /> : <MapPin size={14} />} 顯示地圖</button><span>只有按下後才依候選中心座標取得預覽；地圖不會保存。</span></div>
       {mapPreview?.candidateId === candidate.id ? <figure className="photo-exif-map-preview"><img src={mapPreview.dataUrl} alt={`${candidate.title} 的旅程候選中心位置地圖預覽`} /><figcaption>這是候選中心位置的暫時預覽，不代表地址、目的地或完整移動路線。</figcaption></figure> : null}

@@ -12,6 +12,7 @@ export type PhotoJourneyCandidate = {
   startedAt: string;
   endedAt: string;
   title: string;
+  coverPhotoId: string;
   latitude: number;
   longitude: number;
   reason: string;
@@ -86,10 +87,23 @@ function candidateFromSegment(photos: LocatedJourneyPhoto[], sequence: number): 
     startedAt: first.capturedAt,
     endedAt: last.capturedAt,
     title: `照片旅程候選：${formatDateRange(first.capturedAt, last.capturedAt)}`,
+    coverPhotoId: first.id,
     latitude: center.latitude,
     longitude: center.longitude,
     reason: `連續 ${photos.length} 張具 GPS 與拍攝時間的照片；相鄰相片間隔不超過 30 小時，移動距離不超過 80 公里。`,
   };
+}
+
+export function isValidPhotoJourneyRange(candidate: Pick<PhotoJourneyCandidate, "startedAt" | "endedAt">) {
+  if (!isValidCapturedAt(candidate.startedAt) || !isValidCapturedAt(candidate.endedAt)) return false;
+  return new Date(candidate.startedAt).getTime() <= new Date(candidate.endedAt).getTime();
+}
+
+/** Applies only review-local edits and preserves the candidate's source-photo membership. */
+export function updatePhotoJourneyCandidate(candidate: PhotoJourneyCandidate, update: Partial<Pick<PhotoJourneyCandidate, "title" | "startedAt" | "endedAt" | "coverPhotoId">>): PhotoJourneyCandidate {
+  const next = { ...candidate, ...update };
+  if (!next.photoIds.includes(next.coverPhotoId)) return candidate;
+  return next;
 }
 
 /**
@@ -131,12 +145,17 @@ export function buildPhotoJourneyImportGroups(photos: PhotoExifImportCandidate[]
     return chunks.map((chunk, index) => ({
       id: `${candidate.id}-${index + 1}`,
       date: chunk[0]!.capturedAt.slice(0, 10),
-      occurredAt: new Date(chunk[0]!.capturedAt).getTime(),
+      occurredAt: new Date(candidate.startedAt).getTime(),
       title: chunks.length > 1 ? `${candidate.title}（第 ${index + 1} 批）` : candidate.title,
       files: chunk.map((photo) => photo.file),
       photoIds: chunk.map((photo) => photo.id),
       mapLatitudeE6: Math.round(candidate.latitude * 1_000_000),
       mapLongitudeE6: Math.round(candidate.longitude * 1_000_000),
+      journey: {
+        startedAt: candidate.startedAt,
+        endedAt: candidate.endedAt,
+        coverPhotoId: chunk.some((photo) => photo.id === candidate.coverPhotoId) ? candidate.coverPhotoId : null,
+      },
     }));
   });
 }

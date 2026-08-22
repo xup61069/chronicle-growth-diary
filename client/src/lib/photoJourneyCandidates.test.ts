@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildPhotoJourneyCandidates, MAX_JOURNEY_CANDIDATE_GAP_MS, MAX_JOURNEY_CANDIDATE_STEP_DISTANCE_KM, mergePhotoJourneyImportGroups, MIN_PHOTOS_PER_JOURNEY_CANDIDATE } from "./photoJourneyCandidates";
+import { buildPhotoJourneyCandidates, isValidPhotoJourneyRange, MAX_JOURNEY_CANDIDATE_GAP_MS, MAX_JOURNEY_CANDIDATE_STEP_DISTANCE_KM, mergePhotoJourneyImportGroups, MIN_PHOTOS_PER_JOURNEY_CANDIDATE, updatePhotoJourneyCandidate } from "./photoJourneyCandidates";
 
 const photo = (id: string, capturedAt: string, latitude = "25.034", longitude = "121.551") => ({ id, capturedAt, latitude, longitude });
 
@@ -18,6 +18,7 @@ describe("photo journey candidates", () => {
       startedAt: "2026-08-22T09:00",
       endedAt: "2026-08-22T10:30",
       title: "照片旅程候選：2026 年 08 月 22 日",
+      coverPhotoId: "first",
       latitude: 25.0345,
       longitude: 121.552,
     }]);
@@ -78,5 +79,27 @@ describe("photo journey candidates", () => {
       { title: "照片記錄：2026 年 8 月 22 日", photoIds: ["ordinary"] },
     ]);
     expect(groups.flatMap((group) => group.photoIds)).toHaveLength(new Set(groups.flatMap((group) => group.photoIds)).size);
+  });
+
+  it("keeps editable ranges and cover photos review-local, accepting only a cover from the candidate", () => {
+    const candidate = buildPhotoJourneyCandidates([
+      photo("one", "2026-08-22T09:00"),
+      photo("two", "2026-08-22T10:00"),
+      photo("three", "2026-08-22T11:00"),
+    ])[0]!;
+    const edited = updatePhotoJourneyCandidate(candidate, { startedAt: "2026-08-22T08:30", endedAt: "2026-08-22T12:00", coverPhotoId: "three" });
+    expect(isValidPhotoJourneyRange(edited)).toBe(true);
+    expect(edited.coverPhotoId).toBe("three");
+    expect(updatePhotoJourneyCandidate(edited, { coverPhotoId: "outside" })).toEqual(edited);
+    expect(isValidPhotoJourneyRange({ ...edited, startedAt: "2026-08-22T13:00" })).toBe(false);
+  });
+
+  it("passes the approved range and in-chunk cover only to the selected private journey group", () => {
+    const candidatePhotos = [photo("one", "2026-08-22T09:00"), photo("two", "2026-08-22T10:00"), photo("three", "2026-08-22T11:00")];
+    const candidate = updatePhotoJourneyCandidate(buildPhotoJourneyCandidates(candidatePhotos)[0]!, { startedAt: "2026-08-22T08:00", endedAt: "2026-08-22T12:00", coverPhotoId: "two" });
+    const importPhotos = candidatePhotos.map((item) => ({ ...item, file: new File([item.id], `${item.id}.jpg`, { type: "image/jpeg" }), format: "jpeg" as const, livePhotoCompanion: null, source: "manual" as const, gpsSource: "manual" as const }));
+    const group = mergePhotoJourneyImportGroups(importPhotos, [candidate], [candidate.id])[0]!;
+    expect(group.occurredAt).toBe(new Date("2026-08-22T08:00").getTime());
+    expect(group.journey).toEqual({ startedAt: "2026-08-22T08:00", endedAt: "2026-08-22T12:00", coverPhotoId: "two" });
   });
 });

@@ -1,8 +1,8 @@
-# Current Sprint — Private Journey Candidate Review
+# Current Sprint — Private Journey Editing, Day One Import, and Family Milestones
 
 ## 目標
 
-以既有 EXIF／GPS 私有匯入建立可審核的本機旅程候選檢視，讓擁有者在確認前整理同一輪照片的時間與位置模式。任何需使用者登入、授權、填寫資料或啟用排程的流程維持跳過。
+在既有 private-only 照片工作台補足旅程候選手動範圍與封面審核；加入只在瀏覽器解析、選取、確認後寫入的 Day One JSON／ZIP 文字匯入；建立不等同公開分享的家庭共用大事記圖層。任何需使用者登入、授權、填寫資料或啟用排程的流程維持跳過。
 
 ## 本 sprint 交付
 
@@ -77,3 +77,19 @@
 ### 本輪狀態
 
 **已完成。** `photoJourneyCandidates.ts` 在瀏覽器以可解釋的 30 小時／80 公里相鄰門檻建立至少三張照片的候選，並以球面中心計算候選座標。候選不讀取影像、不可自動分析、不做地名推測、不持久化；任何照片時間或位置異動都會清除舊候選。已選候選透過去重群組合併層取代其中照片的普通日期群組，最終仍只寫入 private 事件與現有附件。90 個測試檔／249 項、375px 與桌面隔離 local-auth E2E、PWA build、lazy-route、server bundle、secret scan、production audit 與 diff check 均通過。
+
+## 本輪交付：可編輯旅程、Day One 與家庭大事記
+
+| 功能 | 最小資料模型 | 權限與隱私邊界 | 不做的事 |
+| --- | --- | --- | --- |
+| 旅程候選手動編輯 | 在現有瀏覽器候選增加本地 `startAt`、`endAt`、`coverPhotoId`；確認後將範圍存入只屬於該 event 的 `growth_journey_details`，封面只可指向該 event 已上傳的 image media。 | 僅 owner 可在明確分析後編輯；封面與範圍變更都必須驗證仍屬候選。候選不持久化，任何來源／選取／時間／GPS 改變即失效。 | 不讀影像、不地名推測、不加背景掃描、不另建媒體上傳或公開封面。 |
+| Day One 匯入 | 瀏覽器本機解析大小受限的 JSON 或 ZIP `Journal.json`，只從 `entries[]` 取受限日期、文字與可選 tags，建立暫態草稿；確認後以既有 `diary.importEvents` 建立 private 事件。格式研究見 [`DAY_ONE_IMPORT_FORMAT.md`](../research/DAY_ONE_IMPORT_FORMAT.md)。 | 使用者選檔與按下分析前不讀取內容；不把 ZIP、草稿或來源 UUID 持久化。拒絕不安全 archive path、未知 JSON、無效日期與超限項目。位置、裝置、天氣、richText、媒體與來源 URL 一律捨棄。 | 不自動上傳匯出媒體、不掃描既有日記、不跨匯入比對、不支援 Journey 或非 Day One 格式。 |
+| 家庭共用大事記 | 獨立 `growth_family_milestones`：diary、可選 source event、owner 明確輸入的標題／短摘要／日期與時間精度；不複製 event body、GPS、原圖、語音或 AI 輸出。 | 建立、編輯、刪除僅 owner；讀取限已接受的 `growth_diary_members`。公開／link share、邀請 token、已移除成員皆無法讀取。家庭項目顯示為 family-only，無附件。 | 不公開、不寄信、不通知、不加留言／reaction、不讓 editor/commenter 擴張範圍。 |
+
+### Migration 與測試順序
+
+先新增 `growth_journey_details` 與 `growth_family_milestones`，再增加必要 audit enum、資料層、tRPC 與 UI。資料庫 migration 必須先由 Drizzle 產生、審閱 SQL，再以單一非破壞性執行套用。測試至少涵蓋候選日期範圍與封面隸屬驗證、Day One archive path／欄位剝除／取消 no-op、以及 owner、accepted member、removed member、public/link 四種家庭大事記存取情境。
+
+### 本輪完成狀態
+
+**已完成。** `0021_huge_caretaker.sql` 已審閱並以非破壞性 migration 套用；旅程詳細資料只接受 owner 的有序日期範圍與同一 private event 已保存 image 封面。Day One JSON／ZIP 只在瀏覽器產生暫態草稿，確認後才批次建立 private 記錄。家庭大事記只保存 owner 手動寫下的短摘要，成員 read model 不含 `sourceEventId`、事件正文、附件或位置。91 個測試檔／256 項、桌面與 375px 隔離 local-auth E2E、直接 Vite PWA build、lazy-route、server bundle、secret scan、production audit 與 diff check 均通過；組合 `pnpm build` 在 Vite 成功產物後遭環境 SIGTERM，因此以分離 Vite、lazy-route 與 esbuild 結果為準。

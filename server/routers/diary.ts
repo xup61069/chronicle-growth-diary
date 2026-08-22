@@ -3,10 +3,12 @@ import {
   acceptDiaryInvite,
   adoptDiaryHighlightSuggestion,
   createDiaryInvite,
+  createFamilyMilestone,
   createDiaryEvent,
   createEventComment,
   deleteDiaryEvent,
   deleteDiaryEventMedia,
+  deleteFamilyMilestone,
   deletePhaseReflection,
   deleteAnnualReflection,
   generatePhaseReflection,
@@ -15,6 +17,7 @@ import {
   getFullDiaryArchive,
   getDiaryAuditLogs,
   getDiaryMembers,
+  getFamilyMilestones,
   getEventComments,
   getEventReactions,
   getDiarySnapshot,
@@ -23,11 +26,13 @@ import {
   getSharedDiary,
   reorderDiaryEventMedia,
   reorderDiaryEvents,
+  saveDiaryJourneyDetails,
   removeDiaryMember,
   restoreDiaryEventRevision,
   setDiaryEventVisibility,
   suggestDiaryHighlights,
   updateDiaryAiPreference,
+  updateFamilyMilestone,
   updateDiaryEvent,
   updateDiaryEventMedia,
   updateDiaryPhaseBoundaries,
@@ -73,6 +78,7 @@ const diaryEventInput = z.object({
 });
 
 const year = z.number().int().min(1900).max(2200).nullable().optional();
+const familyMilestoneInput = z.object({ occurredAt: z.number().int().min(-2208988800000).max(4102444800000), datePrecision: z.enum(["day", "month", "year"]), title: z.string().trim().min(1).max(180), summary: z.string().trim().min(1).max(480), sourceEventId: z.number().int().positive().nullable() });
 
 export const diaryRouter = router({
   get: protectedProcedure.input(z.object({ diaryId: z.number().int().positive().optional() }).optional()).query(({ ctx, input }) => input?.diaryId ? getDiarySnapshot(ctx.user.id, input.diaryId) : getDiarySnapshot(ctx.user.id)),
@@ -92,6 +98,10 @@ export const diaryRouter = router({
   getEventReactions: protectedProcedure.input(z.object({ eventId: z.number().int().positive() })).query(({ ctx, input }) => getEventReactions(ctx.user.id, input.eventId)),
   getFamilyMembers: protectedProcedure.query(({ ctx }) => getDiaryMembers(ctx.user.id)),
   getFamilyAudit: protectedProcedure.query(({ ctx }) => getDiaryAuditLogs(ctx.user.id)),
+  getFamilyMilestones: protectedProcedure.input(z.object({ diaryId: z.number().int().positive().optional() }).optional()).query(({ ctx, input }) => getFamilyMilestones(ctx.user.id, input?.diaryId)),
+  createFamilyMilestone: protectedProcedure.input(familyMilestoneInput).mutation(({ ctx, input }) => createFamilyMilestone(ctx.user.id, input)),
+  updateFamilyMilestone: protectedProcedure.input(familyMilestoneInput.extend({ id: z.number().int().positive() })).mutation(({ ctx, input }) => { const { id, ...milestone } = input; return updateFamilyMilestone(ctx.user.id, id, milestone); }),
+  deleteFamilyMilestone: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ ctx, input }) => deleteFamilyMilestone(ctx.user.id, input.id)),
   removeFamilyMember: protectedProcedure.input(z.object({ memberId: z.number().int().positive() })).mutation(({ ctx, input }) => removeDiaryMember(ctx.user.id, input.memberId)),
   updateFamilyMemberRole: protectedProcedure.input(z.object({ memberId: z.number().int().positive(), role: z.enum(["editor", "commenter"]) })).mutation(({ ctx, input }) => updateDiaryMemberRole(ctx.user.id, input.memberId, input.role)),
   createEventComment: protectedProcedure.input(z.object({ eventId: z.number().int().positive(), body: z.string().trim().min(1).max(2000) })).mutation(({ ctx, input }) => createEventComment(ctx.user.id, input.eventId, input.body)),
@@ -182,6 +192,12 @@ export const diaryRouter = router({
   })).mutation(({ ctx, input }) => uploadDiaryVoiceNote({ userId: ctx.user.id, ...input })),
   deleteVoiceNote: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ ctx, input }) => deleteDiaryVoiceNote(ctx.user.id, input.id)),
   deleteImage: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ ctx, input }) => deleteDiaryEventMedia(ctx.user.id, input.id)),
+  saveJourneyDetails: protectedProcedure.input(z.object({
+    eventId: z.number().int().positive(),
+    startedAt: z.number().int().min(-2208988800000).max(4102444800000),
+    endedAt: z.number().int().min(-2208988800000).max(4102444800000),
+    coverMediaId: z.number().int().positive().nullable(),
+  }).refine((input) => input.startedAt <= input.endedAt, "旅程起訖日期無效。")).mutation(({ ctx, input }) => { const { eventId, ...details } = input; return saveDiaryJourneyDetails(ctx.user.id, eventId, details); }),
 });
 
 export const shareRouter = router({

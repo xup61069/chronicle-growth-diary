@@ -7,8 +7,10 @@ import { DiaryEditorHeader } from "@/components/DiaryEditorHeader";
 import { DiaryLoadState } from "@/components/DiaryLoadState";
 import { FutureLettersStudio, MonthlyDigestStudio, OnThisDayStudio, RecallCheckStudio } from "@/components/diary/PrivateMemoryStudios";
 import { PrivateBackfillAssistant } from "@/components/diary/PrivateBackfillAssistant";
+import { FamilyMilestoneLayer } from "@/components/diary/FamilyMilestoneLayer";
 import { PrivateHighlightAssistant, type HighlightSuggestion } from "@/components/diary/PrivateHighlightAssistant";
 import { PrivateIcsCalendarImport } from "@/components/import/PrivateIcsCalendarImport";
+import { PrivateDayOneImport } from "@/components/import/PrivateDayOneImport";
 import { PrivatePhotoJourneyCandidates } from "@/components/import/PrivatePhotoJourneyCandidates";
 import { PrivateSharePhotoDeidentification } from "@/components/sharing/PrivateSharePhotoDeidentification";
 import { PrivateVoiceDiary } from "@/components/diary/PrivateVoiceDiary";
@@ -19,7 +21,7 @@ import { getDiaryLoadStatus } from "@/lib/diaryLoadState";
 import { exportDiaryAsLongImage, exportDiaryAsPdf } from "@/lib/diaryExport";
 import { createMediaArchive, downloadMediaArchive, readMediaArchive, type ImportedMediaArchive } from "@/lib/diaryMediaArchive";
 import { applyPhotoCapturedAt, estimatePhotoImportStorage, formatPhotoImportBytes, hasValidPhotoLocation, preparePhotoExifImport, preparePhotoFileForUpload, staticMapPointToCoordinate, updatePhotoCapturedAt, updatePhotoLocation, type PhotoExifImportCandidate, type PhotoExifImportPreview } from "@/lib/photoExifImport";
-import { buildPhotoJourneyCandidates, mergePhotoJourneyImportGroups, type PhotoJourneyCandidate } from "@/lib/photoJourneyCandidates";
+import { buildPhotoJourneyCandidates, isValidPhotoJourneyRange, mergePhotoJourneyImportGroups, updatePhotoJourneyCandidate, type PhotoJourneyCandidate } from "@/lib/photoJourneyCandidates";
 import { createPortableDiaryExport, downloadPortableDiary } from "@/lib/diaryPortable";
 import { createFullDiaryArchive, downloadFullDiaryArchive, readFullDiaryArchive, type FullDiaryArchiveImportAsset, type FullDiaryArchiveProgress } from "@/lib/fullDiaryArchive";
 import { parseChronicleImport, type ChronicleImportPreview } from "@/lib/diaryImport";
@@ -297,6 +299,7 @@ function DiaryEditorContent() {
   });
   const deleteReflectionMutation = trpc.diary.deletePhaseReflection.useMutation();
   const importMutation = trpc.diary.importEvents.useMutation();
+  const saveJourneyDetailsMutation = trpc.diary.saveJourneyDetails.useMutation();
   const fullArchiveMutation = trpc.diary.exportFullArchive.useMutation();
   const fullArchiveRestorePrepareMutation = trpc.archiveRestore.prepare.useMutation();
   const fullArchiveRestoreStageMutation = trpc.archiveRestore.stageAsset.useMutation();
@@ -327,6 +330,10 @@ function DiaryEditorContent() {
     onError: (error) => toast.error(error.message),
   });
   const familyMembersQuery = trpc.diary.getFamilyMembers.useQuery(undefined, { enabled: isOwner });
+  const familyMilestonesQuery = trpc.diary.getFamilyMilestones.useQuery(diaryQueryInput, { staleTime: 0 });
+  const createFamilyMilestoneMutation = trpc.diary.createFamilyMilestone.useMutation();
+  const updateFamilyMilestoneMutation = trpc.diary.updateFamilyMilestone.useMutation();
+  const deleteFamilyMilestoneMutation = trpc.diary.deleteFamilyMilestone.useMutation();
   const onThisDayInput = useMemo(() => {
     const today = new Date();
     return { ...(requestedDiaryId ? { diaryId: requestedDiaryId } : {}), year: today.getFullYear(), month: today.getMonth() + 1, day: today.getDate(), timezoneOffsetMinutes: today.getTimezoneOffset() };
@@ -1178,6 +1185,11 @@ function DiaryEditorContent() {
     if (!candidates.length) toast.info("這批照片沒有形成至少三張、時間與位置都連續的旅程候選。沒有建立或修改任何事件。");
   };
 
+  const updatePhotoJourneyCandidateReview = (candidateId: string, update: Parameters<typeof updatePhotoJourneyCandidate>[1]) => {
+    setPhotoJourneyMapPreview(null);
+    setPhotoJourneyCandidates((candidates) => candidates.map((candidate) => candidate.id === candidateId ? updatePhotoJourneyCandidate(candidate, update) : candidate));
+  };
+
   const previewPhotoJourneyMap = async (candidate: PhotoJourneyCandidate) => {
     setPhotoJourneyMapPreview(null);
     setPhotoJourneyMapLoadingCandidateId(candidate.id);
@@ -1340,6 +1352,7 @@ function DiaryEditorContent() {
     }
     const selectedJourneyCandidates = photoJourneyCandidates.filter((candidate) => selectedPhotoJourneyCandidateIds.includes(candidate.id));
     if (selectedJourneyCandidates.some((candidate) => !candidate.title.trim())) return toast.error("請為每個已選取的旅程候選保留標題，或取消選取。 ");
+    if (selectedJourneyCandidates.some((candidate) => !isValidPhotoJourneyRange(candidate) || !candidate.photoIds.includes(candidate.coverPhotoId))) return toast.error("請修正已選旅程的日期範圍與封面照片，再建立 private 事件。 ");
     if (!photoExifImportGroups.length) return;
     setIsPhotoExifImporting(true);
     const importPhotos = photoExifPreview.photos.filter((photo) => photoExifImportGroups.some((group) => group.photoIds.includes(photo.id)));
@@ -1357,11 +1370,13 @@ function DiaryEditorContent() {
           shareScope: "private", ...(requestedDiaryId ? { diaryId: requestedDiaryId } : {}),
         });
         const groupPhotos = photoExifPreview.photos.filter((photo) => group.photoIds.includes(photo.id));
+        let journeyCoverMediaId: number | null = null;
         for (const photo of groupPhotos) {
           setPhotoExifUploadProgress((progress) => progress ? { ...progress, currentFileName: photo.file.name } : progress);
           const uploadFile = await preparePhotoFileForUpload(photo.file);
           const image = await readImage(uploadFile);
-          await uploadMutation.mutateAsync({ eventId: saved.id, fileName: image.name, mimeType: image.type, base64: image.base64 });
+          const uploadedImage = await uploadMutation.mutateAsync({ eventId: saved.id, fileName: image.name, mimeType: image.type, base64: image.base64 });
+          if (group.journey?.coverPhotoId === photo.id) journeyCoverMediaId = uploadedImage.id;
           setPhotoExifUploadProgress((progress) => progress ? { ...progress, uploaded: progress.uploaded + 1 } : progress);
           if (photo.livePhotoCompanion) {
             setPhotoExifUploadProgress((progress) => progress ? { ...progress, currentFileName: photo.livePhotoCompanion!.name } : progress);
@@ -1369,6 +1384,9 @@ function DiaryEditorContent() {
             await uploadLivePhotoMotionMutation.mutateAsync({ eventId: saved.id, fileName: motion.name, mimeType: "video/quicktime", base64: motion.base64 });
             setPhotoExifUploadProgress((progress) => progress ? { ...progress, uploaded: progress.uploaded + 1 } : progress);
           }
+        }
+        if (group.journey) {
+          await saveJourneyDetailsMutation.mutateAsync({ eventId: saved.id, startedAt: new Date(group.journey.startedAt).getTime(), endedAt: new Date(group.journey.endedAt).getTime(), coverMediaId: journeyCoverMediaId });
         }
         createdCount += 1;
       }
@@ -1489,7 +1507,7 @@ function DiaryEditorContent() {
           <label>每張遞增秒數<input aria-label="批次套用的遞增秒數" type="number" min="0" max="86400" step="1" value={photoExifBatchIncrementSeconds} onChange={(event) => setPhotoExifBatchIncrementSeconds(event.target.value)} disabled={isPhotoExifImporting} /></label>
           <button type="button" disabled={isPhotoExifImporting || !selectedPhotoExifIds.length || !photoExifBatchCapturedAt} onClick={() => { clearPhotoJourneyCandidates(); setPhotoExifPreview((current) => current ? applyPhotoCapturedAt(current, selectedPhotoExifIds, photoExifBatchCapturedAt, Number(photoExifBatchIncrementSeconds)) : current); }}>套用至 {selectedPhotoExifIds.length} 張</button>
         </div>
-        <PrivatePhotoJourneyCandidates candidates={photoJourneyCandidates} selectedCandidateIds={selectedPhotoJourneyCandidateIds} disabled={isPhotoExifImporting} isMapLoading={photoMapPreviewMutation.isPending} mapPreview={photoJourneyMapPreview} loadingCandidateId={photoJourneyMapLoadingCandidateId} onAnalyze={analyzePhotoJourneys} onClear={clearPhotoJourneyCandidates} onToggle={(candidateId, selected) => setSelectedPhotoJourneyCandidateIds((ids) => selected ? Array.from(new Set([...ids, candidateId])) : ids.filter((id) => id !== candidateId))} onTitleChange={(candidateId, title) => { setPhotoJourneyMapPreview(null); setPhotoJourneyCandidates((candidates) => candidates.map((candidate) => candidate.id === candidateId ? { ...candidate, title: title.slice(0, 180) } : candidate)); }} onShowMap={previewPhotoJourneyMap} />
+        <PrivatePhotoJourneyCandidates candidates={photoJourneyCandidates} selectedCandidateIds={selectedPhotoJourneyCandidateIds} disabled={isPhotoExifImporting} isMapLoading={photoMapPreviewMutation.isPending} mapPreview={photoJourneyMapPreview} loadingCandidateId={photoJourneyMapLoadingCandidateId} onAnalyze={analyzePhotoJourneys} onClear={clearPhotoJourneyCandidates} onToggle={(candidateId, selected) => setSelectedPhotoJourneyCandidateIds((ids) => selected ? Array.from(new Set([...ids, candidateId])) : ids.filter((id) => id !== candidateId))} onTitleChange={(candidateId, title) => updatePhotoJourneyCandidateReview(candidateId, { title: title.slice(0, 180) })} onRangeChange={(candidateId, field, value) => updatePhotoJourneyCandidateReview(candidateId, { [field]: value })} onCoverChange={(candidateId, coverPhotoId) => updatePhotoJourneyCandidateReview(candidateId, { coverPhotoId })} photoLabels={Object.fromEntries(photoExifPreview.photos.map((photo) => [photo.id, photo.file.name]))} onShowMap={previewPhotoJourneyMap} />
         <div className="photo-exif-adjustments" aria-label="照片拍攝日期與位置">
           <p>日期相同的照片會整理為同一段記錄。HEIC 會在確認後於本機轉成 JPEG；同名 MOV 僅作為 Live Photo companion 上傳至同一 private 事件。若填入完整緯經度，系統只會以 private precise 位置隨該段事件保存。</p>
           {photoExifPreview.photos.map((photo) => <article key={photo.id}>
@@ -1518,6 +1536,21 @@ function DiaryEditorContent() {
         await utils.diary.get.invalidate();
         toast.success(`已建立 ${candidates.length} 段私人行事曆記錄。`);
       }} /> : null}
+      {isOwner ? <PrivateDayOneImport disabled={importMutation.isPending} onConfirm={async (candidates) => {
+        if (!candidates.length) return;
+        const result = await importMutation.mutateAsync({
+          ...(requestedDiaryId ? { diaryId: requestedDiaryId } : {}),
+          events: candidates.map((candidate) => ({
+            occurredAt: candidate.occurredAt, datePrecision: "day" as const, eventType: "memory" as const, title: candidate.title.trim() || "Day One 記事", body: candidate.body,
+            ageLabel: null, place: null, color: "#587A8B" as const, tagNames: candidate.tagNames, skillNames: [], phaseKeywords: ["日記匯入"], track: "life" as const,
+            milestoneType: "standard" as const, milestoneWeight: 1, comparisonGroup: null, unlocksAt: null, mapLatitudeE6: null, mapLongitudeE6: null, locationPrivacy: "none" as const,
+            soundtrackTitle: null, soundtrackUrl: null, shareScope: "private" as const,
+          })),
+        });
+        await utils.diary.get.invalidate();
+        toast.success(`已建立 ${result.importedCount} 段 private Day One 記錄。`);
+      }} /> : null}
+      <FamilyMilestoneLayer milestones={familyMilestonesQuery.data ?? []} canManage={isOwner} sourceEvents={isOwner ? events.map((event) => ({ id: event.id, title: event.title })) : []} isSaving={createFamilyMilestoneMutation.isPending || updateFamilyMilestoneMutation.isPending || deleteFamilyMilestoneMutation.isPending} onCreate={async (input) => { await createFamilyMilestoneMutation.mutateAsync(input); await Promise.all([utils.diary.getFamilyMilestones.invalidate(), utils.diary.getFamilyAudit.invalidate()]); toast.success("已加入 family-only 大事記；原始日記沒有被公開。 "); }} onUpdate={async (id, input) => { await updateFamilyMilestoneMutation.mutateAsync({ id, ...input }); await Promise.all([utils.diary.getFamilyMilestones.invalidate(), utils.diary.getFamilyAudit.invalidate()]); toast.success("已更新 family-only 大事記摘要。 "); }} onDelete={async (id) => { await deleteFamilyMilestoneMutation.mutateAsync({ id }); await Promise.all([utils.diary.getFamilyMilestones.invalidate(), utils.diary.getFamilyAudit.invalidate()]); toast.success("已從 family-only 大事記移除；原始日記仍保持不變。 "); }} />
       {isOwner ? <PrivateSharePhotoDeidentification events={events.map((event) => ({ id: event.id, title: event.title, shareScope: event.shareScope, media: event.media.map((media) => ({ id: media.id, url: media.url, fileName: media.fileName, mediaKind: media.mediaKind, shareSafeEnabled: media.shareSafeEnabled, shareSafeUrl: media.shareSafeUrl })) }))} /> : null}
       {mediaArchivePreview ? <section className="import-studio" aria-labelledby="media-import-title"><div><p className="editor-kicker"><span /> MEDIA ARCHIVE / VERIFIED</p><h2 id="media-import-title">確認要還原的事件圖片</h2><p>已驗證媒體封存的 manifest、事件標題與發生時間。這次將把 {mediaArchivePreview.items.length} 張圖片加回目前相符的事件；不會接受外部 URL、儲存金鑰、分享設定或帳號資料。</p></div><div className="import-warning"><Archive size={15} /> 只接受 JPG、PNG、WebP、GIF；單張最大 4MB，封存與解壓後總量皆受 25MB 上限保護。</div><div className="import-actions"><button type="button" onClick={() => setMediaArchivePreview(null)} disabled={isMediaArchiveImporting}>取消</button><button type="button" onClick={confirmMediaArchiveImport} disabled={isMediaArchiveImporting}>{isMediaArchiveImporting ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />} 匯入 {mediaArchivePreview.items.length} 張圖片</button></div></section> : null}
       {socialPreview ? <section className="import-studio" aria-labelledby="social-import-title"><div><p className="editor-kicker"><span /> SOCIAL DRAFT / LOCAL ONLY</p><h2 id="social-import-title">先檢視，再帶進成長史</h2><p>已在此裝置解析 {socialPreview.length} 則候選；系統已依來源 ID 去重。確認前不會寫入日記，也不會連接社群帳號。</p></div><div className="import-preview-list">{socialPreview.slice(0, 5).map((candidate) => <article key={candidate.sourceId}><span>{formatDate(candidate.occurredAt, "day")}</span><b>{candidate.title}</b><small>{candidate.isSignificant ? "重大事件候選" : "一般候選"}</small></article>)}</div><div className="import-warning"><Archive size={15} /> 確認後一律建立為私人事件，並標記「社群匯入」。請先檢視原始內容。</div><div className="import-actions"><button type="button" onClick={() => setSocialPreview(null)} disabled={importMutation.isPending}>取消</button><button type="button" onClick={confirmSocialImport} disabled={importMutation.isPending}>{importMutation.isPending ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />} 確認建立 {socialPreview.length} 段事件</button></div></section> : null}

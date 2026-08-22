@@ -46,6 +46,10 @@ import {
   updatePhaseReflectionForDiary,
 } from "./db/aiReflections";
 import { adoptHighlightSuggestionForDiary, suggestHighlightsForDiary } from "./db/aiHighlights";
+import { saveJourneyDetailsForOwner } from "./db/journeyDetails";
+import type { JourneyDetailsInput } from "./db/journeyDetails";
+import { createFamilyMilestoneForDiary, deleteFamilyMilestoneForDiary, listFamilyMilestonesForDiary, updateFamilyMilestoneForDiary } from "./db/familyMilestones";
+import type { FamilyMilestoneInput } from "./db/familyMilestones";
 import { getGrowthDashboardStatsForDiary } from "./db/growthStats";
 import { buildFullDiaryArchiveForDiary } from "./db/fullDiaryArchive";
 import { cancelFullArchiveRestore as cancelFullArchiveRestoreForUser, commitFullArchiveRestore as commitFullArchiveRestoreForDiary, prepareFullArchiveRestore as prepareFullArchiveRestoreForDiary, stageFullArchiveRestoreAsset as stageFullArchiveRestoreAssetForUser } from "./db/archiveRestore";
@@ -274,6 +278,38 @@ export async function adoptDiaryHighlightSuggestion(userId: number, eventId: num
   const db = await requireDb();
   const diary = await getOwnedDiary(userId);
   return adoptHighlightSuggestionForDiary(db, diary, userId, eventId, assertEventWriteAccess);
+}
+
+/** Owner-only persistence for review-local photo journey ranges and an in-event still cover. */
+export async function saveDiaryJourneyDetails(userId: number, eventId: number, input: JourneyDetailsInput) {
+  const db = await requireDb();
+  return saveJourneyDetailsForOwner(db, userId, eventId, input);
+}
+
+export async function getFamilyMilestones(userId: number, requestedDiaryId?: number) {
+  const db = await requireDb();
+  const access = await getDiaryAccessForUser(userId, requestedDiaryId);
+  if (!access) throw new Error("找不到這本家庭成長史，或你沒有檢視權限。");
+  const milestones = await listFamilyMilestonesForDiary(db, access.diary.id);
+  return access.role === "owner" ? milestones : milestones.map(({ sourceEventId: _sourceEventId, ...milestone }) => milestone);
+}
+
+export async function createFamilyMilestone(userId: number, input: FamilyMilestoneInput) {
+  const db = await requireDb();
+  const diary = await getOwnedDiary(userId);
+  return createFamilyMilestoneForDiary(db, diary.id, userId, input);
+}
+
+export async function updateFamilyMilestone(userId: number, milestoneId: number, input: FamilyMilestoneInput) {
+  const db = await requireDb();
+  const diary = await getOwnedDiary(userId);
+  return updateFamilyMilestoneForDiary(db, diary.id, userId, milestoneId, input);
+}
+
+export async function deleteFamilyMilestone(userId: number, milestoneId: number) {
+  const db = await requireDb();
+  const diary = await getOwnedDiary(userId);
+  return deleteFamilyMilestoneForDiary(db, diary.id, userId, milestoneId);
 }
 
 export async function updatePhaseReflection(userId: number, input: PhaseReflectionInput) {
