@@ -165,6 +165,24 @@ export const growthEventMedia = mysqlTable(
   (table) => [index("growth_event_media_event_idx").on(table.eventId)],
 );
 
+/** Owner-reviewed time span and optional in-event cover for one imported photo journey. */
+export const growthJourneyDetails = mysqlTable(
+  "growth_journey_details",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    eventId: int("eventId").notNull().references(() => growthEvents.id, { onDelete: "cascade" }),
+    startedAt: bigint("startedAt", { mode: "number" }).notNull(),
+    endedAt: bigint("endedAt", { mode: "number" }).notNull(),
+    coverMediaId: int("coverMediaId").references(() => growthEventMedia.id, { onDelete: "set null" }),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("growth_journey_details_event_unique_idx").on(table.eventId),
+    index("growth_journey_details_range_idx").on(table.startedAt, table.endedAt),
+  ],
+);
+
 /** Private voice recordings and Whisper transcripts attached to a single event. */
 export const growthEventVoiceNotes = mysqlTable(
   "growth_event_voice_notes",
@@ -290,6 +308,27 @@ export const growthDiaryMembers = mysqlTable(
   (table) => [uniqueIndex("growth_diary_members_diary_user_idx").on(table.diaryId, table.userId)],
 );
 
+/** Family-only timeline layer; it stores an owner-written summary, never a private event projection. */
+export const growthFamilyMilestones = mysqlTable(
+  "growth_family_milestones",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    diaryId: int("diaryId").notNull().references(() => growthDiaries.id, { onDelete: "cascade" }),
+    sourceEventId: int("sourceEventId").references(() => growthEvents.id, { onDelete: "set null" }),
+    occurredAt: bigint("occurredAt", { mode: "number" }).notNull(),
+    datePrecision: mysqlEnum("datePrecision", ["day", "month", "year"]).notNull().default("day"),
+    title: varchar("title", { length: 180 }).notNull(),
+    summary: varchar("summary", { length: 480 }).notNull(),
+    createdByUserId: int("createdByUserId").notNull().references(() => users.id, { onDelete: "cascade" }),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => [
+    index("growth_family_milestones_diary_date_idx").on(table.diaryId, table.occurredAt),
+    index("growth_family_milestones_event_idx").on(table.sourceEventId),
+  ],
+);
+
 /** Hashed, expiring invitations; the plaintext token is never persisted. */
 export const growthDiaryInvites = mysqlTable(
   "growth_diary_invites",
@@ -343,7 +382,7 @@ export const growthDiaryAuditLogs = mysqlTable(
     id: int("id").autoincrement().primaryKey(),
     diaryId: int("diaryId").notNull().references(() => growthDiaries.id, { onDelete: "cascade" }),
     actorUserId: int("actorUserId").notNull().references(() => users.id, { onDelete: "cascade" }),
-    action: mysqlEnum("action", ["invite_created", "invite_accepted", "member_role_updated", "member_removed", "comment_created", "reaction_added", "reaction_removed"]).notNull(),
+    action: mysqlEnum("action", ["invite_created", "invite_accepted", "member_role_updated", "member_removed", "comment_created", "reaction_added", "reaction_removed", "family_milestone_created", "family_milestone_updated", "family_milestone_deleted"]).notNull(),
     targetType: varchar("targetType", { length: 32 }).notNull(),
     targetId: int("targetId"),
     metadata: text("metadata"),
@@ -358,12 +397,14 @@ export type GrowthDiary = typeof growthDiaries.$inferSelect;
 export type GrowthEvent = typeof growthEvents.$inferSelect;
 export type GrowthTag = typeof growthTags.$inferSelect;
 export type GrowthEventMedia = typeof growthEventMedia.$inferSelect;
+export type GrowthJourneyDetail = typeof growthJourneyDetails.$inferSelect;
 export type GrowthEventVoiceNote = typeof growthEventVoiceNotes.$inferSelect;
 export type GrowthEventRevision = typeof growthEventRevisions.$inferSelect;
 export type GrowthArchiveRestoreSession = typeof growthArchiveRestoreSessions.$inferSelect;
 export type GrowthArchiveRestoreAsset = typeof growthArchiveRestoreAssets.$inferSelect;
 export type GrowthPhaseReflection = typeof growthPhaseReflections.$inferSelect;
 export type GrowthDiaryMember = typeof growthDiaryMembers.$inferSelect;
+export type GrowthFamilyMilestone = typeof growthFamilyMilestones.$inferSelect;
 export type GrowthDiaryInvite = typeof growthDiaryInvites.$inferSelect;
 export type GrowthEventComment = typeof growthEventComments.$inferSelect;
 export type GrowthEventReaction = typeof growthEventReactions.$inferSelect;

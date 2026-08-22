@@ -1,6 +1,6 @@
 # Chronicle AI 交接手冊
 
-> **交接狀態：** 已完成預設深色主題、照片 EXIF／GPS 私人匯入與本機旅程候選審核、Web Share Target、全量 ZIP 封存／還原，以及可審核的 owner-only AI 精選建議。下一位 AI 應從本檔與根目錄 [`AGENTS.md`](../AGENTS.md) 開始，而不是從 commit history 或舊對話推測狀態。
+> **交接狀態：** 已完成預設深色主題、照片 EXIF／GPS 私人匯入與可編輯的本機旅程候選、Day One 本機審核匯入、family-only 大事記、Web Share Target、全量 ZIP 封存／還原，以及可審核的 owner-only AI 精選建議。下一位 AI 應從本檔與根目錄 [`AGENTS.md`](../AGENTS.md) 開始，而不是從 commit history 或舊對話推測狀態。
 
 ## 1. 產品定位與不可變更原則
 
@@ -91,9 +91,15 @@ corepack pnpm install --frozen-lockfile
 
 `client/src/lib/photoJourneyCandidates.ts` 只在擁有者按下 `PrivatePhotoJourneyCandidates` 的分析按鈕後，處理**目前一輪**已在瀏覽器解析的照片 ID、拍攝時間與成對 GPS。它不讀取影像位元組、不呼叫 AI、不做逆地理編碼、不推測住家、人物或目的地，也不掃描已上傳的歷史媒體。候選至少需要三張照片，且每對相鄰照片須在 30 小時與 80 公里內；這是可解釋的整理門檻，不是旅行辨識保證。
 
-候選只保存在 `DiaryEditor` 的 React state。使用者可改寫中性日期式標題、選取、清除，或按下「顯示地圖」才對候選中心座標呼叫既有受保護 `photoMap.preview`；地圖影像不保存。修改任何照片的拍攝時間或 GPS、批次套用日期、地圖拖曳、選擇新檔案、取消或完成匯入時，都必須清除候選，避免以舊座標寫入。
+候選只保存在 `DiaryEditor` 的 React state。使用者可改寫中性日期式標題、選取、清除、調整有序的本地起訖日期，並在候選內選擇封面照片；或按下「顯示地圖」才對候選中心座標呼叫既有受保護 `photoMap.preview`。地圖影像不保存。修改任何照片的拍攝時間或 GPS、批次套用日期、地圖拖曳、選擇新檔案、取消或完成匯入時，都必須清除候選，避免以舊座標寫入。
 
-確認時 `mergePhotoJourneyImportGroups` 會將已選候選轉成既有照片匯入群組，並從普通日期群組排除相同 photo ID，因此每張照片只可進入一個事件。仍由既有確認流程建立 `private` 事件、受控附件與 `precise/private` 位置；未選候選和缺少 GPS 的照片維持普通日期分組。不得將候選、中心座標、地圖或路徑投影到 public／link 分享。最低回歸為 `photoJourneyCandidates.test.ts`、`pnpm test:e2e:isolated` 及 `CHRONICLE_E2E_VIEWPORT=desktop pnpm test:e2e:isolated`；後兩者分別覆蓋無自動地圖／事件請求與已選候選不重複建立 private 事件。
+確認時 `mergePhotoJourneyImportGroups` 會將已選候選轉成既有照片匯入群組，並從普通日期群組排除相同 photo ID，因此每張照片只可進入一個事件。仍由既有確認流程建立 `private` 事件、受控附件與 `precise/private` 位置；圖片完成保存後，`saveJourneyDetails` 才可由 owner 寫入範圍與同 event image 封面。未選候選和缺少 GPS 的照片維持普通日期分組。不得將候選、中心座標、地圖、路徑或封面關聯投影到 public／link 分享。最低回歸為 `photoJourneyCandidates.test.ts`、`server/routers/diary.test.ts`、`pnpm test:e2e:isolated` 及 `CHRONICLE_E2E_VIEWPORT=desktop pnpm test:e2e:isolated`。
+
+## 4.4 Day One 與家庭大事記：先最小化，再分享摘要
+
+`client/src/lib/dayOneImport.ts` 只支援使用者選取的 Day One JSON 或根目錄唯一 `Journal.json` ZIP。解析器限制 32MB archive、4MB JSON 與 250 筆 entries，拒絕不安全 ZIP path；每筆只取 creation date、純文字和最多八個短標籤。媒體、位置、天氣、裝置、rich text、來源 URL、ZIP 與 UUID 不得持久化。`PrivateDayOneImport` 的 preview、勾選與去重皆為本機 state；只有使用者確認後才藉既有 `diary.importEvents` 寫入 private 事件。不得擴充為自動同步、背景掃描、跨帳號連結或媒體上傳。
+
+`growth_family_milestones` 是與事件投影分離的 family-only 表。owner 可寫入日期、精度、標題、短摘要與可選的同 diary sourceEventId；資料層必須拒絕跨 diary source。已接受成員只讀取日期、精度、標題與摘要，絕不能取得 sourceEventId、原事件正文、媒體、語音、GPS 或 AI 輸出；owner 才能建立、更新或刪除，並留下不含摘要內容的 audit action。資料庫變更由 `0021_huge_caretaker.sql` 建立，任何改動都要同時更新 schema、migration 與 router regression。
 
 ## 5. 驗證流程
 

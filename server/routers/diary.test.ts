@@ -18,18 +18,21 @@ const diaryDb = vi.hoisted(() => {
     state,
     acceptDiaryInvite: vi.fn(async () => ({ diaryId: 2, role: "commenter" })),
     createDiaryInvite: vi.fn(async () => ({ id: 4, token: "family-invite-token-123456", expiresAt: 1_900_000_000_000, role: "commenter" })),
+    createFamilyMilestone: vi.fn(async () => ({ id: 81 })),
     getDiarySnapshot,
     getDiaryOnThisDayMemories: vi.fn(async () => [{ id: 91, yearsAgo: 4, isLocked: false, daysRemaining: 0, title: "同日回憶", eventType: "memory", occurredAt: 1_715_904_000_000 }]),
     createEventComment: vi.fn(async () => ({ id: 11, eventId: 8, body: "我也記得這一天。" })),
     getDiaryEventRevisions: vi.fn(async () => [{ id: 31, eventId: 8, version: 2, changeType: "update", snapshot: { title: "第二版" }, createdAt: new Date("2026-01-02") }]),
     getDiaryAuditLogs: vi.fn(async () => [{ id: 1, action: "invite_created", actorName: "Test User", createdAt: new Date() }]),
     getDiaryMembers: vi.fn(async () => [{ id: 7, userId: 2, role: "commenter", name: "Family", email: "family@example.com", createdAt: new Date() }]),
+    getFamilyMilestones: vi.fn(async () => [{ id: 81, occurredAt: 1_704_067_200_000, datePrecision: "day", title: "家庭旅行", summary: "一起出發的週末。", updatedAt: new Date() }]),
     getEventComments: vi.fn(async () => [{ id: 11, body: "我也記得這一天。", authorName: "Test User", createdAt: new Date() }]),
     getEventReactions: vi.fn(async () => [{ reaction: "heart", count: 1, reactedByCurrentUser: true }]),
     uploadDiaryCoverImage,
     createDiaryEvent: vi.fn(),
     deleteDiaryEvent: vi.fn(),
     deleteDiaryEventMedia: vi.fn(),
+    deleteFamilyMilestone: vi.fn(async () => ({ id: 81 })),
     deleteAnnualReflection: vi.fn(async () => ({ year: 2025 })),
     deletePhaseReflection: vi.fn(),
     generateAnnualReflection: vi.fn(async () => ({ year: 2025, recap: "年度回顧", reflection: "來年提問", model: "claude-haiku-4-5" })),
@@ -41,6 +44,7 @@ const diaryDb = vi.hoisted(() => {
     reorderDiaryEventMedia: vi.fn(),
     reorderDiaryEvents: vi.fn(),
     removeDiaryMember: vi.fn(async () => ({ id: 7 })),
+    saveDiaryJourneyDetails: vi.fn(async () => ({ id: 6, eventId: 8, startedAt: 1_704_067_200_000, endedAt: 1_704_153_600_000, coverMediaId: 41 })),
     restoreDiaryEventRevision: vi.fn(async () => ({ eventId: 8, restoredVersion: 3 })),
     setDiaryEventVisibility: vi.fn(),
     updateDiaryAiPreference: vi.fn(),
@@ -49,6 +53,7 @@ const diaryDb = vi.hoisted(() => {
     updateDiaryPhaseBoundaries: vi.fn(),
     updateDiaryProfile: vi.fn(async () => ({ title: "閱讀中的成長史", subtitle: "把轉折留在時間帶上。" })),
     updateDiarySharing: vi.fn(async () => ({ mode: "public", slug: "story-test-cover", shareToken: null, hasPassword: false, expiresAt: null })),
+    updateFamilyMilestone: vi.fn(async () => ({ id: 81 })),
     updateDiaryMemberRole: vi.fn(async () => ({ id: 7, role: "editor" })),
     toggleEventReaction: vi.fn(async () => ({ reaction: "heart", reacted: true })),
     updatePhaseReflection: vi.fn(),
@@ -337,5 +342,29 @@ describe("diary router validation", () => {
     expect(diaryDb.getDiaryAuditLogs).toHaveBeenCalledWith(1);
     expect(diaryDb.removeDiaryMember).toHaveBeenCalledWith(1, 7);
     expect(diaryDb.updateDiaryMemberRole).toHaveBeenCalledWith(1, 7, "editor");
+  });
+
+  it("scopes family-only milestone reads and management to protected diary helpers", async () => {
+    const caller = diaryRouter.createCaller(authenticatedContext);
+    const input = { occurredAt: 1_704_067_200_000, datePrecision: "day" as const, title: "家庭旅行", summary: "一起出發的週末。", sourceEventId: 8 };
+    const listed = await caller.getFamilyMilestones({ diaryId: 42 });
+    await caller.createFamilyMilestone(input);
+    await caller.updateFamilyMilestone({ id: 81, ...input, summary: "更新後的家庭摘要。" });
+    await caller.deleteFamilyMilestone({ id: 81 });
+    expect(listed[0]).toMatchObject({ id: 81, title: "家庭旅行" });
+    expect(diaryDb.getFamilyMilestones).toHaveBeenCalledWith(1, 42);
+    expect(diaryDb.createFamilyMilestone).toHaveBeenCalledWith(1, input);
+    expect(diaryDb.updateFamilyMilestone).toHaveBeenCalledWith(1, 81, expect.objectContaining({ summary: "更新後的家庭摘要。" }));
+    expect(diaryDb.deleteFamilyMilestone).toHaveBeenCalledWith(1, 81);
+    await expect(caller.createFamilyMilestone({ ...input, title: " " })).rejects.toThrow();
+    expect(diaryDb.createFamilyMilestone).toHaveBeenCalledTimes(1);
+  });
+
+  it("allows a private journey detail only with an ordered date range through its owner-only helper", async () => {
+    const caller = diaryRouter.createCaller(authenticatedContext);
+    await caller.saveJourneyDetails({ eventId: 8, startedAt: 1_704_067_200_000, endedAt: 1_704_153_600_000, coverMediaId: 41 });
+    expect(diaryDb.saveDiaryJourneyDetails).toHaveBeenCalledWith(1, 8, { startedAt: 1_704_067_200_000, endedAt: 1_704_153_600_000, coverMediaId: 41 });
+    await expect(caller.saveJourneyDetails({ eventId: 8, startedAt: 1_704_153_600_000, endedAt: 1_704_067_200_000, coverMediaId: null })).rejects.toThrow("旅程起訖日期無效");
+    expect(diaryDb.saveDiaryJourneyDetails).toHaveBeenCalledTimes(1);
   });
 });

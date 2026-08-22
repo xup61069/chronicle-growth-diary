@@ -33,6 +33,11 @@ export type PhotoExifImportGroup = {
   photoIds: string[];
   mapLatitudeE6: number | null;
   mapLongitudeE6: number | null;
+  journey?: {
+    startedAt: string;
+    endedAt: string;
+    coverPhotoId: string | null;
+  };
 };
 
 export type PhotoExifImportPreview = {

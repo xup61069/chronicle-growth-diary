@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import { growthDiaries, growthEventMedia } from "../../drizzle/schema";
 import { safeMediaName } from "../diaryHelpers";
@@ -16,7 +16,11 @@ export async function uploadDiaryEventMedia(db: DbClient, assertEventWriteAccess
   const stored = await storagePut(`growth-diary/${input.userId}/event-${input.eventId}/${input.mediaKind === "live_motion" ? "live-motion-" : ""}${fileName}`, bytes, input.mimeType);
   const existingMedia = await db.select({ count: growthEventMedia.id }).from(growthEventMedia).where(eq(growthEventMedia.eventId, input.eventId));
   await db.insert(growthEventMedia).values({ eventId: input.eventId, storageKey: stored.key, url: stored.url, fileName, mimeType: input.mimeType, mediaKind: input.mediaKind ?? "image", caption: input.caption?.trim() || null, sortOrder: existingMedia.length });
-  return stored;
+  const created = await db.select({ id: growthEventMedia.id }).from(growthEventMedia)
+    .where(and(eq(growthEventMedia.eventId, input.eventId), eq(growthEventMedia.storageKey, stored.key)))
+    .limit(1);
+  if (!created[0]) throw new Error("無法保存事件媒體中繼資料。");
+  return { id: created[0].id, ...stored };
 }
 
 export async function uploadShareSafeDiaryEventMedia(db: DbClient, assertEventWriteAccess: AssertEventWriteAccess, input: { userId: number; mediaId: number; fileName: string; mimeType: string; base64: string }) {
