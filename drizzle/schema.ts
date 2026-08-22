@@ -371,6 +371,8 @@ export const growthEventComments = mysqlTable(
     authorUserId: int("authorUserId").notNull().references(() => users.id, { onDelete: "cascade" }),
     body: text("body").notNull(),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
+    deletedAt: timestamp("deletedAt"),
+    deletedByUserId: int("deletedByUserId").references(() => users.id, { onDelete: "set null" }),
   },
   (table) => [index("growth_event_comments_event_idx").on(table.eventId, table.createdAt)],
 );
@@ -398,7 +400,7 @@ export const growthDiaryAuditLogs = mysqlTable(
     id: int("id").autoincrement().primaryKey(),
     diaryId: int("diaryId").notNull().references(() => growthDiaries.id, { onDelete: "cascade" }),
     actorUserId: int("actorUserId").notNull().references(() => users.id, { onDelete: "cascade" }),
-    action: mysqlEnum("action", ["invite_created", "invite_accepted", "member_role_updated", "member_removed", "comment_created", "reaction_added", "reaction_removed", "family_milestone_created", "family_milestone_updated", "family_milestone_deleted", "family_milestone_audience_updated"]).notNull(),
+    action: mysqlEnum("action", ["invite_created", "invite_accepted", "member_role_updated", "member_removed", "comment_created", "comment_deleted", "reaction_added", "reaction_removed", "family_milestone_created", "family_milestone_updated", "family_milestone_deleted", "family_milestone_audience_updated"]).notNull(),
     targetType: varchar("targetType", { length: 32 }).notNull(),
     targetId: int("targetId"),
     metadata: text("metadata"),

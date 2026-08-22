@@ -10,6 +10,7 @@ import {
   acceptDiaryInviteForUser,
   createDiaryInviteForDiary,
   createEventCommentForUser,
+  deleteEventCommentForUser,
   getDiaryAuditLogsForDiary,
   getFamilyMilestoneAudienceAuditForDiary,
   getDiaryMembersForDiary,
@@ -472,6 +473,11 @@ export async function createEventComment(userId: number, eventId: number, body: 
 export async function getEventComments(userId: number, eventId: number) {
   const db = await requireDb();
   return getEventCommentsForUser(db, userId, eventId);
+}
+
+export async function deleteEventComment(userId: number, eventId: number, commentId: number) {
+  const db = await requireDb();
+  return deleteEventCommentForUser(db, userId, eventId, commentId);
 }
 
 export async function getEventReactions(userId: number, eventId: number) {

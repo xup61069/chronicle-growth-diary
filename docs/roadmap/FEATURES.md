@@ -15,7 +15,7 @@ Chronicle 採取「先建立可驗證的私有資料邊界，再擴大協作與�
 | 已完成 MVP | Journey 私有匯入 | 擁有者可選擇 Journey ZIP，在瀏覽器把安全 JSON entry 轉為可勾選草稿，逐項微調或僅對勾選草稿批次套用日期時間、重設或取消後，才批次建立 private 事件；成功後顯示建立數量。 | 僅保留 `date_journal`、HTML 降為純文字的 `text` 與最多八個受限標籤；provider ID 僅在本機優先去重，缺少時退回日期與純文字。草稿微調只存在目前瀏覽器，確認 payload 僅保留安全標題與 UTC 日期；成功回饋不含草稿內容；媒體、音訊、GPS、地址、天氣、時區、裝置、來源資料與 ZIP 均不持久化。 |
 | 已完成 MVP | 家庭共用大事記 | owner 可選擇性建立日期、標題與短摘要，並為每一筆選擇所有已接受成員或指定成員閱讀。新建項目預設指定成員，舊項目維持原有全體成員行為；既有項目變更有效受眾或政策時先顯示文字、符號、色彩兼具的本機差異，需第二次確認才更新。owner 可依最多 366 天的日期區間被動檢視最小受眾異動稽核。 | 大事記不複製事件正文、照片、語音、GPS 或 AI 產物；建立、修改與刪除僅 owner，成員只讀授權摘要。稽核只顯示時間、動作與 milestone ID，無摘要、成員、actor 或 metadata；名冊或選擇變動使受眾預覽失效；移除成員立即撤銷指定權限，重新接受不自動恢復；公開／link 分享、未接受或未選成員皆無法讀取。 |
 | 後續設計 | [私有跨匯入去重候選](https://github.com/xup61069/chronicle-growth-diary/issues/47) | 第一階段已提供 source key 與明確觸發的 checksum；後續研究感知雜湊、短標題／日期近似與合併 UI。 | 只產生候選，沒有自動刪除、合併、背景掃描、外送或跨帳號保存；感知雜湊依賴需先通過 bundle、效能與授權審查。 |
-| 後續擴充 | 家庭留言 | 在既有邀請模型上加入可刪除的 event-level 留言串。 | 必須先定義 invite scope、作者刪除、擁有者管理、稽核及分享隔離。 |
+| 已完成 MVP | 私有家庭留言 | owner 與有效受邀成員可在 private event 建立純文字留言；作者可 tombstone 自己的 active 留言，owner 可 moderation 任何 active 留言。 | deleted body 不再投影；稽核只保存固定 action、comment/event ID 與 moderation 布林，public／link、AI 與 portable archive 均不含留言。 |
 | 後續評估 | 即時共編 | 在獨立 feature flag 下研究 Yjs／WebSocket CRDT。 | 需先完成 presence、斷線恢復、衝突策略、成本、資料保留與權限模型；不與留言 MVP 綁定。 |
 | 後續評估 | 伺服器端印刷 PDF | 若有高量、長篇或批次輸出需求，再評估受保護 print route 與伺服器渲染。 | 需先確認 production Chromium、執行時間、記憶體、字型、媒體授權與產物保留策略。 |
 

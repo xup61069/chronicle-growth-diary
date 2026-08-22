@@ -556,6 +556,17 @@ try {
     await page.waitForFunction(() => Array.from(document.querySelectorAll('.event-reaction-options button')).some((button) => button.textContent?.includes('心意') && button.getAttribute('aria-pressed') === 'true'), undefined, { timeout: 10_000 });
     findings.checks.push('desktop private family reaction toggle');
 
+    const desktopComments = page.locator('.event-comments');
+    await desktopComments.waitFor({ timeout: 10_000 });
+    await desktopComments.getByText('尚未有家庭註解。', { exact: true }).waitFor({ timeout: 10_000 });
+    await desktopComments.locator('textarea').fill('隔離家庭留言');
+    assert(await desktopComments.getByText('尚未有家庭註解。', { exact: true }).isVisible(), '輸入家庭留言前不得建立留言。');
+    await desktopComments.getByRole('button', { name: '發表註解' }).click();
+    await desktopComments.getByText('隔離家庭留言', { exact: true }).waitFor({ timeout: 10_000 });
+    await desktopComments.getByRole('button', { name: '移除自己的家庭註解' }).click();
+    await desktopComments.getByText('尚未有家庭註解。', { exact: true }).waitFor({ timeout: 10_000 });
+    findings.checks.push('desktop private family comment create and author deletion');
+
     const printPreviewPromise = context.waitForEvent('page');
     await page.getByRole('button', { name: 'A5 書冊預覽' }).click();
     const printPreview = await printPreviewPromise;
@@ -566,6 +577,16 @@ try {
     }
     await printPreview.close();
     findings.checks.push('desktop private A5 print book preview');
+
+    const visibilityUpdate = await trpcMutation(page, 'diary.setEventVisibility', { id: eventId, shareScope: 'public' });
+    assert(visibilityUpdate.status === 200, '無法將隔離事件切換為 public 以驗證家庭留言隔離。');
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.locator('.event-list button').filter({ hasText: eventTitle }).click();
+    await page.locator('.preview-card h3').getByText(eventTitle, { exact: true }).waitFor({ timeout: 10_000 });
+    assert(await page.locator('.event-comments').count() === 0, 'public 事件不得呈現家庭留言面板或觸發其私有流程。');
+    findings.checks.push('desktop public event family comment isolation');
+    const visibilityRestore = await trpcMutation(page, 'diary.setEventVisibility', { id: eventId, shareScope: 'private' });
+    assert(visibilityRestore.status === 200, '無法還原隔離事件的 private 範圍。');
 
     await page.goto(`${baseUrl}/dashboard`, { waitUntil: 'domcontentloaded' });
     await page.getByRole('heading', { name: '成長數據索引' }).waitFor({ timeout: 10_000 });
@@ -731,6 +752,12 @@ try {
   await heartReaction.click();
   await page.waitForFunction(() => Array.from(document.querySelectorAll('.event-reaction-options button')).some((button) => button.textContent?.includes('心意') && button.getAttribute('aria-pressed') === 'true'), undefined, { timeout: 10_000 });
   assert(await heartReaction.getAttribute('aria-pressed') === 'true', '私人事件的家庭反應未保存目前帳號的選擇。');
+  const mobileComments = page.locator('.event-comments');
+  await mobileComments.scrollIntoViewIfNeeded();
+  await mobileComments.getByText(/僅 private 事件的擁有者與受邀成員可查看/).waitFor({ timeout: 10_000 });
+  assert(await mobileComments.locator('textarea').isVisible(), '375px 私人事件未提供家庭留言輸入控制。');
+  assert(await mobileComments.getByText('尚未有家庭註解。', { exact: true }).isVisible(), '375px 家庭留言未顯示初始空狀態。');
+  findings.checks.push('375px private family comment panel');
   if (process.env.CHRONICLE_E2E_REACTION_SCREENSHOT_PATH) {
     await page.locator('.event-reactions').screenshot({ path: process.env.CHRONICLE_E2E_REACTION_SCREENSHOT_PATH });
   }
