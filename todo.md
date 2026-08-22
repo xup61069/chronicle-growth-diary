@@ -2,8 +2,8 @@
 
 > Sprint 指針：見 [CURRENT_SPRINT](./docs/roadmap/CURRENT_SPRINT.md)、[FEATURES](./docs/roadmap/FEATURES.md)、[AI_HANDOFF](./docs/AI_HANDOFF.md)。
 
-- [x] 完成本輪治理、CI 防護與補記助手的 private-first MVP。
-- [x] 建立 HEIC／Live Photo 的本機 metadata 預覽、確認後 private 匯入與 EXIF 日期保留流程。
+- [x] 完成治理、CI 防護與補記 MVP。
+- [x] 完成 HEIC／Live Photo 私有匯入。
 - [x] 建立 ICS 日曆本機解析、審核與 private 時間軸草稿建立流程。
 - [x] 建立分享照片的瀏覽器端人臉模糊副本流程，確保原圖不進入公開分享投影。
 - [x] 將所有事件主圖來源限制為靜態 image 媒體，避免 Live Photo MOV 排序後被圖片預覽、Bento、比較或匯出誤用。
@@ -14,7 +14,7 @@
 - [x] 收斂單一功能單一 PR 規則、文件入口與元件領域結構，避免例行紀錄單獨洗 PR。
 - [x] 補強 mock OAuth callback 的瀏覽器端對端防護，並完成依賴與 secret 掃描結果記錄。
 - [x] 實作 PWA Web Share Target，將系統分享內容導入既有 private QuickNote 草稿入口，不自動寫入事件。
-- [x] 修補 Express 傳遞 `path-to-regexp` 的 production 高風險依賴，或記錄經驗證的升級 blocker、風險範圍與後續處置。
+- [x] 修補 Express 5 wildcard 路由安全回歸。
 - [x] 全量封存驗證完成。
 - [x] 建立全量封存 ZIP 的可審核還原精靈，包含完整性驗證、衝突處理、資料覆寫保護與附件還原進度。
 - [x] 全量 ZIP 匯出進度。
