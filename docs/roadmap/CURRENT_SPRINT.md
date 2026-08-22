@@ -161,3 +161,7 @@
 | Source key／checksum 候選 | 僅 owner 於目前一輪瀏覽器匯入預覽明確觸發；source key 和 SHA-256 僅在記憶體比較本次草稿，不保存、不上傳、不比較既有日記或跨帳號資料。 | 只標示目前草稿間的「完全相同來源／檔案」候選；使用者逐項保留或略過，取消、未確認與失敗均零寫入。 |
 
 **已完成。** #43、#44、#45、#46 與 #48 已按相依順序合併，整合 PR #49 再落地 `main`，未重寫歷史。照片匯入第一階段新增本機 source key 與 owner 明確觸發的 SHA-256 候選；候選只可可逆地略過後續同組檔案或保留全部，從不掃描既有日記、保存 checksum、外送檔案或自動合併。完整 lint、型別、99 個測試檔／277 項、桌面與 375px 隔離 E2E、Vite PWA build、lazy route verifier、server bundle、182 revisions secret scan、production audit 與 diff check 均通過。
+
+## 私有家庭留言第一階段（Issue #12）
+
+**已完成。** `0023_familiar_valeria_richards.sql` 為既有留言加入 tombstone 與 `comment_deleted` 稽核。查詢只在 selected private event 啟用，且只允許 owner 或 active member；作者可刪除自己的 active 留言，owner 可 moderation。已刪除正文不再投影，稽核不含正文，public／link、AI 與 portable archive 均有零投影契約。資料層、桌面／375px isolated E2E、lint、型別、102 個測試檔／288 項、Vite PWA build、lazy routes、server bundle、186 revisions secret scan、production audit 與 diff check 均通過。

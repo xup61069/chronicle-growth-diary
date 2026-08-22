@@ -320,10 +320,15 @@ function DiaryEditorContent() {
     },
     onError: (error) => toast.error(error.message),
   });
-  const eventCommentsQuery = trpc.diary.getEventComments.useQuery({ eventId: selectedId ?? 0 }, { enabled: Boolean(selectedId) });
   const createCommentMutation = trpc.diary.createEventComment.useMutation({
     onSuccess: async () => {
       setCommentDraft("");
+      await utils.diary.getEventComments.invalidate();
+    },
+    onError: (error) => toast.error(error.message),
+  });
+  const deleteCommentMutation = trpc.diary.deleteEventComment.useMutation({
+    onSuccess: async () => {
       await utils.diary.getEventComments.invalidate();
     },
     onError: (error) => toast.error(error.message),
@@ -420,6 +425,10 @@ function DiaryEditorContent() {
   const placeFootprints = useMemo(() => buildPlaceFootprints(visibleEvents), [visibleEvents]);
   const spatialFootprints = useMemo(() => buildSpatialFootprints(visibleEvents), [visibleEvents]);
   const selectedEvent = events.find((event) => event.id === (selectedId ?? editingId)) ?? visibleEvents[0] ?? events[0];
+  const eventCommentsQuery = trpc.diary.getEventComments.useQuery(
+    { eventId: selectedEvent?.id ?? 0 },
+    { enabled: Boolean(selectedEvent && selectedEvent.shareScope === "private"), staleTime: 0 },
+  );
   const eventReactionsQuery = trpc.diary.getEventReactions.useQuery(
     { eventId: selectedEvent?.id ?? 0 },
     { enabled: Boolean(selectedEvent && selectedEvent.shareScope === "private"), staleTime: 0 },
@@ -1987,11 +1996,11 @@ function DiaryEditorContent() {
                   })}</div>}
                   <p className="event-reaction-note" role="status" aria-live="polite">反應只代表目前日記成員的選擇，不會出現在任何公開或私密連結分享頁。</p>
                 </section> : null}
-                <section className="event-comments" aria-label="家庭共寫註解">
-                  <header><span><BookOpenCheck size={13} /> 家庭註解</span><small>只有日記擁有者與受邀成員可查看。</small></header>
-                  {eventCommentsQuery.isLoading ? <p><Loader2 size={13} className="animate-spin" /> 載入註解中…</p> : eventCommentsQuery.data?.length ? <div className="event-comment-list">{eventCommentsQuery.data.map((comment) => <article key={comment.id}><b>{comment.authorName ?? "受邀成員"}</b><span>{new Date(comment.createdAt).toLocaleString("zh-TW")}</span><p>{comment.body}</p></article>)}</div> : <p>尚未有家庭註解。</p>}
+                {selectedEvent.shareScope === "private" ? <section className="event-comments" aria-label="家庭共寫註解">
+                  <header><span><BookOpenCheck size={13} /> 家庭註解</span><small>僅 private 事件的擁有者與受邀成員可查看；作者可刪除自己的註解，擁有者可協助移除。</small></header>
+                  {eventCommentsQuery.isLoading ? <p role="status"><Loader2 size={13} className="animate-spin" /> 載入註解中…</p> : eventCommentsQuery.data?.length ? <div className="event-comment-list">{eventCommentsQuery.data.map((comment) => <article key={comment.id}><div><b>{comment.authorName ?? "受邀成員"}</b><span>{new Date(comment.createdAt).toLocaleString("zh-TW")}</span>{comment.canDelete ? <button type="button" onClick={() => deleteCommentMutation.mutate({ eventId: selectedEvent.id, commentId: comment.id })} disabled={deleteCommentMutation.isPending} aria-label={comment.isOwnerModeration ? "以擁有者身分移除這則家庭註解" : "移除自己的家庭註解"}><Trash2 size={12} /> {comment.isOwnerModeration ? "協助移除" : "移除"}</button> : null}</div><p>{comment.body}</p></article>)}</div> : <p>尚未有家庭註解。</p>}
                   <div className="event-comment-compose"><textarea value={commentDraft} onChange={(event) => setCommentDraft(event.target.value)} placeholder="為這段記憶留下補充或提問" maxLength={2000} rows={3} /><button type="button" onClick={() => createCommentMutation.mutate({ eventId: selectedEvent.id, body: commentDraft })} disabled={!commentDraft.trim() || createCommentMutation.isPending}>{createCommentMutation.isPending ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />} 發表註解</button></div>
-                </section>
+                </section> : null}
                 {canEdit ? <div className="preview-actions"><button onClick={() => editEvent(selectedEvent)}><PencilLine size={14} /> 編輯</button><button className="delete" onClick={() => removeEvent(selectedEvent.id)}><Trash2 size={14} /> 刪除</button></div> : null}
               </article>
               <div className="preview-ruler" aria-hidden="true"><i /><b>{new Date(selectedEvent.occurredAt).getFullYear()}</b><i /><span>NOW</span></div>

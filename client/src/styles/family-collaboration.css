@@ -19,8 +19,12 @@
 .event-comments > p { margin: 9px 0; color: var(--ink-soft); font-size: 12px; }
 .event-comment-list { display: grid; gap: 9px; margin: 10px 0; }
 .event-comment-list article { padding: 10px 0; border-bottom: 1px solid rgba(20,38,58,.12); }
+.event-comment-list article > div { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 5px 8px; }
 .event-comment-list b { color: var(--ink); font: 600 11px "IBM Plex Mono", monospace; }
-.event-comment-list span { display: block; margin-top: 3px; color: var(--ink-soft); font: 400 10px "IBM Plex Mono", monospace; }
+.event-comment-list span { margin-top: 3px; color: var(--ink-soft); font: 400 10px "IBM Plex Mono", monospace; }
+.event-comment-list article > div > button { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; min-height: 26px; border: 1px solid rgba(20,38,58,.36); background: transparent; color: var(--ink-soft); padding: 0 7px; font: 600 9px "IBM Plex Mono", monospace; }
+.event-comment-list article > div > button:hover { border-color: var(--cinnabar); color: #9a3e24; }
+.event-comment-list article > div > button:focus-visible, .event-comment-compose button:focus-visible { outline: 2px solid var(--cinnabar); outline-offset: 2px; }
 .event-comment-list p { margin: 6px 0 0; color: var(--ink); font-size: 13px; line-height: 1.6; }
 .event-comment-compose { display: grid; gap: 7px; margin-top: 10px; }
 .event-comment-compose textarea { resize: vertical; min-height: 72px; }

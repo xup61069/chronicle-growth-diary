@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, lte } from "drizzle-orm";
+import { and, asc, desc, eq, gte, isNull, lte } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import { randomBytes } from "node:crypto";
 import {
@@ -15,7 +15,7 @@ import { hashShareToken } from "../shareAccess";
 
 type DbClient = MySql2Database<Record<string, unknown>>;
 export type DiaryMemberRole = "editor" | "commenter";
-export type AuditAction = "invite_created" | "invite_accepted" | "member_role_updated" | "member_removed" | "comment_created" | "reaction_added" | "reaction_removed" | "family_milestone_created" | "family_milestone_updated" | "family_milestone_deleted" | "family_milestone_audience_updated";
+export type AuditAction = "invite_created" | "invite_accepted" | "member_role_updated" | "member_removed" | "comment_created" | "comment_deleted" | "reaction_added" | "reaction_removed" | "family_milestone_created" | "family_milestone_updated" | "family_milestone_deleted" | "family_milestone_audience_updated";
 export const EVENT_REACTION_TYPES = ["heart", "spark", "celebrate", "support"] as const;
 export type EventReactionType = (typeof EVENT_REACTION_TYPES)[number];
 
@@ -71,8 +71,10 @@ export async function acceptDiaryInviteForUser(db: DbClient, userId: number, ema
 }
 
 export async function createEventCommentForUser(db: DbClient, userId: number, eventId: number, body: string) {
-  const access = await getEventAccess(db, userId, eventId);
-  await db.insert(growthEventComments).values({ eventId, authorUserId: userId, body: body.trim() });
+  const access = await getPrivateEventMemberAccess(db, userId, eventId);
+  const cleanBody = body.trim();
+  if (!cleanBody || cleanBody.length > 2000) throw new Error("家庭註解必須介於 1 至 2000 個字元。");
+  await db.insert(growthEventComments).values({ eventId, authorUserId: userId, body: cleanBody });
   const comment = await db.select().from(growthEventComments).where(eq(growthEventComments.eventId, eventId)).orderBy(desc(growthEventComments.id)).limit(1);
   if (!comment[0]) throw new Error("無法新增註解。");
   await writeDiaryAudit(db, access.diaryId, userId, "comment_created", "comment", comment[0].id, { eventId });
@@ -80,16 +82,35 @@ export async function createEventCommentForUser(db: DbClient, userId: number, ev
 }
 
 export async function getEventCommentsForUser(db: DbClient, userId: number, eventId: number) {
-  await getEventAccess(db, userId, eventId);
-  return db.select({ id: growthEventComments.id, body: growthEventComments.body, createdAt: growthEventComments.createdAt, authorName: users.name })
+  const access = await getPrivateEventMemberAccess(db, userId, eventId);
+  const comments = await db.select({ id: growthEventComments.id, body: growthEventComments.body, createdAt: growthEventComments.createdAt, authorName: users.name, authorUserId: growthEventComments.authorUserId })
     .from(growthEventComments).innerJoin(users, eq(growthEventComments.authorUserId, users.id))
-    .where(eq(growthEventComments.eventId, eventId)).orderBy(asc(growthEventComments.createdAt));
+    .where(and(eq(growthEventComments.eventId, eventId), isNull(growthEventComments.deletedAt))).orderBy(asc(growthEventComments.createdAt));
+  return comments.map((comment) => ({
+    ...comment,
+    canDelete: access.role === "owner" || comment.authorUserId === userId,
+    isOwnerModeration: access.role === "owner" && comment.authorUserId !== userId,
+  }));
 }
 
 async function getPrivateEventMemberAccess(db: DbClient, userId: number, eventId: number) {
   const access = await getEventAccess(db, userId, eventId);
   if (access.shareScope !== "private") throw new Error("家庭反應只可用於完全私人的事件。");
   return access;
+}
+
+/** Authors may remove their own active comment; the diary owner may moderate any active comment. */
+export async function deleteEventCommentForUser(db: DbClient, userId: number, eventId: number, commentId: number) {
+  const access = await getPrivateEventMemberAccess(db, userId, eventId);
+  const comment = await db.select({ id: growthEventComments.id, authorUserId: growthEventComments.authorUserId })
+    .from(growthEventComments)
+    .where(and(eq(growthEventComments.id, commentId), eq(growthEventComments.eventId, eventId), isNull(growthEventComments.deletedAt))).limit(1);
+  if (!comment[0]) throw new Error("找不到可刪除的家庭註解。");
+  if (access.role !== "owner" && comment[0].authorUserId !== userId) throw new Error("你只能刪除自己留下的家庭註解。");
+  await db.update(growthEventComments).set({ deletedAt: new Date(), deletedByUserId: userId })
+    .where(and(eq(growthEventComments.id, commentId), isNull(growthEventComments.deletedAt)));
+  await writeDiaryAudit(db, access.diaryId, userId, "comment_deleted", "comment", commentId, { eventId, moderated: access.role === "owner" && comment[0].authorUserId !== userId });
+  return { id: commentId };
 }
 
 export async function getEventReactionsForUser(db: DbClient, userId: number, eventId: number) {

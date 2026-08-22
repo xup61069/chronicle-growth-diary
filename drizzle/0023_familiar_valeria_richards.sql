@@ -1,0 +1,4 @@
+ALTER TABLE `growth_diary_audit_logs` MODIFY COLUMN `action` enum('invite_created','invite_accepted','member_role_updated','member_removed','comment_created','comment_deleted','reaction_added','reaction_removed','family_milestone_created','family_milestone_updated','family_milestone_deleted','family_milestone_audience_updated') NOT NULL;--> statement-breakpoint
+ALTER TABLE `growth_event_comments` ADD `deletedAt` timestamp;--> statement-breakpoint
+ALTER TABLE `growth_event_comments` ADD `deletedByUserId` int;--> statement-breakpoint
+ALTER TABLE `growth_event_comments` ADD CONSTRAINT `growth_event_comments_deletedByUserId_users_id_fk` FOREIGN KEY (`deletedByUserId`) REFERENCES `users`(`id`) ON DELETE set null ON UPDATE no action;
