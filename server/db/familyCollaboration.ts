@@ -15,7 +15,7 @@ import { hashShareToken } from "../shareAccess";
 
 type DbClient = MySql2Database<Record<string, unknown>>;
 export type DiaryMemberRole = "editor" | "commenter";
-export type AuditAction = "invite_created" | "invite_accepted" | "member_role_updated" | "member_removed" | "comment_created" | "reaction_added" | "reaction_removed" | "family_milestone_created" | "family_milestone_updated" | "family_milestone_deleted";
+export type AuditAction = "invite_created" | "invite_accepted" | "member_role_updated" | "member_removed" | "comment_created" | "reaction_added" | "reaction_removed" | "family_milestone_created" | "family_milestone_updated" | "family_milestone_deleted" | "family_milestone_audience_updated";
 export const EVENT_REACTION_TYPES = ["heart", "spark", "celebrate", "support"] as const;
 export type EventReactionType = (typeof EVENT_REACTION_TYPES)[number];
 

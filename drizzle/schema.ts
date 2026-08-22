@@ -319,6 +319,7 @@ export const growthFamilyMilestones = mysqlTable(
     datePrecision: mysqlEnum("datePrecision", ["day", "month", "year"]).notNull().default("day"),
     title: varchar("title", { length: 180 }).notNull(),
     summary: varchar("summary", { length: 480 }).notNull(),
+    audienceMode: mysqlEnum("audienceMode", ["all_accepted", "selected_members"]).notNull().default("all_accepted"),
     createdByUserId: int("createdByUserId").notNull().references(() => users.id, { onDelete: "cascade" }),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
@@ -326,6 +327,21 @@ export const growthFamilyMilestones = mysqlTable(
   (table) => [
     index("growth_family_milestones_diary_date_idx").on(table.diaryId, table.occurredAt),
     index("growth_family_milestones_event_idx").on(table.sourceEventId),
+  ],
+);
+
+/** Selected accepted members for a family-only milestone; membership removal cascades this grant. */
+export const growthFamilyMilestoneAudiences = mysqlTable(
+  "growth_family_milestone_audiences",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    milestoneId: int("milestoneId").notNull().references(() => growthFamilyMilestones.id, { onDelete: "cascade" }),
+    diaryMemberId: int("diaryMemberId").notNull().references(() => growthDiaryMembers.id, { onDelete: "cascade" }),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("growth_family_milestone_audience_unique_idx").on(table.milestoneId, table.diaryMemberId),
+    index("growth_family_milestone_audience_member_idx").on(table.diaryMemberId),
   ],
 );
 
@@ -382,7 +398,7 @@ export const growthDiaryAuditLogs = mysqlTable(
     id: int("id").autoincrement().primaryKey(),
     diaryId: int("diaryId").notNull().references(() => growthDiaries.id, { onDelete: "cascade" }),
     actorUserId: int("actorUserId").notNull().references(() => users.id, { onDelete: "cascade" }),
-    action: mysqlEnum("action", ["invite_created", "invite_accepted", "member_role_updated", "member_removed", "comment_created", "reaction_added", "reaction_removed", "family_milestone_created", "family_milestone_updated", "family_milestone_deleted"]).notNull(),
+    action: mysqlEnum("action", ["invite_created", "invite_accepted", "member_role_updated", "member_removed", "comment_created", "reaction_added", "reaction_removed", "family_milestone_created", "family_milestone_updated", "family_milestone_deleted", "family_milestone_audience_updated"]).notNull(),
     targetType: varchar("targetType", { length: 32 }).notNull(),
     targetId: int("targetId"),
     metadata: text("metadata"),
@@ -405,6 +421,7 @@ export type GrowthArchiveRestoreAsset = typeof growthArchiveRestoreAssets.$infer
 export type GrowthPhaseReflection = typeof growthPhaseReflections.$inferSelect;
 export type GrowthDiaryMember = typeof growthDiaryMembers.$inferSelect;
 export type GrowthFamilyMilestone = typeof growthFamilyMilestones.$inferSelect;
+export type GrowthFamilyMilestoneAudience = typeof growthFamilyMilestoneAudiences.$inferSelect;
 export type GrowthDiaryInvite = typeof growthDiaryInvites.$inferSelect;
 export type GrowthEventComment = typeof growthEventComments.$inferSelect;
 export type GrowthEventReaction = typeof growthEventReactions.$inferSelect;
