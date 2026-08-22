@@ -177,6 +177,7 @@ git diff --check
 3. 若使用 `/home/ubuntu/chronicle-github-sync` 鏡像，先確認專案與鏡像的 HEAD，避免將舊鏡像覆蓋較新的 checkpoint。
 4. 一個提交只做一個可說明主題；release 敘事放 GitHub Releases，長篇決策放 Discussions，而非用 commit 當工作日誌。
 5. 交接時必須回報 checkpoint、GitHub SHA、實際通過的指令，以及仍被外部條件阻擋的項目。
+6. `main` 強制至少一項非 stale 審核、strict `verify` 與 `public-homepage-e2e`、conversation resolution；`.github/workflows/dependabot-automerge.yml` 只能為 Dependabot 的 minor／patch PR 啟用 squash auto-merge，且 workflow 必須再次確認 `APPROVED`。不得將 major update、非 Dependabot PR、草稿或未審核更新排入 auto-merge。
 
 ## 9. 儲存庫治理基準
 
