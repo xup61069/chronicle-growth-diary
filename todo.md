@@ -22,9 +22,9 @@
 - [x] AI 文件治理合併。
 - [x] 文件治理 checkpoint。
 - [x] OAuth CI 逾時。
-- [x] 完成秘密與依賴稽核。
+- [x] 秘密／依賴稽核。
 - [x] README／PR／還原演練。
-- [x] P0 文件治理 PR。
+- [x] P0 文件 PR。
 - [x] owner AI 精選建議。
 - [x] AI 精選 PR。
 - [x] 本機旅程候選。
@@ -39,13 +39,13 @@
 - [x] owner 最小受眾稽核。
 - [x] Journey 草稿標題／日期微調。
 - [x] owner 受眾稽核日期區間篩選。
-- [x] Journey 草稿批次套用日期與時間。
-- [x] Journey 確認後成功 Toast 與過渡回饋。
+- [x] Journey 草稿批次日期。
+- [x] Journey 成功 Toast。
 - [x] 重新驗證秘密掃描與 production 依賴稽核。
 - [x] 補齊 Highlight 與家庭大事記元件測試。
 - [x] 核對 GitHub Issue backlog 與去重引擎私有設計。
 - [x] 依序合併 GitHub PR #43 至 #48。
-- [x] 實作 source key／checksum 私有去重候選。
+- [x] source key／checksum／dHash 私有候選。
 - [ ] 設定 Dependabot minor／patch 受保護自動合併。
 
 ## 已確認的非執行限制
