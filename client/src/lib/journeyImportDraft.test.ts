@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createJourneyReviewDraft, finalizeJourneyReviewDraft, journeyTimestampFromDateInput } from "./journeyImportDraft";
+import { applyJourneyReviewBatchDateTime, createJourneyReviewDraft, finalizeJourneyReviewDraft, journeyTimestampFromDateInput } from "./journeyImportDraft";
 
 const candidate = { sourceId: "entry-1", occurredAt: 1_741_381_000_000, title: "原始標題", body: "只保留的純文字", tagNames: ["Journey 匯入", "旅行"] };
 
@@ -18,5 +18,13 @@ describe("Journey review drafts", () => {
     const reset = createJourneyReviewDraft(candidate);
     expect(Object.keys(reset).sort()).toEqual(["body", "dateInput", "occurredAt", "sourceId", "tagNames", "title"]);
     expect(reset.title).toBe("原始標題");
+  });
+
+  it("applies a valid local batch datetime only to selected in-memory drafts", () => {
+    const first = createJourneyReviewDraft(candidate);
+    const second = createJourneyReviewDraft({ ...candidate, sourceId: "entry-2", title: "第二筆" });
+    const result = applyJourneyReviewBatchDateTime([first, second], ["entry-2"], "2026-08-23T10:30");
+    expect(result).toEqual([{ ...first }, { ...second, dateInput: "2026-08-23T10:30" }]);
+    expect(applyJourneyReviewBatchDateTime([first], ["entry-1"], "not-a-date")).toBeNull();
   });
 });

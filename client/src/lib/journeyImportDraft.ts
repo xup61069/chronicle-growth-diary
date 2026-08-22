@@ -24,3 +24,10 @@ export function finalizeJourneyReviewDraft(draft: JourneyReviewDraft): JourneyIm
   if (occurredAt === null) return null;
   return { sourceId: draft.sourceId, occurredAt, title: draft.title.slice(0, 180), body: draft.body, tagNames: draft.tagNames };
 }
+
+/** Applies an already validated local date/time only to explicitly selected review drafts. */
+export function applyJourneyReviewBatchDateTime(drafts: JourneyReviewDraft[], selectedSourceIds: Iterable<string>, dateInput: string): JourneyReviewDraft[] | null {
+  if (journeyTimestampFromDateInput(dateInput) === null) return null;
+  const selected = new Set(selectedSourceIds);
+  return drafts.map((draft) => selected.has(draft.sourceId) ? { ...draft, dateInput } : draft);
+}

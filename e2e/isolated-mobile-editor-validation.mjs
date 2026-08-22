@@ -41,7 +41,7 @@ function makeExifJpeg(date = '2026:08:20 09:30:00') {
   return Buffer.from(new Uint8Array([0xff, 0xd8, 0xff, 0xe1, length >> 8, length & 0xff, ...payload, 0xff, 0xd9]));
 }
 
-async function makeJourneyZip() {
+async function makeJourneyZip(includeSecondEntry = false) {
   const zip = new JSZip();
   zip.file('entries/e2e-journey.json', JSON.stringify({
     id: 'isolated-journey-entry',
@@ -54,6 +54,15 @@ async function makeJourneyZip() {
     address: '不得匯入',
   }));
   zip.file('photos/private.jpg', 'raw private bytes');
+  if (includeSecondEntry) zip.file('entries/e2e-journey-second.json', JSON.stringify({
+    id: 'isolated-journey-entry-second',
+    date_journal: Date.parse('2026-08-24T09:00:00.000Z'),
+    text: '<h1>Journey 第二筆記事</h1><p>不應被批次時間改寫</p>',
+    tags: ['遷移'],
+    photos: ['private-two.jpg'],
+    lat: 25.03,
+    lon: 121.56,
+  }));
   return zip.generateAsync({ type: 'nodebuffer' });
 }
 
@@ -389,20 +398,28 @@ try {
     let journeyImportRequestCount = 0;
     const journeyImportPayloads = [];
     await page.route('**/api/trpc/diary.importEvents**', async (route) => { journeyImportRequestCount += 1; journeyImportPayloads.push(route.request().postData() ?? ''); await route.continue(); });
-    await journeyImport.locator('input[type="file"]').setInputFiles({ name: 'journey-e2e.zip', mimeType: 'application/zip', buffer: await makeJourneyZip() });
+    await journeyImport.locator('input[type="file"]').setInputFiles({ name: 'journey-e2e.zip', mimeType: 'application/zip', buffer: await makeJourneyZip(true) });
     await journeyImport.getByTestId('journey-import-preview').waitFor({ timeout: 10_000 });
     assert(journeyImportRequestCount === 0, 'Journey ZIP 解析後未確認前不得建立任何事件。');
-    const journeyTitleInput = journeyImport.getByLabel(/Journey 草稿標題/);
-    const journeyDateInput = journeyImport.getByLabel(/Journey 草稿日期/);
+    const journeyTitleInput = journeyImport.getByRole('textbox', { name: 'Journey 草稿標題 isolated-journey-entry', exact: true });
+    const journeyDateInput = journeyImport.getByRole('textbox', { name: 'Journey 草稿日期 isolated-journey-entry', exact: true });
+    const secondJourneyDateInput = journeyImport.getByRole('textbox', { name: 'Journey 草稿日期 isolated-journey-entry-second', exact: true });
+    const firstJourneyDraft = journeyImport.getByTestId('journey-draft-isolated-journey-entry');
     assert(await journeyTitleInput.inputValue() === 'Journey 隔離驗證記事', 'Journey 本機預覽應只將已轉為純文字的候選標題帶入可編輯草稿。');
     await journeyTitleInput.fill('暫時標題');
-    await journeyImport.getByRole('button', { name: '重設此筆' }).click();
+    await firstJourneyDraft.getByRole('button', { name: '重設此筆' }).click();
     assert(await journeyTitleInput.inputValue() === 'Journey 隔離驗證記事', 'Journey 草稿重設必須回到 parser 產生的標題，且不能重新讀取 ZIP。');
+    await journeyImport.getByLabel('選取 Journey 第二筆記事').uncheck();
+    const preservedSecondDate = await secondJourneyDateInput.inputValue();
+    await journeyImport.getByLabel('Journey 批次日期與時間').fill('2026-08-23T10:30');
+    await journeyImport.getByRole('button', { name: '套用至已選草稿' }).click();
+    assert(await journeyDateInput.inputValue() === '2026-08-23T10:30' && await secondJourneyDateInput.inputValue() === preservedSecondDate, 'Journey 批次時間只能套用到目前勾選草稿，不能改寫未選草稿。');
+    if (process.env.CHRONICLE_E2E_JOURNEY_BATCH_SCREENSHOT_PATH) await journeyImport.screenshot({ path: process.env.CHRONICLE_E2E_JOURNEY_BATCH_SCREENSHOT_PATH });
     await journeyTitleInput.fill('Journey 自訂標題');
-    await journeyDateInput.fill('2026-08-23T10:30');
     assert(journeyImportRequestCount === 0, 'Journey 標題或日期微調不得在確認前建立事件。');
     await journeyImport.getByRole('button', { name: '確認建立 1 段 private 記錄' }).click();
     await page.getByText('已建立 1 段 private Journey 記錄。', { exact: true }).waitFor({ timeout: 10_000 });
+    await page.locator('.journey-import-success-toast').getByText('已建立 1 段 private Journey 記錄。', { exact: true }).waitFor({ timeout: 10_000 });
     assert(journeyImportRequestCount === 1 && journeyImportPayloads[0]?.includes('private') && journeyImportPayloads[0]?.includes('Journey 自訂標題') && !journeyImportPayloads[0]?.includes('不得匯入'), 'Journey 只能在明確確認後建立 private 事件，並只帶入已審核的標題／日期，不可包含地址或來源 metadata。');
     await page.unroute('**/api/trpc/diary.importEvents**');
     await page.reload({ waitUntil: 'domcontentloaded' });
@@ -444,8 +461,15 @@ try {
     await audienceAudit.locator('summary').click();
     await audienceAudit.getByText('已確認受眾範圍變更', { exact: true }).waitFor({ timeout: 10_000 });
     assert((await audienceAudit.innerText()).includes('大事記 #') && !(await audienceAudit.innerText()).includes('家庭旅程摘要') && !(await audienceAudit.innerText()).includes('Family Audience Validation'), 'owner 受眾稽核檢視只能顯示時間、動作與識別碼，不可投影摘要或成員資料。');
+    await audienceAudit.getByLabel('受眾稽核開始日期').fill('2099-01-01');
+    await audienceAudit.getByLabel('受眾稽核結束日期').fill('2099-01-01');
+    await audienceAudit.getByText('此日期區間沒有已確認的受眾範圍變更。', { exact: true }).waitFor({ timeout: 10_000 });
+    assert(!(await audienceAudit.innerText()).includes('家庭旅程摘要') && !(await audienceAudit.innerText()).includes('Family Audience Validation'), '稽核日期篩選不可使摘要或成員資料進入 owner 最小投影。');
+    if (process.env.CHRONICLE_E2E_AUDIENCE_AUDIT_RANGE_SCREENSHOT_PATH) await audienceAudit.screenshot({ path: process.env.CHRONICLE_E2E_AUDIENCE_AUDIT_RANGE_SCREENSHOT_PATH });
+    await audienceAudit.getByRole('button', { name: '清除日期' }).click();
+    await audienceAudit.getByText('已確認受眾範圍變更', { exact: true }).waitFor({ timeout: 10_000 });
     await page.unroute('**/api/trpc/diary.updateFamilyMilestone**');
-    findings.checks.push('desktop Day One and editable Journey local review confirmation, private import, family-only summary, semantic two-step audience preview and minimum owner audit');
+    findings.checks.push('desktop Day One and editable Journey review, selected-only batch datetime, private import toast, family-only summary, semantic audience preview and filtered minimum owner audit');
     const desktopFutureLetters = page.locator('.future-letters-studio');
     await desktopFutureLetters.getByRole('heading', { name: '寫給以後的自己' }).waitFor({ timeout: 10_000 });
     assert(await desktopFutureLetters.getByText(readyFutureLetterTitle, { exact: true }).isVisible(), '桌面未來信件索引未顯示已解鎖事件。');
