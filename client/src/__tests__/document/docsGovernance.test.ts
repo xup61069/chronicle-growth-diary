@@ -27,4 +27,21 @@ describe("documentation governance", () => {
     expect(agents).toContain("docs/roadmap/CURRENT_SPRINT.md");
     expect(agents).toMatch(/todo\.md`?\s*只保留指針/);
   });
+
+  it("keeps archive recovery, bilingual README review, and supply-chain checks discoverable", () => {
+    const chineseReadme = readProjectFile("README.md");
+    const englishReadme = readProjectFile("README.en.md");
+    const contributing = readProjectFile("CONTRIBUTING.md");
+    const template = readProjectFile(".github/pull_request_template.md");
+    const selfHosting = readProjectFile("docs/SELF_HOSTING.md");
+
+    expect(chineseReadme).toContain("全量封存與還原");
+    expect(englishReadme).toContain("Full archive and restore");
+    expect(chineseReadme).toContain("pnpm verify:secrets");
+    expect(englishReadme).toContain("pnpm audit:prod");
+    expect(contributing).toContain("README.en.md");
+    expect(template).toContain("README 雙語同步");
+    expect(selfHosting).toContain("全量封存 ZIP 的從零演練");
+    expect(selfHosting).toContain("還原我的成長史");
+  });
 });

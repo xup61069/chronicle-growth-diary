@@ -28,17 +28,19 @@ corepack pnpm build
 | 測試 | 遵循 [`docs/TESTING.md`](./docs/TESTING.md)；新單元測試預設 co-locate，跨領域測試放在正確的 `__tests__` 領域。 |
 | 文件 | 更新 README、roadmap 或安全文件的可重現事實；版本敘事放 Releases，長篇討論放 Discussions。 |
 
-若修改 `README.md` 的功能、隱私、驗證命令或專案地圖，必須在同一 Pull Request 同步審閱與更新 `README.en.md`。兩份 README 僅保留入口、已驗證能力與資料邊界；較長的技術說明應移至 `docs/`，並從 README 連結。
+若修改 `README.md` 的功能、隱私、驗證命令或專案地圖，必須在同一 Pull Request 同步審閱與更新 `README.en.md`，並在 PR checklist 勾選雙語同步。兩份 README 僅保留入口、已驗證能力與資料邊界；較長的技術說明應移至 `docs/`，並從 README 連結。
 
 `template.json` 是早期 static scaffold 快照，並非此全端 Chronicle 部署所使用的設定來源，請勿以它的舊依賴或指令修改產品。`patches/wouter@3.7.1.patch` 則是仍生效的 pnpm 修補：它在 `wouter@3.7.1` 的 `Switch` 收集 route path，供 Manus runtime／測試工具取得路由資訊。只有在升級 Wouter 後確認標準套件已有等效 route 觀測能力，並完成路由、公開首頁與工作台回歸後，才能移除該修補與 `package.json`／lockfile 對應設定。
 
-新增或升級重量級依賴時，請在 PR 說明用途、瀏覽器／伺服器載入策略、移除條件與替代方案；並執行 `pnpm audit --prod`。提交前執行專案指定的 secret scan，不得將其結果、掃描輸出或任何疑似金鑰寫入版本庫。
+新增或升級重量級依賴時，請在 PR 說明用途、瀏覽器／伺服器載入策略、移除條件與替代方案；並執行 `pnpm audit:prod`。提交前執行 `pnpm verify:secrets`；兩個指令的成功／失敗結果應摘要於 PR，不得將掃描輸出或任何疑似金鑰寫入版本庫。
 
 | 依賴 | 引入理由與載入策略 | 移除條件 |
 | --- | --- | --- |
 | `heic-to` | 只在擁有者確認 HEIC／HEIF 匯入時動態載入並於瀏覽器轉成 JPEG；不納入 PWA 初始預快取。 | 瀏覽器原生 HEIC 解碼可穩定涵蓋目標裝置，或改用有等效本機處理能力的較小工具。 |
 | `@tensorflow-models/face-detection` 與 `@tensorflow/tfjs-*` | 只在擁有者要求建立分享用去識別化副本時載入；使用裝置內 WebGL，失敗時回退 CPU，不上傳影像或座標。 | 有較小、同樣完全離線且可輸出可審核臉部區域的替代方案。 |
 | `ical.js` | 僅在選取 `.ics` 後於瀏覽器解析、限制週期展開並產生 private 草稿。 | 瀏覽器提供可用且相容 RFC 5545 的原生 parser，或維護成本明顯較低的同等本機 parser。 |
+| `exifr` | 只在私有照片審核時於瀏覽器解析日期與 GPS；不在頁面載入或公開頁執行。 | 原生瀏覽器 API 能覆蓋必要的 EXIF 日期與 GPS 欄位，或改用較小且等效的本機 parser。 |
+| `jszip`、`jspdf`、`html2canvas` | 僅在擁有者手動匯出全量封存、PDF、長圖片或 A5 書冊時載入；全量 ZIP 以 manifest 與 checksum 保護可攜附件。 | 匯出格式停用，或有較小且支援同等 browser-only 匯出與可驗證封存的替代方案。 |
 
 ## 家庭與兒童資料
 
