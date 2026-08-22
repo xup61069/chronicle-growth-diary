@@ -106,3 +106,14 @@
 ### 下一輪完成狀態
 
 **已完成。** `0022_minor_george_stacy.sql` 已審閱並套用，為舊項目加入向後相容的 `all_accepted` 預設，並建立可 cascade 撤銷的 milestone-to-membership audience 關聯。新項目預設選擇成員，未選人員時不能儲存；owner 可切換所有已接受成員或指定成員。資料層將 non-owner 查詢過濾到自身授權項目，且 projection 不含 source event、受眾資訊或私人媒體欄位。91 個測試檔／256 項、桌面與 375px local-auth E2E、直接 Vite PWA build、lazy-route、server bundle、secret scan、production audit 與 diff check 均通過。
+
+## 本輪交付：Journey 本機審核與家庭受眾變更前預覽
+
+| 範圍 | 資料與權限邊界 | 驗收 |
+| --- | --- | --- |
+| Journey ZIP 草稿 | owner 選檔後才在瀏覽器處理所有安全 ZIP path 的 JSON entry；只取有效 `date_journal`、HTML 轉純文字的 `text` 與受限標籤。provider ID 僅供本機優先去重；缺少時退回日期加淨化文字。 | 拒絕不安全 path、超限 archive／entry／檔案數與無效資料；不保存 ZIP、來源 ID、檔名、媒體、音訊、GPS、地址、天氣、時區、裝置或未知欄位。確認前沒有 mutation；確認後只由既有 batch import 建立 private 事件。 |
+| 家庭受眾預覽 | 新建項目維持直接建立；只有編輯既有項目且有效受眾集合或 `all_accepted`／`selected_members` 政策變更時，owner 才會先看到目前／提議、加入／移除的本機差異。 | 預覽前 update mutation 為零；只有第二次「確認變更」才送出。若 family member 名冊或選擇變動，預覽立即失效並要求重選；無效 membership ID 不會進入 update payload。 |
+
+### 本輪完成狀態
+
+**已完成。** `journeyImport.ts`、`PrivateJourneyImport.tsx` 與既有 `diary.importEvents` 接線已交付；`journeyImport.test.ts` 覆蓋巢狀安全 JSON path、HTML 欄位最小化、provider ID 優先及 fallback 去重。`FamilyMilestoneLayer` 以 `familyAudiencePreview.ts` 計算有效對象、政策切換和名冊 signature，並在更新前建立可取消的本機差異預覽。隔離桌面 local-auth 回歸新增 Journey 確認前零寫入／確認後 private payload，及 family preview 前零 update／二次確認後單次 update；375px 私人工作台回歸亦通過。實際通過 `pnpm lint`、`pnpm check`、93 個測試檔／262 項、桌面與 375px 隔離 E2E、受限 heap 的 Vite PWA build、lazy route verifier、server bundle、178 revisions secret scan、production audit 與 diff check。

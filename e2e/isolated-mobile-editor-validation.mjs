@@ -1,9 +1,11 @@
 import { chromium } from '@playwright/test';
+import JSZip from 'jszip';
 
 // Usage: AUTH_DRIVER=local must run at an HTTPS origin; provide that origin explicitly.
 const baseUrl = process.env.CHRONICLE_E2E_BASE_URL;
 if (!baseUrl) throw new Error('請設定 CHRONICLE_E2E_BASE_URL 為已啟動 local-auth 服務的 HTTPS 網址。');
 const email = `mobile-editor-${Date.now()}@example.test`;
+const familyMemberEmail = `family-member-${Date.now()}@example.test`;
 const password = 'local-validation-passphrase';
 const eventTitle = '375px 工作區驗證事件';
 const anniversaryTitle = '兩年前的同日驗證事件';
@@ -37,6 +39,22 @@ function makeExifJpeg(date = '2026:08:20 09:30:00') {
   const payload = new Uint8Array([0x45, 0x78, 0x69, 0x66, 0x00, 0x00, ...tiff]);
   const length = payload.length + 2;
   return Buffer.from(new Uint8Array([0xff, 0xd8, 0xff, 0xe1, length >> 8, length & 0xff, ...payload, 0xff, 0xd9]));
+}
+
+async function makeJourneyZip() {
+  const zip = new JSZip();
+  zip.file('entries/e2e-journey.json', JSON.stringify({
+    id: 'isolated-journey-entry',
+    date_journal: Date.parse('2026-08-22T09:00:00.000Z'),
+    text: '<h1>Journey 隔離驗證記事</h1><p>只保留純文字</p>',
+    tags: ['遷移'],
+    photos: ['private.jpg'],
+    lat: 25.03,
+    lon: 121.56,
+    address: '不得匯入',
+  }));
+  zip.file('photos/private.jpg', 'raw private bytes');
+  return zip.generateAsync({ type: 'nodebuffer' });
 }
 
 function assert(condition, message) {
@@ -90,6 +108,8 @@ const browser = await chromium.launch({
 });
 const context = await browser.newContext({ viewport });
 const page = await context.newPage();
+let familyMemberContext;
+let familyMemberPage;
 const findings = { email, checks: [], cleaned: false };
 
 try {
@@ -232,6 +252,25 @@ try {
     shareScope: 'private',
   });
   assert(readyFutureLetterCreation.status === 200, '無法建立隔離已解鎖未來信件。');
+  const familyInvite = await trpcMutation(page, 'diary.createFamilyInvite', {
+    email: familyMemberEmail,
+    role: 'commenter',
+    expiresAt: Date.now() + 60 * 60 * 1000,
+  });
+  const familyInviteToken = getTrpcResult(familyInvite)?.token;
+  assert(familyInvite.status === 200 && typeof familyInviteToken === 'string', '無法建立隔離家庭邀請。');
+  familyMemberContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  familyMemberPage = await familyMemberContext.newPage();
+  await familyMemberPage.goto(`${baseUrl}/editor`, { waitUntil: 'domcontentloaded' });
+  const familyMemberRegistration = await trpcMutation(familyMemberPage, 'auth.localRegister', {
+    name: 'Family Audience Validation',
+    email: familyMemberEmail,
+    password,
+  });
+  assert(familyMemberRegistration.status === 200, '無法建立隔離家庭成員帳號。');
+  const familyInviteAcceptance = await trpcMutation(familyMemberPage, 'diary.acceptFamilyInvite', { token: familyInviteToken });
+  assert(familyInviteAcceptance.status === 200, '隔離家庭成員無法接受邀請。');
+  findings.checks.push('accepted isolated family member for audience preview');
 
   if (viewport.width > 375) {
     await page.reload({ waitUntil: 'domcontentloaded' });
@@ -345,6 +384,20 @@ try {
     await page.getByText('已建立 1 段 private Day One 記錄。', { exact: true }).waitFor({ timeout: 10_000 });
     assert(dayOneImportRequestCount === 1, 'Day One 只能在明確確認後呼叫一次 private 匯入。');
     await page.unroute('**/api/trpc/diary.importEvents**');
+    const journeyImport = page.locator('.journey-import');
+    await journeyImport.getByRole('heading', { name: '先審核，再帶入 Journey 日記' }).waitFor({ timeout: 10_000 });
+    let journeyImportRequestCount = 0;
+    const journeyImportPayloads = [];
+    await page.route('**/api/trpc/diary.importEvents**', async (route) => { journeyImportRequestCount += 1; journeyImportPayloads.push(route.request().postData() ?? ''); await route.continue(); });
+    await journeyImport.locator('input[type="file"]').setInputFiles({ name: 'journey-e2e.zip', mimeType: 'application/zip', buffer: await makeJourneyZip() });
+    await journeyImport.getByTestId('journey-import-preview').waitFor({ timeout: 10_000 });
+    assert(journeyImportRequestCount === 0, 'Journey ZIP 解析後未確認前不得建立任何事件。');
+    assert(await journeyImport.getByText('Journey 隔離驗證記事', { exact: true }).isVisible(), 'Journey 本機預覽應只顯示已轉為純文字的候選記事。');
+    await journeyImport.getByRole('button', { name: '確認建立 1 段 private 記錄' }).click();
+    await page.getByText('已建立 1 段 private Journey 記錄。', { exact: true }).waitFor({ timeout: 10_000 });
+    assert(journeyImportRequestCount === 1 && journeyImportPayloads[0]?.includes('private') && journeyImportPayloads[0]?.includes('Journey 隔離驗證記事') && !journeyImportPayloads[0]?.includes('不得匯入'), 'Journey 只能在明確確認後建立 private 事件，且 payload 不可包含地址或來源 metadata。');
+    await page.unroute('**/api/trpc/diary.importEvents**');
+    await page.reload({ waitUntil: 'domcontentloaded' });
     const familyMilestones = page.locator('.family-milestone-layer');
     await familyMilestones.getByRole('heading', { name: '把要一起記得的事，另寫成家庭大事記' }).waitFor({ timeout: 10_000 });
     await familyMilestones.getByRole('button', { name: '新增大事記' }).click();
@@ -356,11 +409,28 @@ try {
     if (process.env.CHRONICLE_E2E_FAMILY_AUDIENCE_SCREENSHOT_PATH) {
       await familyMilestones.screenshot({ path: process.env.CHRONICLE_E2E_FAMILY_AUDIENCE_SCREENSHOT_PATH });
     }
-    await familyMilestones.getByRole('radio', { name: /所有已接受的家庭成員/ }).check();
+    await familyMilestones.getByLabel('選擇 Family Audience Validation').check();
+    let familyCreateRequestCount = 0;
+    await page.route('**/api/trpc/diary.createFamilyMilestone**', async (route) => { familyCreateRequestCount += 1; await route.continue(); });
     await familyMilestones.getByRole('button', { name: '加入 family-only 圖層' }).click();
     await familyMilestones.getByText('家庭旅程摘要', { exact: true }).waitFor({ timeout: 10_000 });
+    assert(familyCreateRequestCount === 1, '新建家庭大事記不需受眾預覽，應直接以 owner 明確選取的成員建立。');
+    await page.unroute('**/api/trpc/diary.createFamilyMilestone**');
     assert(await familyMilestones.getByText('只分享給已接受邀請家人的短摘要。', { exact: true }).isVisible(), '家庭大事記應只顯示 owner 明確填寫的摘要。');
-    findings.checks.push('desktop Day One local review confirmation and family-only milestone summary');
+    let familyUpdateRequestCount = 0;
+    await page.route('**/api/trpc/diary.updateFamilyMilestone**', async (route) => { familyUpdateRequestCount += 1; await route.continue(); });
+    await familyMilestones.getByRole('button', { name: '編輯' }).first().click();
+    await familyMilestones.getByRole('radio', { name: /所有已接受的家庭成員/ }).check();
+    await familyMilestones.getByRole('button', { name: '更新摘要' }).click();
+    const audiencePreview = familyMilestones.getByRole('dialog', { name: '家庭大事記受眾變更預覽' });
+    await audiencePreview.getByRole('heading', { name: '先確認誰會看到這筆摘要' }).waitFor({ timeout: 10_000 });
+    assert(familyUpdateRequestCount === 0, '受眾變更預覽出現前不得送出更新 mutation。');
+    assert(await audiencePreview.getByText('Family Audience Validation', { exact: true }).count() >= 2, '受眾預覽必須同時列出目前與提議的有效成員。');
+    await audiencePreview.getByRole('button', { name: '確認變更' }).click();
+    await page.getByText('已更新 family-only 大事記摘要。', { exact: true }).waitFor({ timeout: 10_000 });
+    assert(familyUpdateRequestCount === 1, '只有 owner 第二次確認受眾變更後才可更新 family-only 摘要。');
+    await page.unroute('**/api/trpc/diary.updateFamilyMilestone**');
+    findings.checks.push('desktop Day One and Journey local review confirmation, private import, family-only summary and two-step audience preview');
     const desktopFutureLetters = page.locator('.future-letters-studio');
     await desktopFutureLetters.getByRole('heading', { name: '寫給以後的自己' }).waitFor({ timeout: 10_000 });
     assert(await desktopFutureLetters.getByText(readyFutureLetterTitle, { exact: true }).isVisible(), '桌面未來信件索引未顯示已解鎖事件。');
@@ -702,6 +772,14 @@ try {
   findings.status = 'passed';
   console.log(JSON.stringify(findings));
 } finally {
+  if (familyMemberPage) {
+    try {
+      await trpcMutation(familyMemberPage, 'auth.deleteAccount', { confirmation: '刪除我的帳號' });
+    } catch {
+      // 保留原始失敗原因，但盡力清理隔離家庭成員帳號。
+    }
+  }
+  await familyMemberContext?.close();
   if (!findings.cleaned) {
     try {
       await trpcMutation(page, 'auth.deleteAccount', { confirmation: '刪除我的帳號' });

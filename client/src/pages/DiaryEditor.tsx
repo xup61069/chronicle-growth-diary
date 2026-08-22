@@ -11,6 +11,7 @@ import { FamilyMilestoneLayer } from "@/components/diary/FamilyMilestoneLayer";
 import { PrivateHighlightAssistant, type HighlightSuggestion } from "@/components/diary/PrivateHighlightAssistant";
 import { PrivateIcsCalendarImport } from "@/components/import/PrivateIcsCalendarImport";
 import { PrivateDayOneImport } from "@/components/import/PrivateDayOneImport";
+import { PrivateJourneyImport } from "@/components/import/PrivateJourneyImport";
 import { PrivatePhotoJourneyCandidates } from "@/components/import/PrivatePhotoJourneyCandidates";
 import { PrivateSharePhotoDeidentification } from "@/components/sharing/PrivateSharePhotoDeidentification";
 import { PrivateVoiceDiary } from "@/components/diary/PrivateVoiceDiary";
@@ -1549,6 +1550,20 @@ function DiaryEditorContent() {
         });
         await utils.diary.get.invalidate();
         toast.success(`已建立 ${result.importedCount} 段 private Day One 記錄。`);
+      }} /> : null}
+      {isOwner ? <PrivateJourneyImport disabled={importMutation.isPending} onConfirm={async (candidates) => {
+        if (!candidates.length) return;
+        const result = await importMutation.mutateAsync({
+          ...(requestedDiaryId ? { diaryId: requestedDiaryId } : {}),
+          events: candidates.map((candidate) => ({
+            occurredAt: candidate.occurredAt, datePrecision: "day" as const, eventType: "memory" as const, title: candidate.title.trim() || "Journey 記事", body: candidate.body,
+            ageLabel: null, place: null, color: "#587A8B" as const, tagNames: candidate.tagNames, skillNames: [], phaseKeywords: ["日記匯入"], track: "life" as const,
+            milestoneType: "standard" as const, milestoneWeight: 1, comparisonGroup: null, unlocksAt: null, mapLatitudeE6: null, mapLongitudeE6: null, locationPrivacy: "none" as const,
+            soundtrackTitle: null, soundtrackUrl: null, shareScope: "private" as const,
+          })),
+        });
+        await utils.diary.get.invalidate();
+        toast.success(`已建立 ${result.importedCount} 段 private Journey 記錄。`);
       }} /> : null}
       <FamilyMilestoneLayer milestones={familyMilestonesQuery.data ?? []} canManage={isOwner} sourceEvents={isOwner ? events.map((event) => ({ id: event.id, title: event.title })) : []} familyMembers={isOwner ? familyMembersQuery.data ?? [] : []} isSaving={createFamilyMilestoneMutation.isPending || updateFamilyMilestoneMutation.isPending || deleteFamilyMilestoneMutation.isPending} onCreate={async (input) => { await createFamilyMilestoneMutation.mutateAsync(input); await Promise.all([utils.diary.getFamilyMilestones.invalidate(), utils.diary.getFamilyAudit.invalidate()]); toast.success("已加入 family-only 大事記；原始日記沒有被公開。 "); }} onUpdate={async (id, input) => { await updateFamilyMilestoneMutation.mutateAsync({ id, ...input }); await Promise.all([utils.diary.getFamilyMilestones.invalidate(), utils.diary.getFamilyAudit.invalidate()]); toast.success("已更新 family-only 大事記摘要。 "); }} onDelete={async (id) => { await deleteFamilyMilestoneMutation.mutateAsync({ id }); await Promise.all([utils.diary.getFamilyMilestones.invalidate(), utils.diary.getFamilyAudit.invalidate()]); toast.success("已從 family-only 大事記移除；原始日記仍保持不變。 "); }} />
       {isOwner ? <PrivateSharePhotoDeidentification events={events.map((event) => ({ id: event.id, title: event.title, shareScope: event.shareScope, media: event.media.map((media) => ({ id: media.id, url: media.url, fileName: media.fileName, mediaKind: media.mediaKind, shareSafeEnabled: media.shareSafeEnabled, shareSafeUrl: media.shareSafeUrl })) }))} /> : null}
