@@ -239,6 +239,14 @@ try {
     await desktopBackfillAssistant.getByRole('heading', { name: '補回最近的空白' }).waitFor({ timeout: 10_000 });
     assert(await desktopBackfillAssistant.getByText('尚未選取待整理照片').isVisible(), '桌面補記助手在未選照片時應只顯示本機計數狀態。');
     assert(await desktopBackfillAssistant.getByText('僅供 375px 編輯器互動驗證的隔離事件。').count() === 0, '桌面補記助手不應顯示私人事件正文。');
+    const highlightAssistant = page.locator('.private-highlight-assistant');
+    await highlightAssistant.getByText('AI 精選建議 / PRIVATE REVIEW').waitFor({ timeout: 10_000 });
+    const highlightConsent = highlightAssistant.getByRole('checkbox');
+    const highlightGenerate = highlightAssistant.getByRole('button', { name: '產生精選候選' });
+    assert(await highlightGenerate.isDisabled(), '未逐次同意時不應允許產生 AI 精選候選。');
+    await highlightConsent.check();
+    assert(!(await highlightGenerate.isDisabled()), '勾選逐次同意後應可手動觸發候選產生。');
+    findings.checks.push('desktop owner AI highlight consent gate');
     const fullArchiveDownloadPromise = page.waitForEvent('download');
     await page.getByTestId('full-archive-export').click();
     const fullArchiveDownload = await fullArchiveDownloadPromise;

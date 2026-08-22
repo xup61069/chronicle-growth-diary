@@ -45,6 +45,7 @@ import {
   setDiaryAiEnabled,
   updatePhaseReflectionForDiary,
 } from "./db/aiReflections";
+import { adoptHighlightSuggestionForDiary, suggestHighlightsForDiary } from "./db/aiHighlights";
 import { getGrowthDashboardStatsForDiary } from "./db/growthStats";
 import { buildFullDiaryArchiveForDiary } from "./db/fullDiaryArchive";
 import { cancelFullArchiveRestore as cancelFullArchiveRestoreForUser, commitFullArchiveRestore as commitFullArchiveRestoreForDiary, prepareFullArchiveRestore as prepareFullArchiveRestoreForDiary, stageFullArchiveRestoreAsset as stageFullArchiveRestoreAssetForUser } from "./db/archiveRestore";
@@ -261,6 +262,18 @@ export async function generateAnnualReflection(userId: number, year: number) {
   const db = await requireDb();
   const diary = await getOrCreateDiary(userId);
   return generateAnnualReflectionForDiary(db, diary, year);
+}
+
+export async function suggestDiaryHighlights(userId: number) {
+  const db = await requireDb();
+  const diary = await getOwnedDiary(userId);
+  return suggestHighlightsForDiary(db, diary);
+}
+
+export async function adoptDiaryHighlightSuggestion(userId: number, eventId: number) {
+  const db = await requireDb();
+  const diary = await getOwnedDiary(userId);
+  return adoptHighlightSuggestionForDiary(db, diary, userId, eventId, assertEventWriteAccess);
 }
 
 export async function updatePhaseReflection(userId: number, input: PhaseReflectionInput) {

@@ -34,6 +34,8 @@ const diaryDb = vi.hoisted(() => {
     deletePhaseReflection: vi.fn(),
     generateAnnualReflection: vi.fn(async () => ({ year: 2025, recap: "年度回顧", reflection: "來年提問", model: "claude-haiku-4-5" })),
     generatePhaseReflection: vi.fn(),
+    suggestDiaryHighlights: vi.fn(async () => [{ eventId: 8, title: "完成作品集", reason: "具體完成一段可交付作品。", confidence: "high", model: "gpt-5-mini" }]),
+    adoptDiaryHighlightSuggestion: vi.fn(async () => ({ eventId: 8, alreadyHighlighted: false, revisionVersion: 3 })),
     importDiaryEvents: vi.fn(),
     getSharedDiary: vi.fn(),
     reorderDiaryEventMedia: vi.fn(),
@@ -191,6 +193,15 @@ describe("diary router validation", () => {
     const caller = diaryRouter.createCaller({ ...authenticatedContext, user: null });
     await expect(caller.generateAnnualReflection({ year: 2025, confirmAiProcessing: true })).rejects.toThrow();
     expect(diaryDb.generateAnnualReflection).not.toHaveBeenCalled();
+  });
+
+  it("將 AI 精選限制為逐次同意的受保護候選，且採用由 owner-only helper 處理", async () => {
+    const caller = diaryRouter.createCaller(authenticatedContext);
+    await expect(caller.suggestHighlights({ confirmAiProcessing: false })).rejects.toThrow("請先確認只會將 private 事件片段送往 AI 產生候選");
+    await expect(caller.suggestHighlights({ confirmAiProcessing: true })).resolves.toMatchObject([{ eventId: 8, title: "完成作品集" }]);
+    await expect(caller.adoptHighlightSuggestion({ eventId: 8 })).resolves.toMatchObject({ revisionVersion: 3 });
+    expect(diaryDb.suggestDiaryHighlights).toHaveBeenCalledWith(1);
+    expect(diaryDb.adoptDiaryHighlightSuggestion).toHaveBeenCalledWith(1, 8);
   });
 
   it("preserves diary snapshot read errors so the client recovery state can respond", async () => {
