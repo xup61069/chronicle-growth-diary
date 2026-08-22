@@ -25,13 +25,16 @@
 - [x] 完成 secret scan、production audit 與依賴紀錄。
 - [x] 更新雙語 README、PR 檢核與還原演練。
 - [x] 同步 P0 文件治理與稽核 PR。
-- [x] 實作 owner-only AI 精選建議：經逐次同意後只評估 private 事件、產生可審核候選、不自動寫入或公開資料。
+- [x] 實作逐次同意的 owner-only AI 精選建議。
 - [x] 同步 AI 精選建議的單一功能 PR。
-- [x] 建立本機旅程候選檢視：本輪照片在明確分析與審核後才併入既有 private 匯入。
+- [x] 建立本機旅程候選檢視。
 - [x] 私有旅程候選手動日期與封面審核。
 - [x] Day One private 審核匯入。
 - [x] 可選家庭共用大事記圖層。
 - [x] 家庭大事記選擇性可見範圍。
+- [x] Journey 本機審核匯入。
+- [x] Journey ZIP 全路徑 entry 解析、ID 優先去重與隔離 local-auth 回歸。
+- [x] 家庭大事記受眾變更前預覽。
 
 ## 已確認的非執行限制
 
