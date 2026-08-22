@@ -1,6 +1,6 @@
 # Chronicle AI 交接手冊
 
-> **交接狀態：** 近期已完成預設深色主題，以及照片 EXIF 日期、GPS、受保護地圖、批次秒級時間遞增的私人匯入流程。下一位 AI 應從本檔與根目錄 [`AGENTS.md`](../AGENTS.md) 開始，而不是從 commit history 或舊對話推測狀態。
+> **交接狀態：** 已完成預設深色主題、照片 EXIF／GPS 私人匯入、Web Share Target、全量 ZIP 封存，以及可審核的 owner-only ZIP 還原。下一位 AI 應從本檔與根目錄 [`AGENTS.md`](../AGENTS.md) 開始，而不是從 commit history 或舊對話推測狀態。
 
 ## 1. 產品定位與不可變更原則
 
@@ -64,6 +64,21 @@ corepack pnpm install --frozen-lockfile
 
 **禁止** 將照片 GPS、地圖影像或 precise 位置改為公開分享、連結分享、自動背景讀取或永久快取；若必須擴張範圍，先完成新的同意、資料最小化、刪除路徑與分享隔離設計。
 
+## 4.1 全量封存與還原：下一位 AI 的必讀邊界
+
+全量封存可攜格式為 `chronicle-growth-diary-full` v1。`server/db/fullDiaryArchive.ts` 只建立 owner 的內容投影；`client/src/lib/fullDiaryArchive.ts` 在目前瀏覽器讀取附件、產生 manifest 與 SHA-256；`DiaryEditor` 以明確按鈕才下載 ZIP，並顯示準備、逐項讀取、封裝與完成狀態。封存上限為 120 個附件、總量 100MB、每項 16MB；不可為了大檔繞過前端／tRPC 上限或在背景建立封存。
+
+還原由 `server/routers/archiveRestore.ts` 與 `server/db/archiveRestore.ts` 實作，不得改成普通事件匯入。使用者選 ZIP 後，先在瀏覽器驗證 manifest、資料 payload、固定安全路徑及所有附件 checksum；只有通過本機驗證才能建立 30 分鐘的 owner-only staging session。每個附件送到伺服器時仍要核對 manifest 宣告的 size 與 SHA-256，防止瀏覽器到 storage 的轉換被替換。全部附件就緒後，UI 必須要求使用者輸入**完全相同的「還原我的成長史」**；只有 `commit` 才能在單一資料庫交易中取代日記資料。
+
+| 項目 | 目前行為 | 後續 AI 不得做的事 |
+| --- | --- | --- |
+| 日記替換 | 事件、標籤、回顧、修訂與附件只在 commit transaction 改寫。 | 不得在 `prepare`、`stageAsset`、失敗或取消時修改既有日記。 |
+| 分享範圍 | commit 一律重設為 private。 | 不得將 archive 的分享 token、密碼、public/link 設定、存取紀錄或 invite 帶回。 |
+| 附件 | manifest checksum 在瀏覽器及伺服器各驗證一次；DB 不存 bytes。 | 不得把附件 bytes、來源 URL 或 storage key 寫入 portable payload。 |
+| 暫存 | session 30 分鐘後失效；取消／失效目前不刪除 staging storage object。 | 未讀排程／storage 規範前，不得加入自動清理或誤稱 staging bytes 已刪除。 |
+
+最低回歸：`client/src/lib/fullDiaryArchive.test.ts`、`server/db/archiveRestore.test.ts`、`server/__tests__/infrastructure/fullArchiveSecurity.test.ts`、隔離 local-auth 的 `pnpm test:e2e:isolated` 與 `CHRONICLE_E2E_VIEWPORT=desktop pnpm test:e2e:isolated`。若改 schema，`0019_*.sql`／`0020_*.sql` 與 `drizzle/meta/` 是同一 migration 單位，先審閱 SQL、再受控套用。
+
 ## 5. 驗證流程
 
 一般變更完成後，至少執行：
@@ -84,6 +99,7 @@ git diff --check
 | 公開首頁、主題或導覽 | `pnpm test:e2e:mobile-nav`、`node e2e/dark-mode-home-validation.mjs` 與桌面／375px 視覺檢查。 |
 | 私人工作台 | 以 `AUTH_DRIVER=local`、`VITE_AUTH_DRIVER=local` 啟動 HTTPS 隔離服務，執行 `pnpm test:e2e:isolated` 與 `CHRONICLE_E2E_VIEWPORT=desktop pnpm test:e2e:isolated`。 |
 | 匯入、GPS、地圖、媒體 | 更新 `photoExifImport.test.ts`、`photoMap.test.ts` 與隔離 desktop／375px 回歸。 |
+| 全量封存或還原 | 更新 ZIP progress／checksum、restore staging 與 security contract tests；執行隔離 desktop／375px owner-only 回歸。 |
 | 分享、AI、語音、家庭資料 | 覆蓋擁有權、public／link 隔離與刪除／失敗路徑。 |
 | Schema | 產生 migration、審閱 SQL、以受控流程套用後再測試。 |
 

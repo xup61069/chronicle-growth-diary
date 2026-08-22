@@ -4,7 +4,7 @@
 
 | 目的 | 文件 | 何時閱讀 |
 | --- | --- | --- |
-| 交接與已知限制 | [AI_HANDOFF.md](./AI_HANDOFF.md) | 每次 AI／維護者接手前。 |
+| 交接、已知限制與全量封存往返 | [AI_HANDOFF.md](./AI_HANDOFF.md) | 每次 AI／維護者接手前；修改 ZIP 匯出或還原前必讀。 |
 | 系統架構與資料流 | [ARCHITECTURE.md](./ARCHITECTURE.md) | 修改路由、資料庫或儲存前。 |
 | 測試放置與驗證 | [TESTING.md](./TESTING.md) | 新增或移動測試前。 |
 | 本機開發與部署 | [LOCAL_DEVELOPMENT.md](./LOCAL_DEVELOPMENT.md) | 建置、資料庫或本機服務操作前。 |

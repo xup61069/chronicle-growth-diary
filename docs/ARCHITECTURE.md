@@ -17,9 +17,24 @@
 
 ## 資料庫 migration 唯一來源
 
-Drizzle 的唯一事實來源是根目錄 [`drizzle/`](../drizzle/)：`schema.ts` 定義目前 schema、`0000_*.sql` 至 `0017_*.sql` 是依序套用的 migration、`meta/` 保存 Drizzle snapshot 與 journal。`drizzle.config.ts` 的 `out` 固定為 `./drizzle`，因此**不得**在 `drizzle/migrations/` 或另一個平行目錄新增 SQL。
+Drizzle 的唯一事實來源是根目錄 [`drizzle/`](../drizzle/)：`schema.ts` 定義目前 schema、`0000_*.sql` 至 `0020_*.sql` 是依序套用的 migration、`meta/` 保存 Drizzle snapshot 與 journal。`drizzle.config.ts` 的 `out` 固定為 `./drizzle`，因此**不得**在 `drizzle/migrations/` 或另一個平行目錄新增 SQL。
 
 變更 schema 時，先修改 `drizzle/schema.ts`，再由 `pnpm drizzle-kit generate` 產生下一個 SQL 及 meta snapshot；審閱 SQL 後使用受控 migration 流程套用。若工具輸出位置或既有檔案結構不同，先停止並修正設定，不要複製 SQL 至兩個目錄。`server/__tests__/infrastructure/migrationLayout.test.ts` 會守護這個單一來源契約。
+
+## 全量封存與還原
+
+全量封存的讀取投影在 `server/db/fullDiaryArchive.ts`，ZIP 產生、manifest、瀏覽器端 SHA-256 驗證與下載在 `client/src/lib/fullDiaryArchive.ts`，而 owner-only 工作台入口位於 `client/src/pages/DiaryEditor.tsx`。封存 payload 僅保留可攜內容；它不含 session、token、密碼雜湊、分享憑證、來源 URL、storage key、存取紀錄、邀請或稽核資料。
+
+還原不是一般 JSON 匯入。`server/routers/archiveRestore.ts` 只暴露 `protectedProcedure`，再由 `server/db/archiveRestore.ts` 透過 owner-only wrapper 執行。瀏覽器先讀取並驗證 `manifest.json`、固定資料 payload 和每一個附件的 SHA-256；`prepare` 將嚴格白名單 metadata 寫入 `growth_archive_restore_sessions` 與 `growth_archive_restore_assets`。`stageAsset` 對每項位元組重新核對 archive 宣告的大小與 SHA-256，成功後才寫入 private storage。只有全部附件就緒、使用者輸入固定確認字串、`commit` 在單一 transaction 完成時，才取代事件、標籤、回顧、修訂與附件，並把分享狀態強制重設為 `private`。
+
+| 規則 | 實作與不可退化的邊界 |
+| --- | --- |
+| 格式與容量 | `chronicle-growth-diary-full` v1；最多 120 個附件、總 ZIP 100MB、單一附件 16MB。16MB 上限與 25MB tRPC body budget 的 base64 staging 相容。 |
+| 失敗與取消 | staging、驗證、取消或 transaction 失敗時不得變更現有日記 rows；不得下載或建立部分 archive。 |
+| 分享與機密 | 還原永遠不帶回 token、密碼、來源 URL、storage key、存取／邀請／稽核資料；commit 後分享強制為 private。 |
+| 暫存維護 | session 30 分鐘失效。現階段取消或失效只改變 session 狀態，尚未刪除 private storage 的 orphan staging object；未來若做清理，先讀排程規範並保留「不碰日記 rows」契約。 |
+
+還原流程或 schema 有任何變動時，需更新 `client/src/lib/fullDiaryArchive.test.ts`、`server/db/archiveRestore.test.ts`、`server/__tests__/infrastructure/fullArchiveSecurity.test.ts`，並以隔離 local-auth 桌面與 375px E2E 驗證 owner-only 工作台。
 
 ## 受保護的照片位置地圖
 
