@@ -56,7 +56,7 @@
 - [x] backlog 盤點。
 - [x] Issue12 留言隔離。
 - [ ] 相依 PR CI 觸發。
-- [ ] Web Share E2E 草稿競態。
+- [x] Web Share E2E 草稿競態。
 
 ## 已確認的非執行限制
 
