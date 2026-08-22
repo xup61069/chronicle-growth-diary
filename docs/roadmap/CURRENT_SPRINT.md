@@ -117,3 +117,13 @@
 ### 本輪完成狀態
 
 **已完成。** `journeyImport.ts`、`PrivateJourneyImport.tsx` 與既有 `diary.importEvents` 接線已交付；`journeyImport.test.ts` 覆蓋巢狀安全 JSON path、HTML 欄位最小化、provider ID 優先及 fallback 去重。`FamilyMilestoneLayer` 以 `familyAudiencePreview.ts` 計算有效對象、政策切換和名冊 signature，並在更新前建立可取消的本機差異預覽。隔離桌面 local-auth 回歸新增 Journey 確認前零寫入／確認後 private payload，及 family preview 前零 update／二次確認後單次 update；375px 私人工作台回歸亦通過。實際通過 `pnpm lint`、`pnpm check`、93 個測試檔／262 項、桌面與 375px 隔離 E2E、受限 heap 的 Vite PWA build、lazy route verifier、server bundle、178 revisions secret scan、production audit 與 diff check。
+
+## 下一輪：私有審核可讀性與 Journey 草稿微調
+
+| 交付 | 資料與隱私邊界 | 驗收 |
+| --- | --- | --- |
+| 受眾差異可讀性 | 現有本機 preview 只增進加入、移除與政策變更的視覺層次；不新增受眾資料、不把名冊或摘要送往公開／link 分享，也不減少第二次確認。 | 加入與移除有清楚、非僅色彩的狀態；鍵盤與 reduced motion 使用者仍可理解變更，preview 前不得 update。 |
+| owner 稽核檢視 | 僅 owner 可讀取既有不含摘要、收件者、正文、媒體、位置或 AI 的 audience audit metadata。檢視不得建立追蹤或通知。 | UI 只呈現時間、動作、目標 milestone ID 與 actor 自身可見的最小欄位；非 owner／public／link 不可讀取。 |
+| Journey 草稿微調 | 僅在瀏覽器記憶體中允許 owner 編輯已解析候選的標題與 UTC 日期；確認前不 mutation、不保存 provider ID 或 raw export。 | 標題與日期必須受限、可取消、重置原候選；確認後一律 private，payload 不可含剝除欄位。 |
+
+> 視覺驗證紀錄：隔離 desktop 的受眾預覽截圖確認「目前／提議」scope、加入／移除狀態及規則調整均以文字、符號與色彩共同呈現；scope 成員標籤已調整為高對比前景色。此檢查不使用真實帳號或家庭資料。
