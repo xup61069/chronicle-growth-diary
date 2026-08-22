@@ -13,6 +13,7 @@ import { PrivateIcsCalendarImport } from "@/components/import/PrivateIcsCalendar
 import { PrivateDayOneImport } from "@/components/import/PrivateDayOneImport";
 import { PrivateJourneyImport } from "@/components/import/PrivateJourneyImport";
 import { PrivatePhotoJourneyCandidates } from "@/components/import/PrivatePhotoJourneyCandidates";
+import { PrivatePhotoImportDedupe } from "@/components/import/PrivatePhotoImportDedupe";
 import { PrivateSharePhotoDeidentification } from "@/components/sharing/PrivateSharePhotoDeidentification";
 import { PrivateVoiceDiary } from "@/components/diary/PrivateVoiceDiary";
 import { annualReviewTemplates, buildAnnualReview, createAnnualReviewFrontmatter, type AnnualReviewTemplate } from "@/lib/annualReview";
@@ -179,6 +180,7 @@ function DiaryEditorContent() {
   const [mediaArchivePreview, setMediaArchivePreview] = useState<ImportedMediaArchive | null>(null);
   const [photoExifPreview, setPhotoExifPreview] = useState<PhotoExifImportPreview | null>(null);
   const [selectedPhotoExifIds, setSelectedPhotoExifIds] = useState<string[]>([]);
+  const [excludedPhotoExifIds, setExcludedPhotoExifIds] = useState<string[]>([]);
   const [photoExifBatchCapturedAt, setPhotoExifBatchCapturedAt] = useState("");
   const [photoExifBatchIncrementSeconds, setPhotoExifBatchIncrementSeconds] = useState("0");
   const [photoExifMapPreview, setPhotoExifMapPreview] = useState<{ photoId: string; dataUrl: string; latitude: string; longitude: string } | null>(null);
@@ -383,14 +385,14 @@ function DiaryEditorContent() {
     () => getBackfillAssistantSnapshot(events.map((event) => ({ occurredAt: event.occurredAt })), photoExifPreview?.photos.length ?? 0),
     [events, photoExifPreview?.photos.length],
   );
-  const photoImportStorageEstimate = useMemo(() => {
-    if (!photoExifPreview) return null;
-    const importableIds = new Set(photoExifPreview.groups.flatMap((group) => group.photoIds));
-    return estimatePhotoImportStorage(photoExifPreview.photos.filter((photo) => importableIds.has(photo.id)));
-  }, [photoExifPreview]);
+  const importablePhotoExif = useMemo(() => photoExifPreview?.photos.filter((photo) => !excludedPhotoExifIds.includes(photo.id)) ?? [], [excludedPhotoExifIds, photoExifPreview]);
   const photoExifImportGroups = useMemo(() => photoExifPreview
-    ? mergePhotoJourneyImportGroups(photoExifPreview.photos, photoJourneyCandidates, selectedPhotoJourneyCandidateIds)
-    : [], [photoExifPreview, photoJourneyCandidates, selectedPhotoJourneyCandidateIds]);
+    ? mergePhotoJourneyImportGroups(importablePhotoExif, photoJourneyCandidates, selectedPhotoJourneyCandidateIds)
+    : [], [importablePhotoExif, photoExifPreview, photoJourneyCandidates, selectedPhotoJourneyCandidateIds]);
+  const photoImportStorageEstimate = useMemo(() => {
+    const importableIds = new Set(photoExifImportGroups.flatMap((group) => group.photoIds));
+    return importableIds.size ? estimatePhotoImportStorage(importablePhotoExif.filter((photo) => importableIds.has(photo.id))) : null;
+  }, [importablePhotoExif, photoExifImportGroups]);
   const recallLastCheckLabel = recallPreferences?.lastCheckedAt
     ? new Intl.DateTimeFormat("zh-TW", { dateStyle: "medium", timeStyle: "short" }).format(new Date(recallPreferences.lastCheckedAt))
     : "尚未檢查";
@@ -1270,6 +1272,7 @@ function DiaryEditorContent() {
       const preview = await preparePhotoExifImport(files);
       setPhotoExifPreview(preview);
       setSelectedPhotoExifIds([]);
+      setExcludedPhotoExifIds([]);
       setPhotoExifBatchCapturedAt("");
       setPhotoExifBatchIncrementSeconds("0");
       setPhotoExifMapPreview(null);
@@ -1350,7 +1353,7 @@ function DiaryEditorContent() {
 
   const confirmPhotoExifImport = async () => {
     if (!isOwner || !photoExifPreview) return;
-    const missingCapturedAt = photoExifPreview.photos.filter((photo) => !photo.capturedAt);
+    const missingCapturedAt = importablePhotoExif.filter((photo) => !photo.capturedAt);
     if (missingCapturedAt.length) {
       toast.error(`請先填入 ${missingCapturedAt.length} 張照片的拍攝日期與時間。`);
       return;
@@ -1360,7 +1363,7 @@ function DiaryEditorContent() {
     if (selectedJourneyCandidates.some((candidate) => !isValidPhotoJourneyRange(candidate) || !candidate.photoIds.includes(candidate.coverPhotoId))) return toast.error("請修正已選旅程的日期範圍與封面照片，再建立 private 事件。 ");
     if (!photoExifImportGroups.length) return;
     setIsPhotoExifImporting(true);
-    const importPhotos = photoExifPreview.photos.filter((photo) => photoExifImportGroups.some((group) => group.photoIds.includes(photo.id)));
+    const importPhotos = importablePhotoExif.filter((photo) => photoExifImportGroups.some((group) => group.photoIds.includes(photo.id)));
     const total = importPhotos.reduce((count, photo) => count + 1 + (photo.livePhotoCompanion ? 1 : 0), 0);
     setPhotoExifUploadProgress({ total, uploaded: 0, currentFileName: null });
     try {
@@ -1398,6 +1401,7 @@ function DiaryEditorContent() {
       await utils.diary.get.invalidate();
       setPhotoExifPreview(null);
       setSelectedPhotoExifIds([]);
+      setExcludedPhotoExifIds([]);
       setPhotoExifBatchCapturedAt("");
       setPhotoExifBatchIncrementSeconds("0");
       setPhotoExifMapPreview(null);
@@ -1512,6 +1516,7 @@ function DiaryEditorContent() {
           <label>每張遞增秒數<input aria-label="批次套用的遞增秒數" type="number" min="0" max="86400" step="1" value={photoExifBatchIncrementSeconds} onChange={(event) => setPhotoExifBatchIncrementSeconds(event.target.value)} disabled={isPhotoExifImporting} /></label>
           <button type="button" disabled={isPhotoExifImporting || !selectedPhotoExifIds.length || !photoExifBatchCapturedAt} onClick={() => { clearPhotoJourneyCandidates(); setPhotoExifPreview((current) => current ? applyPhotoCapturedAt(current, selectedPhotoExifIds, photoExifBatchCapturedAt, Number(photoExifBatchIncrementSeconds)) : current); }}>套用至 {selectedPhotoExifIds.length} 張</button>
         </div>
+        <PrivatePhotoImportDedupe photos={photoExifPreview.photos} excludedPhotoIds={excludedPhotoExifIds} disabled={isPhotoExifImporting} onExclude={(photoIds) => { clearPhotoJourneyCandidates(); setExcludedPhotoExifIds((ids) => Array.from(new Set([...ids, ...photoIds]))); setSelectedPhotoExifIds((ids) => ids.filter((id) => !photoIds.includes(id))); }} onKeep={(photoIds) => setExcludedPhotoExifIds((ids) => ids.filter((id) => !photoIds.includes(id)))} />
         <PrivatePhotoJourneyCandidates candidates={photoJourneyCandidates} selectedCandidateIds={selectedPhotoJourneyCandidateIds} disabled={isPhotoExifImporting} isMapLoading={photoMapPreviewMutation.isPending} mapPreview={photoJourneyMapPreview} loadingCandidateId={photoJourneyMapLoadingCandidateId} onAnalyze={analyzePhotoJourneys} onClear={clearPhotoJourneyCandidates} onToggle={(candidateId, selected) => setSelectedPhotoJourneyCandidateIds((ids) => selected ? Array.from(new Set([...ids, candidateId])) : ids.filter((id) => id !== candidateId))} onTitleChange={(candidateId, title) => updatePhotoJourneyCandidateReview(candidateId, { title: title.slice(0, 180) })} onRangeChange={(candidateId, field, value) => updatePhotoJourneyCandidateReview(candidateId, { [field]: value })} onCoverChange={(candidateId, coverPhotoId) => updatePhotoJourneyCandidateReview(candidateId, { coverPhotoId })} photoLabels={Object.fromEntries(photoExifPreview.photos.map((photo) => [photo.id, photo.file.name]))} onShowMap={previewPhotoJourneyMap} />
         <div className="photo-exif-adjustments" aria-label="照片拍攝日期與位置">
           <p>日期相同的照片會整理為同一段記錄。HEIC 會在確認後於本機轉成 JPEG；同名 MOV 僅作為 Live Photo companion 上傳至同一 private 事件。若填入完整緯經度，系統只會以 private precise 位置隨該段事件保存。</p>
@@ -1525,8 +1530,8 @@ function DiaryEditorContent() {
         <div className="import-preview-list">{photoExifImportGroups.map((group) => <article key={group.id}><span>{group.date}</span><b>{group.title}</b><small>{group.files.length} 張照片 · 將建立為 private 事件{photoExifPreview.photos.filter((photo) => group.photoIds.includes(photo.id) && photo.livePhotoCompanion).length ? " · 含已確認的 Live Photo MOV" : ""}{group.mapLatitudeE6 !== null ? " · 私有座標已帶入" : ""}</small></article>)}{photoExifPreview.skipped.map((item, index) => <article key={`${item.name}-${index}`}><span>略過</span><b>{item.name}</b><small>{item.reason}</small></article>)}{!photoExifImportGroups.length ? <p>填入至少一張可用照片的日期與時間後，才會出現可建立的事件。</p> : null}</div>
         {photoImportStorageEstimate ? <div className="photo-import-storage-estimate"><ImageDown size={15} /><div><b>確認後的預估儲存量：{formatPhotoImportBytes(photoImportStorageEstimate.estimatedStoredBytes)}</b><small>來源靜態照片 {formatPhotoImportBytes(photoImportStorageEstimate.sourceStillBytes)}{photoImportStorageEstimate.sourceHeicBytes ? `（HEIC／HEIF ${formatPhotoImportBytes(photoImportStorageEstimate.sourceHeicBytes)}，確認後於本機以 ${photoImportStorageEstimate.heicJpegEstimateRatio.toFixed(2)}× 估算轉為 JPEG 約 ${formatPhotoImportBytes(photoImportStorageEstimate.estimatedConvertedHeicBytes)}；原檔不會上傳）` : ""}{photoImportStorageEstimate.sourceJpegBytes ? ` · JPEG ${formatPhotoImportBytes(photoImportStorageEstimate.sourceJpegBytes)}` : ""}{photoImportStorageEstimate.livePhotoMotionBytes ? ` · Live Photo MOV ${formatPhotoImportBytes(photoImportStorageEstimate.livePhotoMotionBytes)}` : ""}。這是依檔案大小推估，不是儲存空間保留或轉檔保證。</small></div></div> : null}
         {photoExifUploadProgress ? <div className="photo-exif-progress" role="status" aria-live="polite"><div><b>正在上傳 {photoExifUploadProgress.uploaded}／{photoExifUploadProgress.total} 張</b><small>{photoExifUploadProgress.currentFileName ? `目前處理：${photoExifUploadProgress.currentFileName}` : "正在建立私人事件…"}</small></div><div role="progressbar" aria-label="照片上傳進度" aria-valuemin={0} aria-valuemax={photoExifUploadProgress.total} aria-valuenow={photoExifUploadProgress.uploaded}><span style={{ width: `${photoExifUploadProgress.total ? (photoExifUploadProgress.uploaded / photoExifUploadProgress.total) * 100 : 0}%` }} /></div></div> : null}
-        <div className="import-warning"><LockKeyhole size={15} /> {photoExifPreview.photos.some((photo) => !photo.capturedAt) ? "請先補齊每張 JPEG 的日期與時間；在此之前不會上傳或建立事件。GPS、地圖與手動座標只留在目前瀏覽器。" : photoExifImportGroups.length ? "確認後才會上傳所列照片，並建立 private 事件；完整座標只會以 precise private 位置隨事件保存。" : "這批照片不會上傳，也不會建立事件。"}</div>
-        <div className="import-actions"><button type="button" onClick={() => { setPhotoExifPreview(null); setSelectedPhotoExifIds([]); setPhotoExifBatchCapturedAt(""); setPhotoExifBatchIncrementSeconds("0"); setPhotoExifMapPreview(null); clearPhotoJourneyCandidates(); }} disabled={isPhotoExifImporting}>取消</button>{photoExifImportGroups.length ? <button type="button" onClick={confirmPhotoExifImport} disabled={isPhotoExifImporting || photoExifPreview.photos.some((photo) => !photo.capturedAt)}>{isPhotoExifImporting ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />} 確認建立 {photoExifImportGroups.length} 段私人記錄</button> : null}</div>
+        <div className="import-warning"><LockKeyhole size={15} /> {importablePhotoExif.some((photo) => !photo.capturedAt) ? "請先補齊每張要匯入照片的日期與時間；在此之前不會上傳或建立事件。GPS、地圖與手動座標只留在目前瀏覽器。" : photoExifImportGroups.length ? "確認後才會上傳所列照片，並建立 private 事件；完整座標只會以 precise private 位置隨事件保存。" : "這批照片不會上傳，也不會建立事件。"}</div>
+        <div className="import-actions"><button type="button" onClick={() => { setPhotoExifPreview(null); setSelectedPhotoExifIds([]); setExcludedPhotoExifIds([]); setPhotoExifBatchCapturedAt(""); setPhotoExifBatchIncrementSeconds("0"); setPhotoExifMapPreview(null); clearPhotoJourneyCandidates(); }} disabled={isPhotoExifImporting}>取消</button>{photoExifImportGroups.length ? <button type="button" onClick={confirmPhotoExifImport} disabled={isPhotoExifImporting || importablePhotoExif.some((photo) => !photo.capturedAt)}>{isPhotoExifImporting ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />} 確認建立 {photoExifImportGroups.length} 段私人記錄</button> : null}</div>
       </section> : null}
       {isOwner ? <PrivateIcsCalendarImport isImporting={importMutation.isPending} onConfirm={async (candidates) => {
         await importMutation.mutateAsync({

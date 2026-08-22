@@ -152,3 +152,12 @@
 去重預研採四層候選設計：現有 source key、目前選檔的本機 checksum、明確觸發的 Canvas pHash／dHash，以及正規化短標題與 UTC 日期窗口。`imagehash-web` 具 browser hash 與 Hamming distance 範例但社群規模小，因此目前只作原型參考；`jsdiff` 雖成熟，仍不適合把完整日記作比較輸入。完整評估見 [`IMPORT_DEDUPLICATION_RESEARCH.md`](../research/IMPORT_DEDUPLICATION_RESEARCH.md)。
 
 **已完成。** 秘密掃描以七類模式檢查 181 個 revisions 並通過；production audit 為零已知漏洞。本輪補齊 `PrivateHighlightAssistant` 與 `FamilyMilestoneLayer` 的 co-located 測試，現有元件、資料層與文件回歸共 97 個檔案／274 項通過。依賴基準與現有重量級載入理由已在 CONTRIBUTING 記錄。既有 Issue #9–#12 已核對，新的私有跨匯入去重設計以 Issue #47 建檔，不在本輪假稱已實作。
+
+## 下一輪：依賴式合併與私有去重候選第一階段
+
+| 交付 | 資料與授權邊界 | 驗收 |
+| --- | --- | --- |
+| PR #43–#48 合併 | 僅在每個 PR 的 CI 與 mergeable 狀態通過後，按 #43 → #48 的依賴順序合併；若任一 PR 有衝突、失敗或保護規則阻擋，停止於該 PR，不以重寫歷史繞過。 | 每次合併後重新讀取下一個 PR 的 base、CI、mergeable 與 diff；最後核對 main SHA 與 merge commit。 |
+| Source key／checksum 候選 | 僅 owner 於目前一輪瀏覽器匯入預覽明確觸發；source key 和 SHA-256 僅在記憶體比較本次草稿，不保存、不上傳、不比較既有日記或跨帳號資料。 | 只標示目前草稿間的「完全相同來源／檔案」候選；使用者逐項保留或略過，取消、未確認與失敗均零寫入。 |
+
+**已完成。** #43、#44、#45、#46 與 #48 已按相依順序合併，整合 PR #49 再落地 `main`，未重寫歷史。照片匯入第一階段新增本機 source key 與 owner 明確觸發的 SHA-256 候選；候選只可可逆地略過後續同組檔案或保留全部，從不掃描既有日記、保存 checksum、外送檔案或自動合併。完整 lint、型別、99 個測試檔／277 項、桌面與 375px 隔離 E2E、Vite PWA build、lazy route verifier、server bundle、182 revisions secret scan、production audit 與 diff check 均通過。

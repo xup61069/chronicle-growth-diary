@@ -328,6 +328,16 @@ try {
     assert(await exifCapturedAt.inputValue() === '2026-08-21T06:30:07', '批次日期套用應依指定秒數遞增已選取照片。');
     assert(await photoExifPreview.getByLabel('captured-nearby.jpg 的拍攝日期與時間').inputValue() === '2026-08-21T06:30:14', '第三張照片也應依相同秒數遞增。');
     await photoExifPreview.getByText('2026-08-21', { exact: true }).waitFor({ timeout: 10_000 });
+    const dedupeReview = photoExifPreview.locator('.photo-import-dedupe');
+    assert(await dedupeReview.getByText('這批目前沒有相同來源線索或本機 checksum 候選。', { exact: true }).isVisible(), '照片選取後不應自動讀取位元組或假設重複。');
+    await dedupeReview.getByRole('button', { name: '以本機 SHA-256 再確認' }).click();
+    await dedupeReview.getByText('完全相同檔案候選', { exact: true }).waitFor({ timeout: 10_000 });
+    assert(await dedupeReview.getByText('SHA-256 相同；仍由你決定', { exact: true }).isVisible(), 'checksum 候選必須明示仍由 owner 決定，不能自動略過。');
+    await dedupeReview.getByRole('button', { name: '略過後續 1 張' }).click();
+    await dedupeReview.getByText('目前略過 1 張；取消或保留全部前都不會刪除檔案。', { exact: true }).waitFor({ timeout: 10_000 });
+    await dedupeReview.getByRole('button', { name: '保留全部' }).click();
+    assert(await dedupeReview.getByText('目前略過 1 張；取消或保留全部前都不會刪除檔案。', { exact: true }).count() === 0, '保留全部應只撤銷本機略過選擇，不得刪除或上傳檔案。');
+    if (process.env.CHRONICLE_E2E_PHOTO_DEDUPE_SCREENSHOT_PATH) await dedupeReview.screenshot({ path: process.env.CHRONICLE_E2E_PHOTO_DEDUPE_SCREENSHOT_PATH });
     assert(await photoExifPreview.getByText(/GPS 只在這個瀏覽器讀取.*確認前不會上傳/).isVisible(), '照片 EXIF 匯入預覽未明確說明 GPS 與確認前不上傳的隱私邊界。');
     assert(await photoExifPreview.getByText(/私有座標已帶入/).isVisible(), '手動校正或 EXIF 讀取的 GPS 應標示為 private 事件座標。');
     await page.route('**/api/trpc/photoMap.preview**', (route) => route.fulfill({ contentType: 'application/json', body: mapPreviewResponse }));
@@ -381,7 +391,7 @@ try {
     assert(desktopJourneyDetailPayloads.length === 1 && desktopJourneyDetailPayloads[0].includes('2026') === false, '已選旅程候選應在圖片上傳後只保存一次數字化 private 範圍與封面媒體 ID。');
     await page.unroute('**/api/trpc/diary.createEvent**');
     await page.unroute('**/api/trpc/diary.saveJourneyDetails**');
-    findings.checks.push('desktop photo EXIF GPS preview, editable local journey range and cover, explicit map request, correction, batch date apply, privacy boundary, upload progress and private event creation');
+    findings.checks.push('desktop photo EXIF GPS preview, local source-key/checksum duplicate review, editable journey range and cover, explicit map request, correction, batch date apply, privacy boundary, upload progress and private event creation');
     const dayOneImport = page.locator('.day-one-import');
     await dayOneImport.getByRole('heading', { name: '先審核，再帶入 Day One 日記' }).waitFor({ timeout: 10_000 });
     let dayOneImportRequestCount = 0;

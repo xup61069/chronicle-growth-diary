@@ -61,6 +61,7 @@ corepack pnpm install --frozen-lockfile
 | 儲存 | 確認前不得上傳或建立事件。確認後只建立 private 事件；位置僅以 `precise`／`private` 寫入。 | 桌面與 375px 攔截 `diary.createEvent`，驗證拖曳後座標出現在最終 private payload。 |
 | 批次時間 | 僅套用已勾選照片；第一張使用 base 時間，後續依穩定預覽順序加上 `index × incrementSeconds`。 | 秒級遞增、未選取照片不變、立即重新分組。 |
 | 進度 | 確認後逐張更新目前檔名與完成數；使用具名 `role="progressbar"`。 | 延遲附件請求、桌面與 375px 可見進度。 |
+| 重複候選 | `photoImportDedupe.ts` 只對本次選檔先比對檔名／大小／修改時間 source key；owner 明確按下後才以 Web Crypto 讀檔並比較 SHA-256。候選只能略過後續同組檔案或保留全部。 | source key 與 checksum fixture、手動觸發、可逆略過、確認前零寫入，以及桌面／375px 隔離回歸。 |
 
 **禁止** 將照片 GPS、地圖影像或 precise 位置改為公開分享、連結分享、自動背景讀取或永久快取；若必須擴張範圍，先完成新的同意、資料最小化、刪除路徑與分享隔離設計。
 
@@ -105,11 +106,11 @@ corepack pnpm install --frozen-lockfile
 
 已接受成員只讀取自己獲授權項目的日期、精度、標題與摘要，絕不能取得 sourceEventId、受眾模式、其他成員、原事件正文、媒體、語音、GPS 或 AI 輸出。owner 才能建立、更新或刪除，範圍調整只留下不含摘要與收件者資料的 audit action。新建項目可直接建立；但 owner 編輯既有項目且有效受眾或選擇政策變更時，`FamilyMilestoneLayer` 必須先顯示目前／提議、加入／移除成員的**本機預覽**，並要求第二次「確認變更」才可呼叫 update mutation。加入、移除與規則調整必須同時使用文字、符號與語意色彩，動畫只可使用 transform／opacity，並尊重 `prefers-reduced-motion`。`getFamilyMilestoneAudienceAudit` 只能由 owner 呼叫，且僅投影 audit id、時間、固定 action 與 milestone ID；可選日期區間最多 366 天並只作既有最小投影的 timestamp predicate。不可回傳摘要、受眾、成員、actor、metadata、source event、媒體或位置，開啟、篩選或清除檢視也不得建立 audit、通知或背景輪詢。若 accepted member 名冊或選擇在預覽開啟後改變，必須使預覽失效並要求重選，不得套用舊差異。移除 membership 的外鍵 cascade 會撤銷該指定關聯；日後重新接受邀請會使用新的 membership，不得自動恢復先前的項目可見性。資料庫變更由 `0021_huge_caretaker.sql` 與 `0022_minor_george_stacy.sql` 建立，任何改動都要同時更新 schema、migration、router regression 與隔離 E2E。
 
-最低回歸為 `client/src/lib/dayOneImport.test.ts`、`journeyImport.test.ts`、`journeyImportDraft.test.ts`、`familyAudienceAuditRange.test.ts`、`familyAudiencePreview.test.ts`、`server/db/familyCollaboration.test.ts`、既有 family router／資料層測試，以及 `pnpm test:e2e:isolated` 與 `CHRONICLE_E2E_VIEWPORT=desktop pnpm test:e2e:isolated`。桌面隔離 E2E 必須攔截 Journey import mutation，驗證 preview 前為零寫入、selected-only 批次時間可重設且確認後只產生 private payload／數量型成功 Toast，並驗證 family update 在 preview 前為零寫入、僅第二次確認後呼叫一次，以及 owner audit 依日期篩選後仍不投影摘要或成員。
+最低回歸為 `client/src/lib/dayOneImport.test.ts`、`journeyImport.test.ts`、`journeyImportDraft.test.ts`、`photoImportDedupe.test.ts`、`PrivatePhotoImportDedupe.test.tsx`、`familyAudienceAuditRange.test.ts`、`familyAudiencePreview.test.ts`、`server/db/familyCollaboration.test.ts`、既有 family router／資料層測試，以及 `pnpm test:e2e:isolated` 與 `CHRONICLE_E2E_VIEWPORT=desktop pnpm test:e2e:isolated`。桌面隔離 E2E 必須攔截 Journey import mutation，驗證 preview 前為零寫入、selected-only 批次時間可重設且確認後只產生 private payload／數量型成功 Toast；照片流程必須驗證 checksum 不自動讀取、候選可逆略過且確認後仍只產生 private payload；family update 在 preview 前為零寫入、僅第二次確認後呼叫一次，以及 owner audit 依日期篩選後仍不投影摘要或成員。
 
 `PrivateHighlightAssistant.test.tsx` 與 `FamilyMilestoneLayer.test.tsx` 現已 co-locate，分別以匿名 fixture 覆蓋 AI 明確同意／暫態候選，以及 owner 最小稽核／非 owner 隔離；元件在 Vitest server render 下需保留 React JSX runtime import。這些測試不呼叫模型、地圖、儲存、正式 OAuth 或真實家庭資料。任何新 diary 元件應同時補齊自己的 co-located 測試，避免只依賴 E2E。
 
-跨匯入去重尚未交付。GitHub Issue [#47](https://github.com/xup61069/chronicle-growth-diary/issues/47) 與 [`IMPORT_DEDUPLICATION_RESEARCH.md`](./research/IMPORT_DEDUPLICATION_RESEARCH.md) 定義未來工作：source key、目前選檔 checksum、明確觸發的本機感知雜湊與短標題／UTC 日期只可產生「可能重複」候選；不得背景掃描、外送資料、自動刪除或跨帳號保存圖譜。實作前仍須完成依賴、bundle、效能、授權與隔離 E2E 審查。
+跨匯入去重的第一階段已交付：`photoImportDedupe.ts` 與 `PrivatePhotoImportDedupe` 只在目前瀏覽器預覽中，以 source key 產生初步候選；owner 明確點擊後才讀取目前選檔並以 SHA-256 產生完全相同檔案候選。略過集合只修改本次確認 payload，可隨時「保留全部」復原；取消、選新檔或完成後即清除。它不比較既有日記、不保存 checksum／來源 key、不外送檔案或雜湊、不自動刪除／合併。GitHub Issue [#47](https://github.com/xup61069/chronicle-growth-diary/issues/47) 與 [`IMPORT_DEDUPLICATION_RESEARCH.md`](./research/IMPORT_DEDUPLICATION_RESEARCH.md) 保留 pHash、短標題／UTC 日期候選與合併 UI 的後續工作；這些能力必須另完成依賴、bundle、效能、授權與隔離 E2E 審查。
 
 ## 5. 驗證流程
 
