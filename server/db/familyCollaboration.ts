@@ -143,3 +143,11 @@ export async function getDiaryAuditLogsForDiary(db: DbClient, diaryId: number) {
     .from(growthDiaryAuditLogs).innerJoin(users, eq(growthDiaryAuditLogs.actorUserId, users.id))
     .where(eq(growthDiaryAuditLogs.diaryId, diaryId)).orderBy(desc(growthDiaryAuditLogs.createdAt)).limit(50);
 }
+
+/** Owner-only minimum projection for reviewing confirmed family audience scope changes. */
+export async function getFamilyMilestoneAudienceAuditForDiary(db: DbClient, diaryId: number) {
+  return db.select({ id: growthDiaryAuditLogs.id, action: growthDiaryAuditLogs.action, targetId: growthDiaryAuditLogs.targetId, createdAt: growthDiaryAuditLogs.createdAt })
+    .from(growthDiaryAuditLogs)
+    .where(and(eq(growthDiaryAuditLogs.diaryId, diaryId), eq(growthDiaryAuditLogs.action, "family_milestone_audience_updated"), eq(growthDiaryAuditLogs.targetType, "family_milestone")))
+    .orderBy(desc(growthDiaryAuditLogs.createdAt)).limit(50);
+}

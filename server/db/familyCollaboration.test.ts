@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { acceptDiaryInviteForUser, getEventReactionsForUser } from "./familyCollaboration";
+import { acceptDiaryInviteForUser, getEventReactionsForUser, getFamilyMilestoneAudienceAuditForDiary } from "./familyCollaboration";
 
 function createDbWithInvite(invite: unknown) {
   const limit = vi.fn().mockResolvedValue([invite]);
@@ -49,5 +49,18 @@ describe("family collaboration data access", () => {
       .mockReturnValueOnce({ from: vi.fn(() => ({ where: vi.fn(() => ({ limit: vi.fn().mockResolvedValue([{ id: 7 }]) })) })) });
     await expect(getEventReactionsForUser({ select: sharedSelect } as never, 12, 8)).rejects.toThrow("完全私人的事件");
     expect(sharedSelect).toHaveBeenCalledTimes(2);
+  });
+
+  it("projects only passive audience-audit identifiers, action and timestamp for the owner view", async () => {
+    const limit = vi.fn().mockResolvedValue([{ id: 71, action: "family_milestone_audience_updated", targetId: 18, createdAt: new Date("2026-08-22T00:00:00Z") }]);
+    const orderBy = vi.fn(() => ({ limit }));
+    const where = vi.fn(() => ({ orderBy }));
+    const from = vi.fn(() => ({ where }));
+    const select = vi.fn(() => ({ from }));
+
+    await expect(getFamilyMilestoneAudienceAuditForDiary({ select } as never, 7)).resolves.toEqual([
+      { id: 71, action: "family_milestone_audience_updated", targetId: 18, createdAt: new Date("2026-08-22T00:00:00Z") },
+    ]);
+    expect(Object.keys(select.mock.calls[0]?.[0] ?? {}).sort()).toEqual(["action", "createdAt", "id", "targetId"]);
   });
 });
