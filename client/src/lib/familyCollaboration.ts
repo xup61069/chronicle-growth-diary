@@ -21,6 +21,7 @@ export function describeFamilyAuditAction(action: string) {
     case "comment_created": return "發表註解";
     case "family_milestone_created": return "加入家庭大事記";
     case "family_milestone_updated": return "更新家庭大事記";
+    case "family_milestone_audience_updated": return "調整家庭大事記可見範圍";
     case "family_milestone_deleted": return "移除家庭大事記";
     default: return "更新協作紀錄";
   }

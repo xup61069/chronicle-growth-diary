@@ -78,7 +78,23 @@ const diaryEventInput = z.object({
 });
 
 const year = z.number().int().min(1900).max(2200).nullable().optional();
-const familyMilestoneInput = z.object({ occurredAt: z.number().int().min(-2208988800000).max(4102444800000), datePrecision: z.enum(["day", "month", "year"]), title: z.string().trim().min(1).max(180), summary: z.string().trim().min(1).max(480), sourceEventId: z.number().int().positive().nullable() });
+const familyMilestoneFields = {
+  occurredAt: z.number().int().min(-2208988800000).max(4102444800000),
+  datePrecision: z.enum(["day", "month", "year"]),
+  title: z.string().trim().min(1).max(180),
+  summary: z.string().trim().min(1).max(480),
+  sourceEventId: z.number().int().positive().nullable(),
+  audienceMode: z.enum(["all_accepted", "selected_members"]),
+  audienceMemberIds: z.array(z.number().int().positive()).max(100).superRefine((memberIds, ctx) => {
+    if (new Set(memberIds).size !== memberIds.length) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "指定成員不能重複。" });
+  }),
+};
+function validateFamilyMilestoneAudience(input: { audienceMode: "all_accepted" | "selected_members"; audienceMemberIds: number[] }, ctx: z.RefinementCtx) {
+  if (input.audienceMode === "selected_members" && input.audienceMemberIds.length === 0) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["audienceMemberIds"], message: "請至少選擇一位家庭成員。" });
+  if (input.audienceMode === "all_accepted" && input.audienceMemberIds.length > 0) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["audienceMemberIds"], message: "所有已接受成員模式不能指定個別成員。" });
+}
+const familyMilestoneInput = z.object(familyMilestoneFields).superRefine(validateFamilyMilestoneAudience);
+const familyMilestoneUpdateInput = z.object({ id: z.number().int().positive(), ...familyMilestoneFields }).superRefine(validateFamilyMilestoneAudience);
 
 export const diaryRouter = router({
   get: protectedProcedure.input(z.object({ diaryId: z.number().int().positive().optional() }).optional()).query(({ ctx, input }) => input?.diaryId ? getDiarySnapshot(ctx.user.id, input.diaryId) : getDiarySnapshot(ctx.user.id)),
@@ -100,7 +116,7 @@ export const diaryRouter = router({
   getFamilyAudit: protectedProcedure.query(({ ctx }) => getDiaryAuditLogs(ctx.user.id)),
   getFamilyMilestones: protectedProcedure.input(z.object({ diaryId: z.number().int().positive().optional() }).optional()).query(({ ctx, input }) => getFamilyMilestones(ctx.user.id, input?.diaryId)),
   createFamilyMilestone: protectedProcedure.input(familyMilestoneInput).mutation(({ ctx, input }) => createFamilyMilestone(ctx.user.id, input)),
-  updateFamilyMilestone: protectedProcedure.input(familyMilestoneInput.extend({ id: z.number().int().positive() })).mutation(({ ctx, input }) => { const { id, ...milestone } = input; return updateFamilyMilestone(ctx.user.id, id, milestone); }),
+  updateFamilyMilestone: protectedProcedure.input(familyMilestoneUpdateInput).mutation(({ ctx, input }) => { const { id, ...milestone } = input; return updateFamilyMilestone(ctx.user.id, id, milestone); }),
   deleteFamilyMilestone: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ ctx, input }) => deleteFamilyMilestone(ctx.user.id, input.id)),
   removeFamilyMember: protectedProcedure.input(z.object({ memberId: z.number().int().positive() })).mutation(({ ctx, input }) => removeDiaryMember(ctx.user.id, input.memberId)),
   updateFamilyMemberRole: protectedProcedure.input(z.object({ memberId: z.number().int().positive(), role: z.enum(["editor", "commenter"]) })).mutation(({ ctx, input }) => updateDiaryMemberRole(ctx.user.id, input.memberId, input.role)),

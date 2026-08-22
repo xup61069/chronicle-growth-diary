@@ -93,3 +93,16 @@
 ### 本輪完成狀態
 
 **已完成。** `0021_huge_caretaker.sql` 已審閱並以非破壞性 migration 套用；旅程詳細資料只接受 owner 的有序日期範圍與同一 private event 已保存 image 封面。Day One JSON／ZIP 只在瀏覽器產生暫態草稿，確認後才批次建立 private 記錄。家庭大事記只保存 owner 手動寫下的短摘要，成員 read model 不含 `sourceEventId`、事件正文、附件或位置。91 個測試檔／256 項、桌面與 375px 隔離 local-auth E2E、直接 Vite PWA build、lazy-route、server bundle、secret scan、production audit 與 diff check 均通過；組合 `pnpm build` 在 Vite 成功產物後遭環境 SIGTERM，因此以分離 Vite、lazy-route 與 esbuild 結果為準。
+
+## 下一輪交付：家庭大事記選擇性可見範圍
+
+| 範圍 | 資料與權限邊界 | 驗收 |
+| --- | --- | --- |
+| 受眾模式 | 每筆 family-only 大事記為 `all_accepted` 或 `selected_members`。既有資料維持 `all_accepted`；新建項目預設指定成員且至少選一位 accepted member。 | 只新增非破壞 schema／migration；不把 family-only 轉為 public、link 或 token 分享。 |
+| 指定成員 | 受眾只引用目前 diary membership，不複製名字、email、原事件、媒體或摘要到新資料表。 | owner 可管理；accepted member 只能讀自己獲選的摘要；未選成員不取得名稱、數量或存在性。 |
+| 成員生命週期 | 移除家庭成員時清除其指定受眾關聯；重新接受邀請不自動還原歷史指定權限。 | owner、已選、未選、已移除、重新接受與 legacy all-accepted 都有資料層、router 與隔離 E2E 回歸。 |
+| 稽核與分享 | scope／對象變更只留下不含摘要或收件者內容的 audit action；公開／link 投影永遠排除大事記與受眾。 | 不新增通知、Email、附件、GPS、AI、留言、reaction 或背景工作。 |
+
+### 下一輪完成狀態
+
+**已完成。** `0022_minor_george_stacy.sql` 已審閱並套用，為舊項目加入向後相容的 `all_accepted` 預設，並建立可 cascade 撤銷的 milestone-to-membership audience 關聯。新項目預設選擇成員，未選人員時不能儲存；owner 可切換所有已接受成員或指定成員。資料層將 non-owner 查詢過濾到自身授權項目，且 projection 不含 source event、受眾資訊或私人媒體欄位。91 個測試檔／256 項、桌面與 375px local-auth E2E、直接 Vite PWA build、lazy-route、server bundle、secret scan、production audit 與 diff check 均通過。

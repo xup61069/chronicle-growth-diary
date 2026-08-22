@@ -1,6 +1,6 @@
 # Chronicle AI 交接手冊
 
-> **交接狀態：** 已完成預設深色主題、照片 EXIF／GPS 私人匯入與可編輯的本機旅程候選、Day One 本機審核匯入、family-only 大事記、Web Share Target、全量 ZIP 封存／還原，以及可審核的 owner-only AI 精選建議。下一位 AI 應從本檔與根目錄 [`AGENTS.md`](../AGENTS.md) 開始，而不是從 commit history 或舊對話推測狀態。
+> **交接狀態：** 已完成預設深色主題、照片 EXIF／GPS 私人匯入與可編輯的本機旅程候選、Day One 本機審核匯入、具選擇性受眾的 family-only 大事記、Web Share Target、全量 ZIP 封存／還原，以及可審核的 owner-only AI 精選建議。下一位 AI 應從本檔與根目錄 [`AGENTS.md`](../AGENTS.md) 開始，而不是從 commit history 或舊對話推測狀態。
 
 ## 1. 產品定位與不可變更原則
 
@@ -99,7 +99,9 @@ corepack pnpm install --frozen-lockfile
 
 `client/src/lib/dayOneImport.ts` 只支援使用者選取的 Day One JSON 或根目錄唯一 `Journal.json` ZIP。解析器限制 32MB archive、4MB JSON 與 250 筆 entries，拒絕不安全 ZIP path；每筆只取 creation date、純文字和最多八個短標籤。媒體、位置、天氣、裝置、rich text、來源 URL、ZIP 與 UUID 不得持久化。`PrivateDayOneImport` 的 preview、勾選與去重皆為本機 state；只有使用者確認後才藉既有 `diary.importEvents` 寫入 private 事件。不得擴充為自動同步、背景掃描、跨帳號連結或媒體上傳。
 
-`growth_family_milestones` 是與事件投影分離的 family-only 表。owner 可寫入日期、精度、標題、短摘要與可選的同 diary sourceEventId；資料層必須拒絕跨 diary source。已接受成員只讀取日期、精度、標題與摘要，絕不能取得 sourceEventId、原事件正文、媒體、語音、GPS 或 AI 輸出；owner 才能建立、更新或刪除，並留下不含摘要內容的 audit action。資料庫變更由 `0021_huge_caretaker.sql` 建立，任何改動都要同時更新 schema、migration 與 router regression。
+`growth_family_milestones` 是與事件投影分離的 family-only 表。owner 可寫入日期、精度、標題、短摘要與可選的同 diary sourceEventId；資料層必須拒絕跨 diary source。`audienceMode` 為 `all_accepted` 或 `selected_members`：舊資料由 migration 保持 `all_accepted`，新建項目預設 `selected_members` 且至少選擇一位 accepted member。`growth_family_milestone_audiences` 只連結 milestone 與 diary membership ID，不複製名字、email、摘要、事件或媒體。
+
+已接受成員只讀取自己獲授權項目的日期、精度、標題與摘要，絕不能取得 sourceEventId、受眾模式、其他成員、原事件正文、媒體、語音、GPS 或 AI 輸出。owner 才能建立、更新或刪除，範圍調整只留下不含摘要與收件者資料的 audit action。移除 membership 的外鍵 cascade 會撤銷該指定關聯；日後重新接受邀請會使用新的 membership，不得自動恢復先前的項目可見性。資料庫變更由 `0021_huge_caretaker.sql` 與 `0022_minor_george_stacy.sql` 建立，任何改動都要同時更新 schema、migration、router regression 與隔離 E2E。
 
 ## 5. 驗證流程
 

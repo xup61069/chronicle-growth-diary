@@ -12,8 +12,8 @@
 - [x] 加入私有分享影像手動遮罩。
 - [x] 加入 HEIC 批次匯入容量估算。
 - [x] 制定單一功能 PR 與文件治理規則。
-- [x] 補強 mock OAuth callback 的瀏覽器端對端防護，並完成依賴與 secret 掃描結果記錄。
-- [x] 實作 PWA Web Share Target，將系統分享內容導入既有 private QuickNote 草稿入口，不自動寫入事件。
+- [x] 完成 mock OAuth callback 防護與供應鏈稽核。
+- [x] 建立 PWA Web Share Target private QuickNote 草稿入口。
 - [x] 修補 Express 5 wildcard 路由安全回歸。
 - [x] 全量封存驗證完成。
 - [x] 完成可審核全量 ZIP 還原。
@@ -31,6 +31,7 @@
 - [x] 私有旅程候選手動日期與封面審核。
 - [x] Day One private 審核匯入。
 - [x] 可選家庭共用大事記圖層。
+- [x] 家庭大事記選擇性可見範圍。
 
 ## 已確認的非執行限制
 

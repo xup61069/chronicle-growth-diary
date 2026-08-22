@@ -48,7 +48,7 @@ import {
 import { adoptHighlightSuggestionForDiary, suggestHighlightsForDiary } from "./db/aiHighlights";
 import { saveJourneyDetailsForOwner } from "./db/journeyDetails";
 import type { JourneyDetailsInput } from "./db/journeyDetails";
-import { createFamilyMilestoneForDiary, deleteFamilyMilestoneForDiary, listFamilyMilestonesForDiary, updateFamilyMilestoneForDiary } from "./db/familyMilestones";
+import { createFamilyMilestoneForDiary, deleteFamilyMilestoneForDiary, listFamilyMilestonesForDiary, listFamilyMilestonesForMember, updateFamilyMilestoneForDiary } from "./db/familyMilestones";
 import type { FamilyMilestoneInput } from "./db/familyMilestones";
 import { getGrowthDashboardStatsForDiary } from "./db/growthStats";
 import { buildFullDiaryArchiveForDiary } from "./db/fullDiaryArchive";
@@ -136,12 +136,12 @@ async function getDiaryAccessForUser(userId: number, requestedDiaryId?: number) 
   const db = await requireDb();
   const owned = await db.select().from(growthDiaries).where(requestedDiaryId ? and(eq(growthDiaries.userId, userId), eq(growthDiaries.id, requestedDiaryId)) : eq(growthDiaries.userId, userId)).limit(1);
   if (owned[0]) return { diary: owned[0], role: "owner" as const };
-  const membership = await db.select({ diary: growthDiaries, role: growthDiaryMembers.role })
+  const membership = await db.select({ diary: growthDiaries, role: growthDiaryMembers.role, memberId: growthDiaryMembers.id })
     .from(growthDiaryMembers)
     .innerJoin(growthDiaries, eq(growthDiaryMembers.diaryId, growthDiaries.id))
     .where(requestedDiaryId ? and(eq(growthDiaryMembers.userId, userId), eq(growthDiaryMembers.diaryId, requestedDiaryId)) : eq(growthDiaryMembers.userId, userId))
     .limit(1);
-  return membership[0] ? { diary: membership[0].diary, role: membership[0].role as DiaryMemberRole } : undefined;
+  return membership[0] ? { diary: membership[0].diary, role: membership[0].role as DiaryMemberRole, memberId: membership[0].memberId } : undefined;
 }
 
 async function getWritableDiary(userId: number, requestedDiaryId?: number) {
@@ -290,8 +290,8 @@ export async function getFamilyMilestones(userId: number, requestedDiaryId?: num
   const db = await requireDb();
   const access = await getDiaryAccessForUser(userId, requestedDiaryId);
   if (!access) throw new Error("找不到這本家庭成長史，或你沒有檢視權限。");
-  const milestones = await listFamilyMilestonesForDiary(db, access.diary.id);
-  return access.role === "owner" ? milestones : milestones.map(({ sourceEventId: _sourceEventId, ...milestone }) => milestone);
+  if (access.role === "owner") return listFamilyMilestonesForDiary(db, access.diary.id);
+  return listFamilyMilestonesForMember(db, access.diary.id, access.memberId);
 }
 
 export async function createFamilyMilestone(userId: number, input: FamilyMilestoneInput) {

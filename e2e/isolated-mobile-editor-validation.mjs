@@ -351,6 +351,12 @@ try {
     await familyMilestones.getByLabel('家庭大事記日期', { exact: true }).fill('2026-08-22');
     await familyMilestones.getByLabel('家庭大事記標題').fill('家庭旅程摘要');
     await familyMilestones.getByLabel('家庭大事記短摘要').fill('只分享給已接受邀請家人的短摘要。');
+    assert(await familyMilestones.getByRole('radio', { name: '指定已接受的家庭成員' }).isChecked(), '新建家庭大事記應預設採指定成員模式。');
+    assert(await familyMilestones.getByRole('button', { name: '加入 family-only 圖層' }).isDisabled(), '未選擇成員時不得建立指定成員大事記。');
+    if (process.env.CHRONICLE_E2E_FAMILY_AUDIENCE_SCREENSHOT_PATH) {
+      await familyMilestones.screenshot({ path: process.env.CHRONICLE_E2E_FAMILY_AUDIENCE_SCREENSHOT_PATH });
+    }
+    await familyMilestones.getByRole('radio', { name: /所有已接受的家庭成員/ }).check();
     await familyMilestones.getByRole('button', { name: '加入 family-only 圖層' }).click();
     await familyMilestones.getByText('家庭旅程摘要', { exact: true }).waitFor({ timeout: 10_000 });
     assert(await familyMilestones.getByText('只分享給已接受邀請家人的短摘要。', { exact: true }).isVisible(), '家庭大事記應只顯示 owner 明確填寫的摘要。');

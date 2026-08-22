@@ -346,7 +346,7 @@ describe("diary router validation", () => {
 
   it("scopes family-only milestone reads and management to protected diary helpers", async () => {
     const caller = diaryRouter.createCaller(authenticatedContext);
-    const input = { occurredAt: 1_704_067_200_000, datePrecision: "day" as const, title: "家庭旅行", summary: "一起出發的週末。", sourceEventId: 8 };
+    const input = { occurredAt: 1_704_067_200_000, datePrecision: "day" as const, title: "家庭旅行", summary: "一起出發的週末。", sourceEventId: 8, audienceMode: "selected_members" as const, audienceMemberIds: [7] };
     const listed = await caller.getFamilyMilestones({ diaryId: 42 });
     await caller.createFamilyMilestone(input);
     await caller.updateFamilyMilestone({ id: 81, ...input, summary: "更新後的家庭摘要。" });
@@ -357,6 +357,9 @@ describe("diary router validation", () => {
     expect(diaryDb.updateFamilyMilestone).toHaveBeenCalledWith(1, 81, expect.objectContaining({ summary: "更新後的家庭摘要。" }));
     expect(diaryDb.deleteFamilyMilestone).toHaveBeenCalledWith(1, 81);
     await expect(caller.createFamilyMilestone({ ...input, title: " " })).rejects.toThrow();
+    await expect(caller.createFamilyMilestone({ ...input, audienceMemberIds: [] })).rejects.toThrow("請至少選擇一位家庭成員");
+    await expect(caller.createFamilyMilestone({ ...input, audienceMode: "all_accepted", audienceMemberIds: [7] })).rejects.toThrow("所有已接受成員模式不能指定個別成員");
+    await expect(caller.createFamilyMilestone({ ...input, audienceMemberIds: [7, 7] })).rejects.toThrow("指定成員不能重複");
     expect(diaryDb.createFamilyMilestone).toHaveBeenCalledTimes(1);
   });
 
