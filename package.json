@@ -23,6 +23,7 @@
     "test:e2e:shared-story-voice-isolation": "node e2e/shared-story-voice-isolation.mjs",
     "verify:lazy-routes": "node scripts/verify-lazy-route-chunks.mjs",
     "verify:secrets": "node scripts/scan-secrets.mjs",
+    "audit:prod": "pnpm audit --prod",
     "db:push": "drizzle-kit generate && drizzle-kit migrate"
   },
   "dependencies": {

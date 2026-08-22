@@ -14,6 +14,9 @@ Chronicle 是一個以時間軸呈現的私人數位日記。它幫助使用者�
 | 全文與日期篩選 | 可搜尋事件標題、內文、地點與標籤，並以開始／結束日期限縮日記索引。 |
 | 珍藏影像工作區 | 支援一次加入多張 JPG、PNG、WebP 或 GIF 圖片；可拖曳排序、為每張圖片撰寫說明並移除個別圖片。 |
 | 私人照片時間與位置匯入 | 可在確認前本機讀取 JPEG 拍攝時間；缺少 EXIF 時手動補填、逐張微調日期時間，並對選取照片批次套用相同時間或秒級遞增時間。使用者明確開啟位置工具時，可本機校正 GPS、確認地圖、點選或拖曳標記調整位置；確認後才建立 private 事件與上傳媒體。 |
+| iPhone 媒體審核 | HEIC／HEIF 僅在確認匯入後於瀏覽器本機轉為 JPEG；同名 MOV 可作為可審核的 Live Photo companion。確認前提供來源、JPEG 副本與 MOV 容量估算。 |
+| 日曆與補記 | 可在瀏覽器解析 ICS，將家庭行事曆轉為可編輯的 private 草稿；週期行程預設不展開。補記助手只提示私人事件日期空窗與目前預覽照片數，不讀取正文、GPS 或檔案內容。 |
+| 分享影像去識別化 | 使用者要求建立分享副本時，臉部偵測與模糊預覽均在裝置內處理；可手動加、調整或移除遮罩，原圖與臉部座標不外送。 |
 | 私人資料保護 | 編輯器操作以登入身分保護，伺服器會確認資料擁有權。 |
 | 人生階段總覽 | 依事件時間、年齡標記與可選的成長錨點，自動分群為童年、求學與職涯。 |
 | 受控分享 | 可選擇完全私密、公開閱讀或私密連結；只有明確允許的事件會顯示在分享頁。 |
@@ -25,12 +28,14 @@ Chronicle 是一個以時間軸呈現的私人數位日記。它幫助使用者�
 | 公開故事編排 | 可上傳公開故事封面、設定封面標題，並選擇編輯式長文、影像畫廊或極簡時間帶版型；分享頁完整保留公開事件的排序圖片與說明。 |
 | 公開首頁體驗 | 提供可聚焦的互動時間帶、分類篩選狀態、鍵盤跳至主要內容、行動導覽、減少動態偏好、品牌化社群分享預覽，以及案例與編輯器入口。 |
 | 離線快速記事 | `/quick-note` 會將草稿保存在目前裝置的瀏覽器；使用者可離線記錄，準備好後複製內容至完整編輯器整理成正式事件。 |
+| 系統分享快速記事 | 安裝為 PWA 後，手機系統的「分享」可將標題、文字與安全 URL 送往 `/quick-note` 的本機草稿；不會自動建立事件、上傳附件或寫入伺服器。 |
 | 成長數據儀表板 | 日記擁有者可在 `/dashboard` 查看僅由 private 事件彙整的月度紀錄密度、人生階段、關鍵字與連續紀錄；不回傳事件正文、媒體或位置。 |
 | 語音日記 | 可在 private 事件錄音並先保存到目前裝置。每次上傳前都須重新同意將音檔送往轉寫；原音與逐字稿可個別移除，公開與連結故事不會輸出任何語音欄位。 |
 | A5 私人書冊 | 日記擁有者可從匯出區開啟依生命階段編排的 A5 預覽，再自行列印或另存 PDF；未解鎖的時空膠囊內容會遮罩。 |
 | 家庭事件反應 | 日記擁有者與受邀成員可在 private 事件留下心意、共鳴、慶祝或支持等真實反應。畫面只顯示彙整計數與本人狀態，公開／連結故事一律隔離。 |
 | 路由載入邊界 | 公開首頁不預先載入工作台的圖表、文件匯出與協作介面；非首頁路由讀取時提供可宣告的載入狀態。 |
 | 深色優先主題 | 新工作階段預設使用深色工作台；首頁提供明暗切換，使用者選擇會在重新載入後保留。 |
+| 全量封存與還原 | 擁有者可建立版本化 ZIP，內含可攜內容、受限附件與 SHA-256 manifest，並看到準備、附件讀取、封裝與完成進度。還原前會在瀏覽器驗證 ZIP，伺服器再暫存及核對附件；輸入確認字串後才在單一交易取代 private 日記，且分享一律重設為 private。 |
 
 ## 目前公開驗證狀態
 
@@ -47,6 +52,9 @@ Chronicle 是一個以時間軸呈現的私人數位日記。它幫助使用者�
 | 家庭事件反應 | 成員明確點擊時建立或移除反應。 | 僅 private 事件與日記成員可讀寫；系統不提供預設或合成反應，分享回應會移除欄位。 |
 | A5 私人書冊 | 擁有者從工作台按下預覽按鈕時才在瀏覽器編排。 | 列印與另存 PDF 由使用者的瀏覽器處理；未解鎖膠囊會遮罩正文、媒體與逐字稿。 |
 | 照片 EXIF／GPS 匯入 | JPEG 的拍攝時間在目前瀏覽器整理；GPS 只有使用者明確使用位置工具時才讀取與呈現。 | 確認前不會上傳、建立事件或保存地圖影像；地圖必須由使用者按下後才透過受保護代理請求。確認後座標只作為 `precise`／`private` 事件位置保存，公開與連結分享不會取得。 |
+| ICS 與 HEIC／Live Photo | ICS 與 iPhone 媒體皆在確認前於瀏覽器審核；HEIC／HEIF 只在確認後本機轉 JPEG。 | ICS 不匯入受邀者、提醒、URL 或附件；Live Photo MOV 不作為事件主圖，且確認前不寫入事件或上傳。 |
+| 分享影像去識別化 | 只有擁有者手動建立分享副本時才在本機偵測、模糊或手動遮罩。 | 原圖、臉部座標與未確認副本不進公開投影；移除副本後分享頁不回退原圖。 |
+| 全量封存與還原 | 只有擁有者手動下載或選取 ZIP 時才處理封存。 | ZIP 不含憑證、token、密碼、來源 URL、storage key、存取／邀請／稽核資料。還原先驗證 checksum，再以暫存、固定確認字串與單一交易寫入；結果強制 private。 |
 
 可重現的資料範圍、分享遮罩與跨尺寸瀏覽器驗證記錄於 [`docs/VALIDATION_LOG.md`](./docs/VALIDATION_LOG.md)。
 
@@ -66,7 +74,9 @@ Windows PowerShell 若未找到 `pnpm`，可直接改用 `corepack.cmd pnpm`。�
 ```bash
 corepack pnpm lint
 corepack pnpm test
-corepack pnpm check
+corepack pnpm test
+corepack pnpm verify:secrets
+corepack pnpm audit:prod
 ./node_modules/.bin/vite build
 corepack pnpm exec esbuild server/_core/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist
 ```
@@ -112,7 +122,10 @@ client/src/lib/annualReview.ts   年度回顧模板與事件彙整工具
 client/src/lib/printBook.ts      A5 私人書冊編排與膠囊遮罩
 client/src/lib/voiceDrafts.ts    瀏覽器端離線語音草稿佇列
 client/src/lib/photoExifImport.ts 照片 EXIF 日期、GPS、分組與批次時間純函式
+client/src/lib/fullDiaryArchive.ts 全量 ZIP、manifest、checksum 與進度純函式
 server/routers/photoMap.ts       使用者觸發的受保護照片位置地圖預覽合約
+server/routers/archiveRestore.ts owner-only 全量還原 staging 與確認合約
+server/db/archiveRestore.ts      還原附件 checksum、交易提交與取消協調
 server/db/voiceNotes.ts          私有語音檔與逐字稿協調
 server/db/familyCollaboration.ts 成員、註解與事件反應授權
 server/shareAccess.ts            私密連結、密碼雜湊與到期判斷

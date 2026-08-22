@@ -121,6 +121,19 @@ volumes:
 
 > **禁止做法：** 不要以「先清空正式資料庫再試看看」驗證還原；不要將 MinIO data directory 當成唯一備份；不要把 SQL dump、S3 secret、JWT secret 或含有使用者媒體的壓縮檔提交 Git。
 
+### 5.1 全量封存 ZIP 的從零演練
+
+全量 ZIP 是**擁有者可攜資料的個別日記還原工具**，不取代上方 SQL dump 加 bucket mirror 的整機復原。至少每次改動封存格式、還原 schema、附件限制或 storage provider 後，應在隔離 Chronicle 實例演練一次下列流程。
+
+1. 在來源的 private 工作台手動建立全量 ZIP，記下 archive 版本、事件數、附件數與產生時間；不要把 ZIP、其媒體或 manifest 內容提交至 Git 或貼進 Issue。
+2. 建立新的隔離 database、bucket 與測試 owner，確認該 owner 的日記為空。不得使用正式帳號、cookie、分享密碼或 production bucket。
+3. 以隔離 owner 選取 ZIP。瀏覽器必須先驗證 `manifest.json`、可攜 payload、固定附件路徑及每一個 SHA-256，才顯示還原摘要。
+4. 等待所有附件完成 staging；伺服器會再次比對 archive 宣告的 byte length 與 SHA-256。若任一附件失敗、逾時或取消，確認既有日記仍為空，且**不要**輸入確認字串。
+5. 僅在摘要、事件數與附件數合理時輸入「`還原我的成長史`」並提交。驗證事件、標籤、階段回顧、修訂與附件皆可由隔離 owner 讀取，並抽樣檢查附件內容與 manifest 相符。
+6. 驗證所有還原內容為 private：舊 public／link URL、密碼、token、邀請與存取紀錄不應可用或被恢復。最後銷毀隔離 database、bucket 與測試帳號。
+
+> **目前已知限制：** 取消或 30 分鐘逾時的還原 session 不會自動清除已寫入 private storage 的 staging object；它不會改動既有日記 rows，但可能留下孤立附件。未完成受控清理設計前，演練結束要刪除整個隔離 bucket；不要把這個行為誤報為已自動清理。
+
 ## 6. 事件回應與維運清單
 
 | 情境                   | 首要動作                                               | 後續動作                                                   |
