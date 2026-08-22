@@ -44,6 +44,7 @@
 - [x] 重新驗證秘密掃描與 production 依賴稽核。
 - [x] 補齊 Highlight 與家庭大事記元件測試。
 - [x] 核對 GitHub Issue backlog 與去重引擎私有設計。
+- [x] 設定 Dependabot minor／patch 受保護自動合併。
 
 ## 已確認的非執行限制
 
