@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   acceptDiaryInvite,
+  adoptDiaryHighlightSuggestion,
   createDiaryInvite,
   createDiaryEvent,
   createEventComment,
@@ -25,6 +26,7 @@ import {
   removeDiaryMember,
   restoreDiaryEventRevision,
   setDiaryEventVisibility,
+  suggestDiaryHighlights,
   updateDiaryAiPreference,
   updateDiaryEvent,
   updateDiaryEventMedia,
@@ -113,6 +115,10 @@ export const diaryRouter = router({
     year: z.number().int().min(1900).max(2200),
     confirmAiProcessing: z.boolean().refine((value) => value, "請先確認只會將此年度事件內容送往 AI 生成回顧。"),
   })).mutation(({ ctx, input }) => generateAnnualReflection(ctx.user.id, input.year)),
+  suggestHighlights: protectedProcedure.input(z.object({
+    confirmAiProcessing: z.boolean().refine((value) => value, "請先確認只會將 private 事件片段送往 AI 產生候選。"),
+  })).mutation(({ ctx }) => suggestDiaryHighlights(ctx.user.id)),
+  adoptHighlightSuggestion: protectedProcedure.input(z.object({ eventId: z.number().int().positive() })).mutation(({ ctx, input }) => adoptDiaryHighlightSuggestion(ctx.user.id, input.eventId)),
   updatePhaseReflection: protectedProcedure.input(z.object({ phaseKey: z.enum(["childhood", "education", "career"]), recap: z.string().trim().min(1).max(3000), reflection: z.string().trim().min(1).max(3000) })).mutation(({ ctx, input }) => updatePhaseReflection(ctx.user.id, input)),
   updateAiPreference: protectedProcedure.input(z.object({ aiEnabled: z.boolean() })).mutation(({ ctx, input }) => updateDiaryAiPreference(ctx.user.id, input.aiEnabled)),
   updateProfile: protectedProcedure.input(z.object({

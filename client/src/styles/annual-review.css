@@ -34,6 +34,14 @@
 .annual-ai-reflection button { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--ink); background: var(--ink); color: #fff; padding: 7px 9px; font-size: 10px; }
 .annual-ai-reflection button:hover:not(:disabled) { border-color: var(--cinnabar); background: var(--cinnabar); }
 .annual-ai-reflection .annual-ai-delete { color: var(--cinnabar); border-color: rgba(238,98,59,.55); background: transparent; }
+.private-highlight-assistant { margin-top: 14px; }
+.private-highlight-candidates { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 13px; }
+.private-highlight-candidates article { padding: 12px; border-top: 1px solid var(--ink); background: rgba(232,226,213,.5); }
+.private-highlight-candidates article > span { color: var(--cinnabar); font: 500 9px "IBM Plex Mono", monospace; }
+.private-highlight-candidates h3 { margin: 8px 0 5px; font: 400 19px "DM Serif Display", serif; }
+.private-highlight-candidates p { margin: 0; color: var(--ink-soft); font-size: 11px; line-height: 1.65; }
+.private-highlight-candidates small { display: block; margin-top: 8px; color: var(--ink-soft); font-size: 9px; line-height: 1.45; }
+.private-highlight-candidates button { margin-top: 10px; }
 
 @media (max-width: 820px) {
   .annual-review-studio { grid-template-columns: 1fr; gap: 22px; padding: 26px 23px; }
@@ -41,5 +49,5 @@
 }
 
 @media (max-width: 430px) {
-  .annual-review-controls > div, .annual-review-highlights { grid-template-columns: 1fr; }
+  .annual-review-controls > div, .annual-review-highlights, .private-highlight-candidates { grid-template-columns: 1fr; }
 }

@@ -7,6 +7,7 @@ import { DiaryEditorHeader } from "@/components/DiaryEditorHeader";
 import { DiaryLoadState } from "@/components/DiaryLoadState";
 import { FutureLettersStudio, MonthlyDigestStudio, OnThisDayStudio, RecallCheckStudio } from "@/components/diary/PrivateMemoryStudios";
 import { PrivateBackfillAssistant } from "@/components/diary/PrivateBackfillAssistant";
+import { PrivateHighlightAssistant, type HighlightSuggestion } from "@/components/diary/PrivateHighlightAssistant";
 import { PrivateIcsCalendarImport } from "@/components/import/PrivateIcsCalendarImport";
 import { PrivateSharePhotoDeidentification } from "@/components/sharing/PrivateSharePhotoDeidentification";
 import { PrivateVoiceDiary } from "@/components/diary/PrivateVoiceDiary";
@@ -154,6 +155,8 @@ function DiaryEditorContent() {
   const [annualYear, setAnnualYear] = useState("");
   const [annualTemplate, setAnnualTemplate] = useState<AnnualReviewTemplate>("narrative");
   const [annualAiConsent, setAnnualAiConsent] = useState(false);
+  const [highlightAiConsent, setHighlightAiConsent] = useState(false);
+  const [highlightSuggestions, setHighlightSuggestions] = useState<HighlightSuggestion[]>([]);
   const [monthlyDigestMonthKey, setMonthlyDigestMonthKey] = useState("");
   const [phaseBoundaries, setPhaseBoundaries] = useState<PhaseBoundaries>({ childhood: { start: "", end: "" }, education: { start: "", end: "" }, career: { start: "", end: "" } });
   const [draggedEventId, setDraggedEventId] = useState<number | null>(null);
@@ -253,6 +256,22 @@ function DiaryEditorContent() {
       setAnnualAiConsent(false);
       await utils.diary.get.invalidate();
       toast.success("已保存 AI 年度回顧。你可隨時刪除這段文字。");
+    },
+    onError: (error) => toast.error(error.message),
+  });
+  const highlightSuggestionMutation = trpc.diary.suggestHighlights.useMutation({
+    onSuccess: (candidates) => {
+      setHighlightSuggestions(candidates);
+      setHighlightAiConsent(false);
+      toast.success(candidates.length ? `已產生 ${candidates.length} 個精選候選。採用前不會修改日記。` : "目前沒有足夠依據的精選候選。你的日記沒有被修改。");
+    },
+    onError: (error) => toast.error(error.message),
+  });
+  const adoptHighlightMutation = trpc.diary.adoptHighlightSuggestion.useMutation({
+    onSuccess: async (result) => {
+      setHighlightSuggestions((candidates) => candidates.filter((candidate) => candidate.eventId !== result.eventId));
+      await utils.diary.get.invalidate();
+      toast.success(result.alreadyHighlighted ? "這段事件原本已是精選。" : "已將事件標記為精選；你可透過修訂紀錄還原。");
     },
     onError: (error) => toast.error(error.message),
   });
@@ -1401,6 +1420,7 @@ function DiaryEditorContent() {
           }) : <div className="phase-empty"><BookOpenCheck size={21} /><p>當你寫下更多記憶，童年、求學與職涯會在這裡逐步浮現。</p></div>}
         </div>
         <div className="ai-privacy-control"><div><p><BrainCircuit size={15} /> AI 回顧資料控制</p><span>{data?.diary.aiEnabled ? "啟用時，生成只會使用你選定階段的事件；你可隨時關閉或刪除已保存文字。" : "AI 已關閉。系統不會針對任何事件發出新的 AI 生成請求。"}</span></div>{isOwner ? <button type="button" onClick={() => updateAiPreference(!data?.diary.aiEnabled)} disabled={aiPreferenceMutation.isPending}>{aiPreferenceMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : data?.diary.aiEnabled ? <LockKeyhole size={14} /> : <WandSparkles size={14} />}{data?.diary.aiEnabled ? "關閉 AI 回顧" : "啟用 AI 回顧"}</button> : null}</div>
+        {isOwner ? <PrivateHighlightAssistant aiEnabled={Boolean(data?.diary.aiEnabled)} consent={highlightAiConsent} isGenerating={highlightSuggestionMutation.isPending} candidates={highlightSuggestions} adoptingEventId={adoptHighlightMutation.variables?.eventId ?? null} onConsentChange={setHighlightAiConsent} onGenerate={() => highlightSuggestionMutation.mutate({ confirmAiProcessing: highlightAiConsent })} onAdopt={(eventId) => adoptHighlightMutation.mutate({ eventId })} /> : null}
         {isOwner && data?.lifePhases.length ? <div className="phase-boundary-actions"><span>拖曳完成後，儲存就會重新分配事件所屬的階段。</span><button type="button" onClick={savePhaseBoundaries} disabled={phaseBoundariesMutation.isPending}>{phaseBoundariesMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <GripVertical size={14} />} 儲存階段邊界</button></div> : null}
         <div className="export-event-records">
           {visualExportRecords.map((event) => {

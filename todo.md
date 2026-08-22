@@ -16,15 +16,17 @@
 - [x] 實作 PWA Web Share Target，將系統分享內容導入既有 private QuickNote 草稿入口，不自動寫入事件。
 - [x] 修補 Express 5 wildcard 路由安全回歸。
 - [x] 全量封存驗證完成。
-- [x] 建立全量封存 ZIP 的可審核還原精靈，包含完整性驗證、衝突處理、資料覆寫保護與附件還原進度。
+- [x] 完成可審核全量 ZIP 還原。
 - [x] 全量 ZIP 匯出進度。
-- [x] 核對發布與 GitHub main，補齊 AI 交接、架構、安全、驗證與協作指引。
+- [x] 完成 AI 交接與 GitHub 核對。
 - [x] 將 AI 文件治理 PR 合併並核對 GitHub main SHA。
 - [x] 保存文件治理 checkpoint。
-- [x] 修復 GitHub Chromium mock OAuth callback 的冷啟動逾時，讓文件治理 PR 的必要 CI 可穩定通過。
+- [x] 修復 OAuth Chromium CI 冷啟動逾時。
 - [x] 完成 secret scan、production audit 與依賴紀錄。
 - [x] 更新雙語 README、PR 檢核與還原演練。
-- [ ] 同步 P0 文件治理與稽核 PR。
+- [x] 同步 P0 文件治理與稽核 PR。
+- [x] 實作 owner-only AI 精選建議：經逐次同意後只評估 private 事件、產生可審核候選、不自動寫入或公開資料。
+- [ ] 同步 AI 精選建議的單一功能 PR。
 
 ## 已確認的非執行限制
 

@@ -1,6 +1,6 @@
 # Chronicle AI 交接手冊
 
-> **交接狀態：** 已完成預設深色主題、照片 EXIF／GPS 私人匯入、Web Share Target、全量 ZIP 封存，以及可審核的 owner-only ZIP 還原。下一位 AI 應從本檔與根目錄 [`AGENTS.md`](../AGENTS.md) 開始，而不是從 commit history 或舊對話推測狀態。
+> **交接狀態：** 已完成預設深色主題、照片 EXIF／GPS 私人匯入、Web Share Target、全量 ZIP 封存／還原，以及可審核的 owner-only AI 精選建議。下一位 AI 應從本檔與根目錄 [`AGENTS.md`](../AGENTS.md) 開始，而不是從 commit history 或舊對話推測狀態。
 
 ## 1. 產品定位與不可變更原則
 
@@ -78,6 +78,14 @@ corepack pnpm install --frozen-lockfile
 | 暫存 | session 30 分鐘後失效；取消／失效目前不刪除 staging storage object。 | 未讀排程／storage 規範前，不得加入自動清理或誤稱 staging bytes 已刪除。 |
 
 最低回歸：`client/src/lib/fullDiaryArchive.test.ts`、`server/db/archiveRestore.test.ts`、`server/__tests__/infrastructure/fullArchiveSecurity.test.ts`、隔離 local-auth 的 `pnpm test:e2e:isolated` 與 `CHRONICLE_E2E_VIEWPORT=desktop pnpm test:e2e:isolated`。若改 schema，`0019_*.sql`／`0020_*.sql` 與 `drizzle/meta/` 是同一 migration 單位，先審閱 SQL、再受控套用。
+
+## 4.2 AI 精選建議：暫態候選，不是自動編輯
+
+`server/db/aiHighlights.ts` 與 `diary.suggestHighlights` 只供 owner 使用。每次呼叫都要求 `confirmAiProcessing: true`，且 diary 的 `aiEnabled` 必須已啟用；否則在讀取事件或呼叫模型前 fail-closed。輸入最多 80 段**尚未精選的 private 事件**，每段只含事件 ID、年份、標題、最多 320 字本文、標籤、事件類型與軌道。不得送出 public／link 事件、媒體、語音、GPS、分享設定、帳號資料、storage key 或時空膠囊的未解鎖內容。
+
+模型以 strict JSON schema 回傳最多八個 `{ eventId, reason, confidence }`。伺服器必須重新驗證 ID 屬於本次 private source，並去除未知或重複 ID；候選只存在目前瀏覽器工作階段，不能寫入資料庫、不能作為公開／連結投影，也不得在頁面載入、排程或背景工作中產生。`PrivateHighlightAssistant` 必須顯示逐次同意與「採用為精選」的個別按鈕。
+
+採用走 `diary.adoptHighlightSuggestion`：資料層再次確認 owner 與事件仍為 private，才把 milestone 更新為 `highlight`（weight 至少 4），並建立一般 event revision。不得依 AI 候選自動標記、調整內容、變更分享範圍或加入圖片；已是精選的事件應回報而非再寫入。最低回歸為 `server/db/aiHighlights.test.ts`、`server/routers/diary.test.ts` 的同意 gate，及隔離 desktop E2E 的精選同意控制；E2E 不得實際扣用模型呼叫。
 
 ## 5. 驗證流程
 
