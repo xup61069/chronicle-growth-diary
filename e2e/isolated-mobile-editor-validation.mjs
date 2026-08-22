@@ -257,8 +257,9 @@ try {
     await page.locator('input[accept*="image/heic"]').setInputFiles([
       { name: 'without-exif.jpg', mimeType: 'image/jpeg', buffer: Buffer.from([0xff, 0xd8, 0xff, 0xd9]) },
       { name: 'captured.jpg', mimeType: 'image/jpeg', buffer: makeExifJpeg() },
+      { name: 'captured-nearby.jpg', mimeType: 'image/jpeg', buffer: makeExifJpeg() },
     ]);
-    await desktopBackfillAssistant.getByText('目前這批有 2 張照片尚未整理').waitFor({ timeout: 10_000 });
+    await desktopBackfillAssistant.getByText('目前這批有 3 張照片尚未整理').waitFor({ timeout: 10_000 });
     const photoExifPreview = page.locator('.import-studio').filter({ has: page.getByRole('heading', { name: '確認照片的時間與位置' }) });
     const manualCapturedAt = photoExifPreview.getByLabel('without-exif.jpg 的拍攝日期與時間');
     const exifCapturedAt = photoExifPreview.getByLabel('captured.jpg 的拍攝日期與時間');
@@ -271,11 +272,13 @@ try {
     await photoExifPreview.getByLabel('without-exif.jpg 的經度').fill('121.5319');
     await photoExifPreview.getByLabel('選取 without-exif.jpg 以批次套用日期').check();
     await photoExifPreview.getByLabel('選取 captured.jpg 以批次套用日期').check();
+    await photoExifPreview.getByLabel('選取 captured-nearby.jpg 以批次套用日期').check();
     await photoExifPreview.getByLabel('批次套用的拍攝日期與時間').fill('2026-08-21T06:30');
     await photoExifPreview.getByLabel('批次套用的遞增秒數').fill('7');
-    await photoExifPreview.getByRole('button', { name: '套用至 2 張' }).click();
+    await photoExifPreview.getByRole('button', { name: '套用至 3 張' }).click();
     assert(await manualCapturedAt.inputValue() === '2026-08-21T06:30', '批次日期套用應填入缺少 EXIF 的照片。');
     assert(await exifCapturedAt.inputValue() === '2026-08-21T06:30:07', '批次日期套用應依指定秒數遞增已選取照片。');
+    assert(await photoExifPreview.getByLabel('captured-nearby.jpg 的拍攝日期與時間').inputValue() === '2026-08-21T06:30:14', '第三張照片也應依相同秒數遞增。');
     await photoExifPreview.getByText('2026-08-21', { exact: true }).waitFor({ timeout: 10_000 });
     assert(await photoExifPreview.getByText(/GPS 只在這個瀏覽器讀取.*確認前不會上傳/).isVisible(), '照片 EXIF 匯入預覽未明確說明 GPS 與確認前不上傳的隱私邊界。');
     assert(await photoExifPreview.getByText(/私有座標已帶入/).isVisible(), '手動校正或 EXIF 讀取的 GPS 應標示為 private 事件座標。');
@@ -289,6 +292,17 @@ try {
     await page.unroute('**/api/trpc/photoMap.preview**');
     const desktopDraggedLongitudeE6 = Math.round(Number(await photoExifPreview.getByLabel('without-exif.jpg 的經度').inputValue()) * 1_000_000);
     const desktopDraggedLatitudeE6 = Math.round(Number(await photoExifPreview.getByLabel('without-exif.jpg 的緯度').inputValue()) * 1_000_000);
+    let desktopJourneyMapRequestCount = 0;
+    await page.route('**/api/trpc/photoMap.preview**', (route) => { desktopJourneyMapRequestCount += 1; return route.fulfill({ contentType: 'application/json', body: mapPreviewResponse }); });
+    await photoExifPreview.getByRole('button', { name: '分析這批照片' }).click();
+    const desktopJourneyCandidate = photoExifPreview.getByTestId('photo-journey-candidate');
+    await desktopJourneyCandidate.waitFor({ timeout: 10_000 });
+    assert(desktopJourneyMapRequestCount === 0, '旅程候選分析只能在瀏覽器計算，不應自動請求地圖。');
+    await desktopJourneyCandidate.getByRole('checkbox').check();
+    await desktopJourneyCandidate.getByRole('button', { name: '顯示地圖' }).click();
+    await desktopJourneyCandidate.getByRole('img', { name: /旅程候選中心位置地圖預覽/ }).waitFor({ timeout: 10_000 });
+    assert(desktopJourneyMapRequestCount === 1, '旅程候選地圖只能在擁有者明確點擊後請求一次。');
+    await page.unroute('**/api/trpc/photoMap.preview**');
     const desktopPhotoCreatePayloads = [];
     await page.route('**/api/trpc/diary.createEvent**', async (route) => { desktopPhotoCreatePayloads.push(route.request().postData() ?? ''); await route.continue(); });
     let releaseUpload;
@@ -303,16 +317,16 @@ try {
     await photoExifPreview.getByRole('button', { name: '確認建立 1 段私人記錄' }).click();
     await uploadStarted;
     assert(await photoExifPreview.getByRole('progressbar', { name: '照片上傳進度' }).isVisible(), '批次上傳時應顯示可及進度條。');
-    assert(await photoExifPreview.getByText('正在上傳 0／2 張', { exact: true }).isVisible(), '批次上傳應顯示目前完成張數。');
+    assert(await photoExifPreview.getByText('正在上傳 0／3 張', { exact: true }).isVisible(), '批次上傳應顯示目前完成張數。');
     if (process.env.CHRONICLE_E2E_PHOTO_IMPORT_SCREENSHOT_PATH) {
       await photoExifPreview.screenshot({ path: process.env.CHRONICLE_E2E_PHOTO_IMPORT_SCREENSHOT_PATH });
     }
     releaseUpload();
     await page.getByText('已建立 1 段私人照片記錄。', { exact: true }).waitFor({ timeout: 20_000 });
     await page.unroute('**/api/trpc/diary.uploadImage**');
-    assert(desktopPhotoCreatePayloads.some((payload) => payload.includes(String(desktopDraggedLatitudeE6)) && payload.includes(String(desktopDraggedLongitudeE6))), '桌面地圖拖曳後建立的 private 事件應使用更新的 GPS 座標。');
+    assert(desktopPhotoCreatePayloads.length === 1 && desktopPhotoCreatePayloads[0].includes('照片旅程候選') && desktopPhotoCreatePayloads[0].includes('private'), '已選旅程候選應只建立一段 private 事件，且不與原日期群組重複。');
     await page.unroute('**/api/trpc/diary.createEvent**');
-    findings.checks.push('desktop photo EXIF GPS preview and correction, batch date apply, privacy boundary, upload progress and private event creation');
+    findings.checks.push('desktop photo EXIF GPS preview, local journey candidate analysis, explicit map request, correction, batch date apply, privacy boundary, upload progress and private event creation');
     const desktopFutureLetters = page.locator('.future-letters-studio');
     await desktopFutureLetters.getByRole('heading', { name: '寫給以後的自己' }).waitFor({ timeout: 10_000 });
     assert(await desktopFutureLetters.getByText(readyFutureLetterTitle, { exact: true }).isVisible(), '桌面未來信件索引未顯示已解鎖事件。');
@@ -461,6 +475,23 @@ try {
   assert(mobilePhotoCreatePayloads.some((payload) => payload.includes(String(mobileDraggedLatitudeE6)) && payload.includes(String(mobileDraggedLongitudeE6))), '行動版地圖拖曳後建立的 private 事件應使用更新的 GPS 座標。');
   await page.unroute('**/api/trpc/diary.createEvent**');
   findings.checks.push('375px photo EXIF GPS map preview and correction, incremented batch date apply, privacy boundary, upload progress and private event creation');
+  let mobileJourneyMapRequestCount = 0;
+  let mobileJourneyCreateRequestCount = 0;
+  await page.route('**/api/trpc/photoMap.preview**', (route) => { mobileJourneyMapRequestCount += 1; return route.fulfill({ contentType: 'application/json', body: mapPreviewResponse }); });
+  await page.route('**/api/trpc/diary.createEvent**', async (route) => { mobileJourneyCreateRequestCount += 1; await route.continue(); });
+  await page.locator('input[accept*="image/heic"]').setInputFiles([
+    { name: 'journey-mobile-one.jpg', mimeType: 'image/jpeg', buffer: makeExifJpeg() },
+    { name: 'journey-mobile-two.jpg', mimeType: 'image/jpeg', buffer: makeExifJpeg() },
+    { name: 'journey-mobile-three.jpg', mimeType: 'image/jpeg', buffer: makeExifJpeg() },
+  ]);
+  const mobileJourneyPreview = page.locator('.import-studio').filter({ has: page.getByRole('heading', { name: '確認照片的時間與位置' }) });
+  await mobileJourneyPreview.getByRole('button', { name: '分析這批照片' }).click();
+  await mobileJourneyPreview.getByTestId('photo-journey-candidate').waitFor({ timeout: 10_000 });
+  assert(mobileJourneyMapRequestCount === 0 && mobileJourneyCreateRequestCount === 0, '375px 旅程候選分析前不得請求地圖、建立事件或上傳附件。');
+  await mobileJourneyPreview.getByRole('button', { name: '取消' }).click();
+  await page.unroute('**/api/trpc/photoMap.preview**');
+  await page.unroute('**/api/trpc/diary.createEvent**');
+  findings.checks.push('375px local journey candidate explicit analysis with no automatic map or event request');
   const mobileFutureLetters = page.locator('.future-letters-studio');
   await mobileFutureLetters.getByRole('heading', { name: '寫給以後的自己' }).waitFor({ timeout: 10_000 });
   assert(await mobileFutureLetters.getByText(readyFutureLetterTitle, { exact: true }).isVisible(), '行動版未來信件索引未顯示已解鎖事件。');

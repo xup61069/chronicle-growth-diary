@@ -1,6 +1,6 @@
 # Chronicle AI 交接手冊
 
-> **交接狀態：** 已完成預設深色主題、照片 EXIF／GPS 私人匯入、Web Share Target、全量 ZIP 封存／還原，以及可審核的 owner-only AI 精選建議。下一位 AI 應從本檔與根目錄 [`AGENTS.md`](../AGENTS.md) 開始，而不是從 commit history 或舊對話推測狀態。
+> **交接狀態：** 已完成預設深色主題、照片 EXIF／GPS 私人匯入與本機旅程候選審核、Web Share Target、全量 ZIP 封存／還原，以及可審核的 owner-only AI 精選建議。下一位 AI 應從本檔與根目錄 [`AGENTS.md`](../AGENTS.md) 開始，而不是從 commit history 或舊對話推測狀態。
 
 ## 1. 產品定位與不可變更原則
 
@@ -86,6 +86,14 @@ corepack pnpm install --frozen-lockfile
 模型以 strict JSON schema 回傳最多八個 `{ eventId, reason, confidence }`。伺服器必須重新驗證 ID 屬於本次 private source，並去除未知或重複 ID；候選只存在目前瀏覽器工作階段，不能寫入資料庫、不能作為公開／連結投影，也不得在頁面載入、排程或背景工作中產生。`PrivateHighlightAssistant` 必須顯示逐次同意與「採用為精選」的個別按鈕。
 
 採用走 `diary.adoptHighlightSuggestion`：資料層再次確認 owner 與事件仍為 private，才把 milestone 更新為 `highlight`（weight 至少 4），並建立一般 event revision。不得依 AI 候選自動標記、調整內容、變更分享範圍或加入圖片；已是精選的事件應回報而非再寫入。最低回歸為 `server/db/aiHighlights.test.ts`、`server/routers/diary.test.ts` 的同意 gate，及隔離 desktop E2E 的精選同意控制；E2E 不得實際扣用模型呼叫。
+
+## 4.3 本機旅程候選：審核輔助，不是位置推論
+
+`client/src/lib/photoJourneyCandidates.ts` 只在擁有者按下 `PrivatePhotoJourneyCandidates` 的分析按鈕後，處理**目前一輪**已在瀏覽器解析的照片 ID、拍攝時間與成對 GPS。它不讀取影像位元組、不呼叫 AI、不做逆地理編碼、不推測住家、人物或目的地，也不掃描已上傳的歷史媒體。候選至少需要三張照片，且每對相鄰照片須在 30 小時與 80 公里內；這是可解釋的整理門檻，不是旅行辨識保證。
+
+候選只保存在 `DiaryEditor` 的 React state。使用者可改寫中性日期式標題、選取、清除，或按下「顯示地圖」才對候選中心座標呼叫既有受保護 `photoMap.preview`；地圖影像不保存。修改任何照片的拍攝時間或 GPS、批次套用日期、地圖拖曳、選擇新檔案、取消或完成匯入時，都必須清除候選，避免以舊座標寫入。
+
+確認時 `mergePhotoJourneyImportGroups` 會將已選候選轉成既有照片匯入群組，並從普通日期群組排除相同 photo ID，因此每張照片只可進入一個事件。仍由既有確認流程建立 `private` 事件、受控附件與 `precise/private` 位置；未選候選和缺少 GPS 的照片維持普通日期分組。不得將候選、中心座標、地圖或路徑投影到 public／link 分享。最低回歸為 `photoJourneyCandidates.test.ts`、`pnpm test:e2e:isolated` 及 `CHRONICLE_E2E_VIEWPORT=desktop pnpm test:e2e:isolated`；後兩者分別覆蓋無自動地圖／事件請求與已選候選不重複建立 private 事件。
 
 ## 5. 驗證流程
 

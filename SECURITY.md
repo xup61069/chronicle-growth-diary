@@ -16,7 +16,7 @@ Chronicle 處理私人日記、影像、受控分享與可能涉及家庭成員�
 | 日記與媒體 | 所有私有讀寫均以擁有者篩選；資料庫只保存媒體 key、URL 與中繼資料，不保存影像位元組。 | 跨帳號、刪除、媒體與分享範圍回歸。 |
 | 分享與家庭協作 | 僅明確標記可分享的事件可離開私有邊界；密碼、invite 與 link token 不得以明文保存。 | public／link／private 範圍、到期、密碼和邀請 token 測試。 |
 | AI | AI 回顧與精選建議都必須有日記層級啟用與每次明確同意；精選只送 private、未精選事件的受限文字片段，不送媒體、GPS、分享設定或帳號資料。候選暫存於瀏覽器，逐項採用前不得改寫事件或公開資料；本機 writing guide 不傳送日記內容。 | AI 偏好、逐次同意、private-only 輸入最小化、未知候選 ID、採用修訂、失敗與刪除行為測試。 |
-| 精確位置與地圖 | EXIF GPS 僅在使用者明確開啟位置工具時於本機讀取；地圖只可由已登入使用者明確觸發並經受保護代理取得，影像不得持久化。 | 座標成對與範圍驗證、未觸發前無地圖請求、private precise 寫入、public／link 隔離與拖曳後 payload 一致性回歸。 |
+| 精確位置、地圖與旅程候選 | EXIF GPS 僅在使用者明確開啟位置工具時於本機讀取；旅程候選只在擁有者明確分析本輪預覽時，以已解析時間與成對 GPS 計算，不讀取影像、不做逆地理編碼或地點推測、不建立事件且不持久化。地圖只可由已登入使用者明確觸發並經受保護代理取得，影像不得持久化。 | 座標成對與範圍驗證、未分析前無地圖／事件請求、候選選取後不重複匯入照片、private precise 寫入、public／link 隔離與拖曳後候選失效回歸。 |
 | 匯入／匯出 | 匯出不得包含 session、憑證、密碼雜湊、分享 token、存取紀錄或私有 storage key。全量 ZIP 還原必須先在瀏覽器驗證 manifest／payload／附件 checksum，再由 owner-only staging 重新核對大小與 SHA-256；僅 typed confirmation 的單一交易可覆寫日記，且結果強制 private。 | portable、frontmatter、media archive、`fullDiaryArchive.test.ts`、`archiveRestore.test.ts`、全量封存 security contract 與 owner-only E2E。 |
 
 ## 家庭與兒童資料
