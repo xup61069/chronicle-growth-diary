@@ -1,6 +1,6 @@
-# Project TODO
+# TODO
 
-> 本檔只保留 sprint 指針，不記錄執行歷程或 backlog。現行工作見 [CURRENT_SPRINT](./docs/roadmap/CURRENT_SPRINT.md)，規劃見 [FEATURES](./docs/roadmap/FEATURES.md)，OAuth 狀態見 [AI_HANDOFF](./docs/AI_HANDOFF.md)。
+> Sprint 指針：見 [CURRENT_SPRINT](./docs/roadmap/CURRENT_SPRINT.md)、[FEATURES](./docs/roadmap/FEATURES.md)、[AI_HANDOFF](./docs/AI_HANDOFF.md)。
 
 - [x] 完成本輪治理、CI 防護與補記助手的 private-first MVP。
 - [x] 建立 HEIC／Live Photo 的本機 metadata 預覽、確認後 private 匯入與 EXIF 日期保留流程。
@@ -15,12 +15,12 @@
 - [x] 補強 mock OAuth callback 的瀏覽器端對端防護，並完成依賴與 secret 掃描結果記錄。
 - [x] 實作 PWA Web Share Target，將系統分享內容導入既有 private QuickNote 草稿入口，不自動寫入事件。
 - [x] 修補 Express 傳遞 `path-to-regexp` 的 production 高風險依賴，或記錄經驗證的升級 blocker、風險範圍與後續處置。
-- [x] 完成 owner 全量封存下載與完整性驗證。
+- [x] 全量封存驗證完成。
 - [x] 建立全量封存 ZIP 的可審核還原精靈，包含完整性驗證、衝突處理、資料覆寫保護與附件還原進度。
-- [x] 提供全量 ZIP 匯出進度與完成摘要。
+- [x] 全量 ZIP 匯出進度。
 - [x] 核對發布與 GitHub main，補齊 AI 交接、架構、安全、驗證與協作指引。
-- [ ] 將 AI 交接、架構、安全與文件索引更新以單一文件治理 PR 同步 GitHub，CI 通過後合併並核對 main SHA。
-- [ ] 保存文件治理 checkpoint，保留可回復的交接版本。
+- [ ] 將 AI 文件治理 PR 合併並核對 GitHub main SHA。
+- [ ] 保存文件治理 checkpoint。
 
 ## 已確認的非執行限制
 
