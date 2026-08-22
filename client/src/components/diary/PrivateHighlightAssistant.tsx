@@ -1,4 +1,5 @@
 import { BrainCircuit, Check, Loader2, Sparkles } from "lucide-react";
+import React from "react";
 
 export type HighlightSuggestion = {
   eventId: number;

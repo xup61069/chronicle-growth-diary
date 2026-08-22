@@ -42,6 +42,8 @@ corepack pnpm build
 | `exifr` | 只在私有照片審核時於瀏覽器解析日期與 GPS；不在頁面載入或公開頁執行。 | 原生瀏覽器 API 能覆蓋必要的 EXIF 日期與 GPS 欄位，或改用較小且等效的本機 parser。 |
 | `jszip`、`jspdf`、`html2canvas` | 僅在擁有者手動匯出全量封存、PDF、長圖片或 A5 書冊時載入；全量 ZIP 以 manifest 與 checksum 保護可攜附件。 | 匯出格式停用，或有較小且支援同等 browser-only 匯出與可驗證封存的替代方案。 |
 
+最近一次治理基準（2026-08-22）：`pnpm verify:secrets` 以不輸出內容的 7 類模式掃描 181 個 revisions 並通過；`pnpm audit:prod` 回報零已知漏洞。本輪沒有新增 production dependency。這是可重跑的基準，不是歷史或第三方服務的完整安全保證。
+
 ## 家庭與兒童資料
 
 貢獻者不得建立含真實兒童、家庭成員或日記資料的 fixture、截圖與 demo。使用合成資料並假定所有日記預設私有。任何會擴大家庭協作、公開分享、AI 處理或兒童帳號範圍的 PR，必須在描述中寫出同意、資料最小化、保留期限與刪除路徑；若涉及法規判斷，先取得適當的法律／隱私審查。
