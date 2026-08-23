@@ -177,6 +177,9 @@ importers:
       autoprefixer:
         specifier: ^10.4.20
         version: 10.4.21(postcss@8.5.6)
+      baseline-browser-mapping:
+        specifier: 2.11.18
+        version: 2.11.18
       drizzle-kit:
         specifier: ^0.31.4
         version: 0.31.10
@@ -2649,8 +2652,9 @@ packages:
     engines: {node: '>=6.0.0'}
     hasBin: true
 
-  baseline-browser-mapping@2.8.13:
-    resolution: {integrity: sha512-7s16KR8io8nIBWQyCYhmFhd+ebIzb9VKTzki+wOJXHTxTnV6+mFGH3+Jwn1zoKaY9/H9T/0BcKCZnzXljPnpSQ==}
+  baseline-browser-mapping@2.11.18:
+    resolution: {integrity: sha512-1iEmLEYSiE1SeBoAfPo/Mnx3PzfzHUkDK61ASkCpuk3YXugYLH5DYK1SzqV55F8FMI6s0F+/tCP7Polz1QRjxw==}
+    engines: {node: '>=6.0.0'}
     hasBin: true
 
   body-parser@2.3.0:
@@ -6955,7 +6959,7 @@ snapshots:
 
   baseline-browser-mapping@2.11.17: {}
 
-  baseline-browser-mapping@2.8.13: {}
+  baseline-browser-mapping@2.11.18: {}
 
   body-parser@2.3.0:
     dependencies:
@@ -6988,7 +6992,7 @@ snapshots:
 
   browserslist@4.26.3:
     dependencies:
-      baseline-browser-mapping: 2.8.13
+      baseline-browser-mapping: 2.11.18
       caniuse-lite: 1.0.30001748
       electron-to-chromium: 1.5.232
       node-releases: 2.0.23
