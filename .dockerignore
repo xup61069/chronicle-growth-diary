@@ -1,0 +1,11 @@
+node_modules
+dist
+.git
+.github
+.manus-logs
+.env
+.env.*
+docs
+e2e
+coverage
+*.log

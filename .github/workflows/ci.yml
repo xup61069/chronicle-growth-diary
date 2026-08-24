@@ -73,3 +73,11 @@ jobs:
           pnpm test:e2e:document-export
           pnpm test:e2e:shared-story-voice-isolation
           node e2e/dark-mode-home-validation.mjs
+
+  self-host-image-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build portable self-hosting image without pushing
+        run: docker build --file docker/Dockerfile --tag chronicle-selfhost:ci .

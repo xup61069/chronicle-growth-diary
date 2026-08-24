@@ -30,71 +30,27 @@ MySQL 將備份與還原分為邏輯、實體、完整、增量與時間點復�
 | 物件儲存    | `STORAGE_DRIVER=s3`、`STORAGE_S3_BUCKET=chronicle-media`                        | MinIO 額外設定 `STORAGE_S3_ENDPOINT=http://minio:9000`；保留 `STORAGE_S3_REGION=auto`。 |
 | S3 憑證     | `STORAGE_S3_ACCESS_KEY_ID`、`STORAGE_S3_SECRET_ACCESS_KEY`                      | 建立限於單一 bucket 的應用程式憑證；禁止使用 root credential。                          |
 | LLM（可選） | `LLM_DRIVER=openai-compatible`、`LLM_BASE_URL=https://<host>/v1`、`LLM_API_KEY` | 未設定時保留 Forge 預設；只在自行承擔模型服務與資料處理責任時切換。                     |
+| AI 精選模型 | `CHRONICLE_AI_MODEL_HIGHLIGHTS`                                                 | 可選；未設定時使用 `gpt-5-mini`。只影響 owner 明確同意後的 private 精選候選呼叫。       |
+| AI 回顧模型 | `CHRONICLE_AI_MODEL_REFLECTION`                                                 | 可選；未設定時使用 `claude-haiku-4-5`。只影響已啟用 AI 的 private 階段與年度回顧呼叫。  |
+| 啟動 migration | `CHRONICLE_RUN_MIGRATIONS=true`                                                | Compose 預設為 `true`；entrypoint 會先套用內含 migrations，再以非 root 使用者啟動 Node。 |
 
 本機帳密模式以 scrypt 保存密碼雜湊，email 會正規化並有唯一索引保護。此版本尚未實作 email 驗證或密碼重設，因此不應直接用作公開、多租戶服務的唯一安全控制。
 
-## 3. 單一主機 Compose 範例
+## 3. 五分鐘單一主機啟動
 
-以下為最小範例；將其儲存為 `compose.selfhost.yml`，並在同一目錄準備 `.env`。請在部署前自行替換網域、反向代理與所有秘密；不要將下方 placeholder 寫進真實 `.env`。
+自架資產使用 `docker/Dockerfile` 與根目錄 `docker-compose.example.yml`，因此不會取代 Chronicle 現有受管理部署的預設建置方式。下列流程只適用於自有或受信任環境；`.env` 是唯一承載密碼與金鑰的檔案，不能提交 Git。
 
-```yaml
-services:
-  mysql:
-    image: mysql:8.4
-    restart: unless-stopped
-    environment:
-      MYSQL_DATABASE: chronicle
-      MYSQL_USER: ${MYSQL_APP_USER}
-      MYSQL_PASSWORD: ${MYSQL_APP_PASSWORD}
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-    volumes:
-      - mysql_data:/var/lib/mysql
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-
-  minio:
-    image: minio/minio
-    restart: unless-stopped
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-    volumes:
-      - minio_data:/data
-
-  chronicle:
-    image: node:22-bookworm
-    restart: unless-stopped
-    working_dir: /app
-    volumes:
-      - ./:/app:ro
-    env_file: .env
-    environment:
-      DATABASE_URL: mysql://${MYSQL_APP_USER}:${MYSQL_APP_PASSWORD}@mysql:3306/chronicle
-      STORAGE_DRIVER: s3
-      STORAGE_S3_ENDPOINT: http://minio:9000
-      STORAGE_S3_BUCKET: chronicle-media
-      STORAGE_S3_REGION: auto
-      STORAGE_S3_ACCESS_KEY_ID: ${MINIO_APP_ACCESS_KEY}
-      STORAGE_S3_SECRET_ACCESS_KEY: ${MINIO_APP_SECRET_KEY}
-    depends_on:
-      mysql:
-        condition: service_healthy
-      minio:
-        condition: service_started
-    command: >-
-      sh -lc "corepack enable && pnpm install --frozen-lockfile &&
-      pnpm drizzle-kit migrate && pnpm build && pnpm start"
-
-volumes:
-  mysql_data:
-  minio_data:
+```bash
+# 依上方變數表以你的本機 editor 建立未追蹤的 .env，填入所有秘密
+# 不要將 .env 加入 Git，也不要保留空值或範例值
+docker compose --env-file .env -f docker-compose.example.yml up -d --build
+docker compose --env-file .env -f docker-compose.example.yml ps
+curl --fail http://127.0.0.1:3000/healthz
 ```
 
-啟動前，先在 MinIO 建立 `chronicle-media` bucket 及僅限該 bucket 的應用程式憑證。Chronicle 會透過 `/manus-storage/:key` 取得短效讀取 URL，因此 bucket 不需要公開讀取。啟動時執行 `pnpm drizzle-kit migrate`，再以 `docker compose -f compose.selfhost.yml up -d` 啟動服務。首次部署後，請用 `docker compose ... logs -f chronicle` 檢查 migration、資料庫連線與 S3 簽章是否成功。
+Compose 會啟動 MySQL、固定 release tag 的 MinIO、一次性的 bucket／app credential 初始化，以及非 root 的 Chronicle Node runtime。它使用與上表相同的 `MYSQL_*`、`MINIO_*`、`STORAGE_S3_*`、`JWT_SECRET`、`LLM_*` 與 `CHRONICLE_AI_MODEL_*` 名稱；不含任何密碼或金鑰預設值。`docker/Dockerfile` 與 `docker/entrypoint.sh` 刻意不放在根目錄，避免改寫 Chronicle 受管理部署的建置契約。entrypoint 會在 `CHRONICLE_RUN_MIGRATIONS=true` 時先套用內含 Drizzle migration，再開放應用程式；`/healthz` 只回傳 HTTP 200 與應用程式版本，不讀取或洩漏資料庫、儲存、帳號或模型設定。
+
+MinIO 初始化會建立 `${STORAGE_S3_BUCKET}` 與應用程式帳號；正式主機仍應將資料庫與物件儲存放在受管理或具備磁碟冗餘、監控及異地備份的服務。若 `minio-init` 已因帳號存在而完成過，保留其工作狀態即可；輪替 app credential 時，先在 MinIO 建立新 credential、更新 `.env`、重啟 Chronicle，再撤銷舊 credential。
 
 ## 4. 備份作業
 

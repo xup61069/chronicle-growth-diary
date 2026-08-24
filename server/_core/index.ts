@@ -5,7 +5,10 @@ import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { registerStorageProxy } from "./storageProxy";
-import { handleRequestBodyParserError, registerRequestBodyParsers } from "./bodyParsers";
+import {
+  handleRequestBodyParserError,
+  registerRequestBodyParsers,
+} from "./bodyParsers";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { handleRecallCheck } from "../scheduled/recallCheck";
@@ -33,6 +36,11 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 async function startServer() {
   const app = express();
   const server = createServer(app);
+  app.get("/healthz", (_request, response) => {
+    response
+      .status(200)
+      .json({ version: process.env.npm_package_version ?? "1.0.0" });
+  });
   registerRequestBodyParsers(app);
   app.use(handleRequestBodyParserError);
   registerStorageProxy(app);
