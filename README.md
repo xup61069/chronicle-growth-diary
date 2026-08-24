@@ -67,7 +67,7 @@ corepack pnpm install --frozen-lockfile
 corepack pnpm dev
 ```
 
-Windows PowerShell 若未找到 `pnpm`，可直接改用 `corepack.cmd pnpm`。目前的登入、檔案儲存與 AI 呼叫仍使用既有整合服務；完整的本機認證、S3/MinIO 儲存和可替換 LLM 提供者會在後續自架化里程碑完成。請參閱 [`docs/LOCAL_DEVELOPMENT.md`](./docs/LOCAL_DEVELOPMENT.md) 了解目前可用的本機流程、環境變數與遷移路線。
+Windows PowerShell 若未找到 `pnpm`，可直接改用 `corepack.cmd pnpm`。需要自架時，可依 [`docs/SELF_HOSTING.md`](./docs/SELF_HOSTING.md) 的五分鐘容器流程，以 MySQL、MinIO、local auth 與可替換 LLM 啟動隔離實例；受管理部署仍使用既有整合服務。開發流程與遷移路線見 [`docs/LOCAL_DEVELOPMENT.md`](./docs/LOCAL_DEVELOPMENT.md)。
 
 常用驗證指令如下。
 

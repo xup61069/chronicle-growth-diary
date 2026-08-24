@@ -68,6 +68,8 @@ corepack pnpm install --frozen-lockfile
 corepack pnpm dev
 ```
 
+For a self-hosted instance, follow the five-minute container path in [Self-hosting](./docs/SELF_HOSTING.md). It starts an isolated MySQL, MinIO, local-auth, and configurable-LLM setup; the managed deployment keeps its existing integrations.
+
 Run the quality gate before opening a pull request:
 
 ```bash
