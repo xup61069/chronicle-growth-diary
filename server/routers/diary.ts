@@ -23,12 +23,15 @@ import {
   getEventReactions,
   getDiarySnapshot,
   getDiaryOnThisDayMemories,
+  getOnThisDayFeedStatus,
   getAnnualSurveys,
   importDiaryEvents,
   createAnnualSurvey,
   getSharedDiary,
   reorderDiaryEventMedia,
   reorderDiaryEvents,
+  revokeOnThisDayFeed,
+  rotateOnThisDayFeed,
   saveDiaryJourneyDetails,
   saveAnnualSurveyAnswer,
   removeDiaryMember,
@@ -111,6 +114,9 @@ export const diaryRouter = router({
   get: protectedProcedure.input(z.object({ diaryId: z.number().int().positive().optional() }).optional()).query(({ ctx, input }) => input?.diaryId ? getDiarySnapshot(ctx.user.id, input.diaryId) : getDiarySnapshot(ctx.user.id)),
   exportFullArchive: protectedProcedure.mutation(({ ctx }) => getFullDiaryArchive(ctx.user.id)),
   getOnThisDay: protectedProcedure.input(z.object({ diaryId: z.number().int().positive().optional(), year: z.number().int().min(1900).max(2200), month: z.number().int().min(1).max(12), day: z.number().int().min(1).max(31), timezoneOffsetMinutes: z.number().int().min(-840).max(840) })).query(({ ctx, input }) => getDiaryOnThisDayMemories(ctx.user.id, input)),
+  getOnThisDayFeedStatus: protectedProcedure.query(({ ctx }) => getOnThisDayFeedStatus(ctx.user.id)),
+  rotateOnThisDayFeed: protectedProcedure.input(z.object({ expiresAt: z.number().int().positive().nullable().optional() }).optional()).mutation(({ ctx, input }) => rotateOnThisDayFeed(ctx.user.id, input?.expiresAt)),
+  revokeOnThisDayFeed: protectedProcedure.mutation(({ ctx }) => revokeOnThisDayFeed(ctx.user.id)),
   createEvent: protectedProcedure.input(diaryEventInput.extend({ diaryId: z.number().int().positive().optional() })).mutation(({ ctx, input }) => {
     const { diaryId, ...event } = input;
     return diaryId ? createDiaryEvent(ctx.user.id, event, diaryId) : createDiaryEvent(ctx.user.id, event);

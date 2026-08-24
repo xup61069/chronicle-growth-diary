@@ -85,7 +85,11 @@ corepack pnpm install --frozen-lockfile
 
 最低回歸包括 annual survey 資料層、封存還原、A5 附錄，以及 synthetic local-auth owner/member/nonmember E2E；不得以正式 OAuth 或真實家庭資料驗證。
 
-## 4.3 AI 精選建議：暫態候選，不是自動編輯
+## 4.3 那年今日 ICS：可撤銷連結，最小投影
+
+`growth_on_this_day_feeds` 只保存 SHA-256 token hash、diary ID、撤銷時間與可選 expiry；輪替才回傳一次明文 token，之後不可查回。owner 可選 30 日、90 日（預設）、一年或明確無到期；輪替與撤銷都立即使舊 URL 失效。公開 `/api/feeds/on-this-day/:token.ics` 對 invalid、revoked 或 expired token 一律回 HTTP 401 且 `no-store`。ICS 僅包含 private、未鎖定、day-precision event 的 title、date 與 yearly RRULE；不得輸出正文、媒體、GPS、附檔、分享資料、使用者或資料庫 event ID。UID 必須是 opaque deterministic value。最低回歸為 feed builder 的敏感欄位排除／opaque UID 測試，以及 route 的 invalid、revoked、expired 實際 401。
+
+## 4.4 AI 精選建議：暫態候選，不是自動編輯
 
 `server/db/aiHighlights.ts` 與 `diary.suggestHighlights` 只供 owner 使用。每次呼叫都要求 `confirmAiProcessing: true`，且 diary 的 `aiEnabled` 必須已啟用；否則在讀取事件或呼叫模型前 fail-closed。輸入最多 80 段**尚未精選的 private 事件**，每段只含事件 ID、年份、標題、最多 320 字本文、標籤、事件類型與軌道。不得送出 public／link 事件、媒體、語音、GPS、分享設定、帳號資料、storage key 或時空膠囊的未解鎖內容。
 
@@ -93,7 +97,7 @@ corepack pnpm install --frozen-lockfile
 
 採用走 `diary.adoptHighlightSuggestion`：資料層再次確認 owner 與事件仍為 private，才把 milestone 更新為 `highlight`（weight 至少 4），並建立一般 event revision。不得依 AI 候選自動標記、調整內容、變更分享範圍或加入圖片；已是精選的事件應回報而非再寫入。最低回歸為 `server/db/aiHighlights.test.ts`、`server/routers/diary.test.ts` 的同意 gate，及隔離 desktop E2E 的精選同意控制；E2E 不得實際扣用模型呼叫。
 
-## 4.4 本機旅程候選：審核輔助，不是位置推論
+## 4.5 本機旅程候選：審核輔助，不是位置推論
 
 `client/src/lib/photoJourneyCandidates.ts` 只在擁有者按下 `PrivatePhotoJourneyCandidates` 的分析按鈕後，處理**目前一輪**已在瀏覽器解析的照片 ID、拍攝時間與成對 GPS。它不讀取影像位元組、不呼叫 AI、不做逆地理編碼、不推測住家、人物或目的地，也不掃描已上傳的歷史媒體。候選至少需要三張照片，且每對相鄰照片須在 30 小時與 80 公里內；這是可解釋的整理門檻，不是旅行辨識保證。
 
@@ -101,7 +105,7 @@ corepack pnpm install --frozen-lockfile
 
 確認時 `mergePhotoJourneyImportGroups` 會將已選候選轉成既有照片匯入群組，並從普通日期群組排除相同 photo ID，因此每張照片只可進入一個事件。仍由既有確認流程建立 `private` 事件、受控附件與 `precise/private` 位置；圖片完成保存後，`saveJourneyDetails` 才可由 owner 寫入範圍與同 event image 封面。未選候選和缺少 GPS 的照片維持普通日期分組。不得將候選、中心座標、地圖、路徑或封面關聯投影到 public／link 分享。最低回歸為 `photoJourneyCandidates.test.ts`、`server/routers/diary.test.ts`、`pnpm test:e2e:isolated` 及 `CHRONICLE_E2E_VIEWPORT=desktop pnpm test:e2e:isolated`。
 
-## 4.4 Day One、Journey 與家庭大事記：先最小化，再分享摘要
+## 4.6 Day One、Journey 與家庭大事記：先最小化，再分享摘要
 
 `client/src/lib/dayOneImport.ts` 只支援使用者選取的 Day One JSON 或根目錄唯一 `Journal.json` ZIP。解析器限制 32MB archive、4MB JSON 與 250 筆 entries，拒絕不安全 ZIP path；每筆只取 creation date、純文字和最多八個短標籤。媒體、位置、天氣、裝置、rich text、來源 URL、ZIP 與 UUID 不得持久化。`PrivateDayOneImport` 的 preview、勾選與去重皆為本機 state；只有使用者確認後才藉既有 `diary.importEvents` 寫入 private 事件。不得擴充為自動同步、背景掃描、跨帳號連結或媒體上傳。
 

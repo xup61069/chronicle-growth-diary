@@ -459,6 +459,20 @@ export const growthAnnualSurveyAnswers = mysqlTable(
   ]
 );
 
+/** Revocable owner-managed token for the minimal recurring On This Day ICS feed. Plaintext URLs are never persisted. */
+export const growthOnThisDayFeeds = mysqlTable(
+  "growth_on_this_day_feeds",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    diaryId: int("diaryId").notNull().references(() => growthDiaries.id, { onDelete: "cascade" }),
+    tokenHash: varchar("tokenHash", { length: 64 }).notNull().unique(),
+    revokedAt: timestamp("revokedAt"),
+    expiresAt: bigint("expiresAt", { mode: "number" }),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => [index("growth_on_this_day_feeds_diary_idx").on(table.diaryId, table.revokedAt, table.expiresAt)]
+);
+
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 export type GrowthDiary = typeof growthDiaries.$inferSelect;
@@ -475,6 +489,7 @@ export type GrowthDiaryMember = typeof growthDiaryMembers.$inferSelect;
 export type GrowthAnnualSurveySet = typeof growthAnnualSurveySets.$inferSelect;
 export type GrowthAnnualSurveyQuestion = typeof growthAnnualSurveyQuestions.$inferSelect;
 export type GrowthAnnualSurveyAnswer = typeof growthAnnualSurveyAnswers.$inferSelect;
+export type GrowthOnThisDayFeed = typeof growthOnThisDayFeeds.$inferSelect;
 export type GrowthFamilyMilestone = typeof growthFamilyMilestones.$inferSelect;
 export type GrowthFamilyMilestoneAudience = typeof growthFamilyMilestoneAudiences.$inferSelect;
 export type GrowthDiaryInvite = typeof growthDiaryInvites.$inferSelect;
