@@ -79,7 +79,13 @@ corepack pnpm install --frozen-lockfile
 
 最低回歸：`client/src/lib/fullDiaryArchive.test.ts`、`server/db/archiveRestore.test.ts`、`server/__tests__/infrastructure/fullArchiveSecurity.test.ts`、隔離 local-auth 的 `pnpm test:e2e:isolated` 與 `CHRONICLE_E2E_VIEWPORT=desktop pnpm test:e2e:isolated`。若改 schema，`0019_*.sql`／`0020_*.sql` 與 `drizzle/meta/` 是同一 migration 單位，先審閱 SQL、再受控套用。
 
-## 4.2 AI 精選建議：暫態候選，不是自動編輯
+## 4.2 年度問卷：家庭私有回答，不建立提醒排程
+
+`growth_annual_survey_sets`、`growth_annual_survey_questions` 與 `growth_annual_survey_answers` 只可經 annual survey 資料層與 diary access 邊界讀寫。owner 建題組；有效 family member（包含 commenter）只可留下自己的 slot 0 回答。`AnnualSurvey` 支援 `?diary=<id>`，member 必須使用指定家庭日記 context，且不得看到 owner 建題組控制。問卷永不進 public/link/AI/event projection。封存只保存去識別化問題、年份與回答；同題同年多份內容在 restore 時保留為 owner 名下 `responseSlot > 0` 的匿名回答，避免覆蓋文字。提醒偏好預設 `false`，目前沒有排程、email 或推播；未先完成明確 opt-in、冪等與 periodic updates 設計前不得擴張。
+
+最低回歸包括 annual survey 資料層、封存還原、A5 附錄，以及 synthetic local-auth owner/member/nonmember E2E；不得以正式 OAuth 或真實家庭資料驗證。
+
+## 4.3 AI 精選建議：暫態候選，不是自動編輯
 
 `server/db/aiHighlights.ts` 與 `diary.suggestHighlights` 只供 owner 使用。每次呼叫都要求 `confirmAiProcessing: true`，且 diary 的 `aiEnabled` 必須已啟用；否則在讀取事件或呼叫模型前 fail-closed。輸入最多 80 段**尚未精選的 private 事件**，每段只含事件 ID、年份、標題、最多 320 字本文、標籤、事件類型與軌道。不得送出 public／link 事件、媒體、語音、GPS、分享設定、帳號資料、storage key 或時空膠囊的未解鎖內容。
 
@@ -87,7 +93,7 @@ corepack pnpm install --frozen-lockfile
 
 採用走 `diary.adoptHighlightSuggestion`：資料層再次確認 owner 與事件仍為 private，才把 milestone 更新為 `highlight`（weight 至少 4），並建立一般 event revision。不得依 AI 候選自動標記、調整內容、變更分享範圍或加入圖片；已是精選的事件應回報而非再寫入。最低回歸為 `server/db/aiHighlights.test.ts`、`server/routers/diary.test.ts` 的同意 gate，及隔離 desktop E2E 的精選同意控制；E2E 不得實際扣用模型呼叫。
 
-## 4.3 本機旅程候選：審核輔助，不是位置推論
+## 4.4 本機旅程候選：審核輔助，不是位置推論
 
 `client/src/lib/photoJourneyCandidates.ts` 只在擁有者按下 `PrivatePhotoJourneyCandidates` 的分析按鈕後，處理**目前一輪**已在瀏覽器解析的照片 ID、拍攝時間與成對 GPS。它不讀取影像位元組、不呼叫 AI、不做逆地理編碼、不推測住家、人物或目的地，也不掃描已上傳的歷史媒體。候選至少需要三張照片，且每對相鄰照片須在 30 小時與 80 公里內；這是可解釋的整理門檻，不是旅行辨識保證。
 

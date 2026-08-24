@@ -122,6 +122,7 @@ function DiaryEditorContent() {
   const canEdit = canEditFamilyDiary(accessRole);
   const isOwner = canManageFamilyDiarySettings(accessRole);
   const canManageCurrentAnnualReview = canManageAnnualReview(accessRole);
+  const annualSurveyQuery = trpc.diary.getAnnualSurveys.useQuery(diaryQueryInput, { enabled: isOwner, staleTime: 0 });
   const [loadTimedOut, setLoadTimedOut] = useState(false);
   const [form, setForm] = useState<EventForm>(makeEmptyForm);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -1047,7 +1048,18 @@ function DiaryEditorContent() {
     if (!isOwner || !data) return toast.error("只有日記擁有者能建立私人成長書冊。");
     if (!data.lifePhases.length) return toast.info("先寫下一段記憶，才能編排成 A5 書冊。");
     try {
-      openPrintBook({ title: data.diary.title, subtitle: data.diary.subtitle, phases: data.lifePhases });
+      openPrintBook({
+        title: data.diary.title,
+        subtitle: data.diary.subtitle,
+        phases: data.lifePhases,
+        annualSurveyAppendix: (annualSurveyQuery.data ?? []).map(survey => ({
+          title: survey.title,
+          questions: survey.questions.map(question => ({
+            prompt: question.prompt,
+            answers: survey.answers.filter(answer => answer.questionId === question.id).map(answer => ({ year: answer.year, body: answer.body })),
+          })),
+        })),
+      });
       toast.success("A5 書冊預覽已開啟；請在新視窗選擇列印或另存 PDF。");
     } catch (printError) {
       toast.error(printError instanceof Error ? printError.message : "無法建立 A5 書冊預覽。");
