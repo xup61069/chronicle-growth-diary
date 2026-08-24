@@ -23,7 +23,7 @@ import {
 import { startLogin } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
 import { trpc } from "@/lib/trpc";
-import { Archive, BarChart3, ClipboardList, Home, LogOut, PanelLeft, RefreshCw } from "lucide-react";
+import { Archive, BarChart3, CalendarHeart, ClipboardList, Home, LogOut, PanelLeft, RefreshCw } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -33,6 +33,7 @@ import { LocalAuthPanel } from "./LocalAuthPanel";
 const menuItems = [
   { icon: Archive, label: "我的成長史", path: "/editor" },
   { icon: ClipboardList, label: "年度問卷", path: "/annual-survey" },
+  { icon: CalendarHeart, label: "那年今日訂閱", path: "/on-this-day-feed" },
   { icon: BarChart3, label: "成長數據", path: "/dashboard" },
   { icon: Home, label: "網站首頁", path: "/" },
 ];

@@ -58,6 +58,7 @@ export { fullArchiveRestoreInput } from "./db/archiveRestore";
 import type { FullArchiveRestoreInput } from "./db/archiveRestore";
 import { getOwnerOnThisDayMemoriesForDiary } from "./db/onThisDay";
 import type { OnThisDayRequest } from "./db/onThisDay";
+import { getOnThisDayFeedStatusForDiary, revokeOnThisDayFeedForDiary, rotateOnThisDayFeedForDiary } from "./db/onThisDayFeed";
 import { createAnnualSurveyForDiary, listAnnualSurveysForDiary, saveAnnualSurveyAnswerForDiary } from "./db/annualSurveys";
 import type { AnnualSurveySetInput } from "./db/annualSurveys";
 import {
@@ -211,6 +212,24 @@ export async function getDiaryOnThisDayMemories(userId: number, input: OnThisDay
   const diary = access?.diary ?? (input.diaryId ? undefined : await getOrCreateDiary(userId));
   if (!diary || (access && access.role !== "owner")) return [];
   return getOwnerOnThisDayMemoriesForDiary(db, diary.id, input);
+}
+
+export async function getOnThisDayFeedStatus(userId: number) {
+  const db = await requireDb();
+  const diary = await getOwnedDiary(userId);
+  return getOnThisDayFeedStatusForDiary(db, diary.id);
+}
+
+export async function rotateOnThisDayFeed(userId: number, expiresAt?: number | null) {
+  const db = await requireDb();
+  const diary = await getOwnedDiary(userId);
+  return { token: await rotateOnThisDayFeedForDiary(db, diary.id, expiresAt) };
+}
+
+export async function revokeOnThisDayFeed(userId: number) {
+  const db = await requireDb();
+  const diary = await getOwnedDiary(userId);
+  return revokeOnThisDayFeedForDiary(db, diary.id);
 }
 
 export async function getDiaryEventRevisions(userId: number, eventId: number) {
