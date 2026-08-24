@@ -12,7 +12,6 @@ import {
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { handleRecallCheck } from "../scheduled/recallCheck";
-import { registerOnThisDayFeedRoute } from "../routes/onThisDayFeed";
 import { serveStatic, setupVite } from "./vite";
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -46,7 +45,6 @@ async function startServer() {
   app.use(handleRequestBodyParserError);
   registerStorageProxy(app);
   registerOAuthRoutes(app);
-  registerOnThisDayFeedRoute(app);
   app.post("/api/scheduled/recall-check", handleRecallCheck);
   // tRPC API
   app.use(
