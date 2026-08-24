@@ -5,6 +5,9 @@ import { z } from "zod";
 import {
   growthArchiveRestoreAssets,
   growthArchiveRestoreSessions,
+  growthAnnualSurveyAnswers,
+  growthAnnualSurveyQuestions,
+  growthAnnualSurveySets,
   growthDiaries,
   growthEvents,
   growthEventMedia,
@@ -30,14 +33,48 @@ const voiceSchema = z.object({ assetId: z.string().regex(/^[-a-zA-Z0-9]+$/).max(
 const eventSchema = z.object({
   archiveId: z.string().regex(/^event-\d+$/).max(64), occurredAt: z.number().int().min(-2208988800000).max(4102444800000), datePrecision: z.enum(["day", "month", "year"]), eventType: z.enum(["memory", "learning", "achievement", "chapter"]), title: z.string().trim().min(1).max(180), body: z.string().max(8000), ageLabel: nullableString(80), place: nullableString(180), color: z.string().trim().max(16).default("#EE623B"), track: z.enum(["career", "skills", "life", "hardware"]).default("life"), milestoneType: z.enum(["standard", "highlight", "turning_point", "gear_workflow", "reflection"]).default("standard"), milestoneWeight: z.number().int().min(1).max(5).default(1), comparisonGroup: nullableString(96), unlocksAt: z.number().int().min(0).max(4102444800000).nullable().optional(), phaseKeywords: z.array(z.string().trim().min(1).max(24)).max(8).default([]), mapLatitudeE6: z.number().int().min(-90_000_000).max(90_000_000).nullable().optional(), mapLongitudeE6: z.number().int().min(-180_000_000).max(180_000_000).nullable().optional(), locationPrivacy: z.enum(["none", "city", "precise"]).default("none"), soundtrackTitle: nullableString(120), soundtrackUrl: nullableString(1024), timelinePosition: z.number().int().min(0).max(10_000).default(0), tags: z.array(tagSchema.omit({ kind: true })).max(8).default([]), skills: z.array(tagSchema.omit({ kind: true })).max(8).default([]), media: z.array(mediaSchema).max(120).default([]), voiceNotes: z.array(voiceSchema).max(120).default([]),
 });
+const archiveQuestionIdSchema = z.string().regex(/^[-a-zA-Z0-9]+$/).max(128);
+const annualSurveySchema = z.object({
+  title: z.string().trim().min(1).max(120),
+  targetMonth: z.number().int().min(1).max(12),
+  targetDay: z.number().int().min(1).max(31),
+  questions: z.array(z.object({
+    archiveQuestionId: archiveQuestionIdSchema,
+    prompt: z.string().trim().min(1).max(240),
+    position: z.number().int().min(0).max(19),
+  })).min(1).max(20),
+  answers: z.array(z.object({
+    archiveQuestionId: archiveQuestionIdSchema,
+    year: z.number().int().min(1900).max(2200),
+    body: z.string().trim().min(1).max(4000),
+    bodies: z.array(z.string().trim().min(1).max(4000)).min(1).max(100).optional(),
+  })).max(4_000),
+});
 const restoreDataSchema = z.object({
   format: z.literal("chronicle-growth-diary-full"), version: z.literal(1),
   diary: z.object({ title: z.string().trim().min(1).max(160), subtitle: nullableString(240), birthYear: z.number().int().min(1900).max(2200).nullable().optional(), educationStartYear: z.number().int().min(1900).max(2200).nullable().optional(), educationEndYear: z.number().int().min(1900).max(2200).nullable().optional(), careerStartYear: z.number().int().min(1900).max(2200).nullable().optional(), careerEndYear: z.number().int().min(1900).max(2200).nullable().optional(), childhoodStartYear: z.number().int().min(1900).max(2200).nullable().optional(), childhoodEndYear: z.number().int().min(1900).max(2200).nullable().optional(), aiEnabled: z.boolean().default(true), publicCoverTitle: nullableString(160), publicStoryLayout: z.enum(["editorial", "gallery", "minimal"]).default("editorial"), publicCoverAssetId: z.string().regex(/^[-a-zA-Z0-9]+$/).max(128).nullable().optional() }),
-  tags: z.array(tagSchema).max(64).default([]), events: z.array(eventSchema).min(1).max(MAX_ARCHIVE_EVENTS), reflections: z.array(z.object({ phaseKey: z.string().trim().min(1).max(32), recap: z.string().max(3000), reflection: z.string().max(3000), model: z.string().trim().max(80) })).max(32).default([]), revisions: z.array(z.object({ eventArchiveId: z.string().regex(/^event-\d+$/), version: z.number().int().min(1).max(10_000), changeType: z.enum(["create", "update", "restore"]), snapshot: z.record(z.string(), z.unknown()) })).max(5_000).default([]),
+  tags: z.array(tagSchema).max(64).default([]), events: z.array(eventSchema).min(1).max(MAX_ARCHIVE_EVENTS), reflections: z.array(z.object({ phaseKey: z.string().trim().min(1).max(32), recap: z.string().max(3000), reflection: z.string().max(3000), model: z.string().trim().max(80) })).max(32).default([]), revisions: z.array(z.object({ eventArchiveId: z.string().regex(/^event-\d+$/), version: z.number().int().min(1).max(10_000), changeType: z.enum(["create", "update", "restore"]), snapshot: z.record(z.string(), z.unknown()) })).max(5_000).default([]), annualSurveys: z.array(annualSurveySchema).max(20).default([]),
 });
 const assetSchema = z.object({ id: z.string().regex(/^[-a-zA-Z0-9]+$/).max(128), kind: z.enum(["image", "live_motion", "voice", "cover"]), fileName: z.string().trim().min(1).max(180), mimeType: z.string().trim().min(1).max(80), byteLength: z.number().int().min(1).max(16 * 1024 * 1024), sha256: z.string().regex(/^[a-f0-9]{64}$/) });
 export const fullArchiveRestoreInput = z.object({ data: restoreDataSchema, assets: z.array(assetSchema).max(120) });
 export type FullArchiveRestoreInput = z.infer<typeof fullArchiveRestoreInput>;
+
+export function assertRestorableAnnualSurveys(annualSurveys: z.infer<typeof annualSurveySchema>[]) {
+  for (const survey of annualSurveys) {
+    const calendarCheck = new Date(Date.UTC(2024, survey.targetMonth - 1, survey.targetDay));
+    if (calendarCheck.getUTCMonth() !== survey.targetMonth - 1 || calendarCheck.getUTCDate() !== survey.targetDay) throw new Error("年度問卷日期無效。 ");
+    const questionIds = new Set(survey.questions.map(question => question.archiveQuestionId));
+    const positions = new Set(survey.questions.map(question => question.position));
+    if (questionIds.size !== survey.questions.length || positions.size !== survey.questions.length) throw new Error("年度問卷題目識別或順序重複。 ");
+    const answerKeys = new Set<string>();
+    for (const answer of survey.answers) {
+      if (!questionIds.has(answer.archiveQuestionId)) throw new Error("年度回答不屬於目前題組。 ");
+      const key = `${answer.archiveQuestionId}:${answer.year}`;
+      if (answerKeys.has(key)) throw new Error("年度問卷回答重複。 ");
+      answerKeys.add(key);
+    }
+  }
+}
 
 export function buildFullArchiveRestoreAttachmentRows(input: FullArchiveRestoreInput) {
   const manifest = new Map(input.assets.map((asset) => [asset.id, asset]));
@@ -72,6 +109,7 @@ async function getPendingSession(db: DbClient, userId: number, restoreId: string
 
 export async function prepareFullArchiveRestore(db: DbClient, diary: GrowthDiary, userId: number, raw: FullArchiveRestoreInput) {
   const input = fullArchiveRestoreInput.parse(raw);
+  assertRestorableAnnualSurveys(input.data.annualSurveys);
   const attachments = buildFullArchiveRestoreAttachmentRows(input);
   const id = crypto.randomUUID();
   await db.insert(growthArchiveRestoreSessions).values({ id, diaryId: diary.id, userId, payload: JSON.stringify(input.data), expiresAt: Date.now() + RESTORE_TTL_MS });
@@ -101,6 +139,7 @@ export async function commitFullArchiveRestore(db: DbClient, diary: GrowthDiary,
   const session = await getPendingSession(db, userId, restoreId);
   if (session.diaryId !== diary.id) throw new Error("還原工作階段不屬於這本日記。 ");
   const data = restoreDataSchema.parse(JSON.parse(session.payload));
+  assertRestorableAnnualSurveys(data.annualSurveys);
   const assets = await db.select().from(growthArchiveRestoreAssets).where(eq(growthArchiveRestoreAssets.restoreId, session.id));
   if (assets.some((asset) => !asset.storageKey || !asset.url)) throw new Error("附件尚未全部備妥，不能取代目前日記。 ");
   const assetById = new Map(assets.map((asset) => [asset.assetId, asset]));
@@ -114,6 +153,7 @@ export async function commitFullArchiveRestore(db: DbClient, diary: GrowthDiary,
       await tx.delete(growthEventTags).where(inArray(growthEventTags.eventId, currentIds));
       await tx.delete(growthEvents).where(inArray(growthEvents.id, currentIds));
     }
+    await tx.delete(growthAnnualSurveySets).where(eq(growthAnnualSurveySets.diaryId, diary.id));
     await tx.delete(growthPhaseReflections).where(eq(growthPhaseReflections.diaryId, diary.id));
     await tx.delete(growthTags).where(eq(growthTags.userId, userId));
     const knownTags = new Map<string, { color: string; kind: "general" | "skill" }>();
@@ -150,10 +190,54 @@ export async function commitFullArchiveRestore(db: DbClient, diary: GrowthDiary,
       if (eventId) await tx.insert(growthEventRevisions).values({ eventId, version: revision.version, changeType: revision.changeType, snapshot: JSON.stringify(revision.snapshot) });
     }
     if (data.reflections.length) await tx.insert(growthPhaseReflections).values(data.reflections.map((reflection) => ({ diaryId: diary.id, phaseKey: reflection.phaseKey, recap: reflection.recap, reflection: reflection.reflection, model: reflection.model })));
+    for (const survey of data.annualSurveys) {
+      await tx.insert(growthAnnualSurveySets).values({
+        diaryId: diary.id,
+        createdByUserId: userId,
+        title: survey.title,
+        targetMonth: survey.targetMonth,
+        targetDay: survey.targetDay,
+        remindersEnabled: false,
+      });
+      const [restoredSurvey] = await tx
+        .select({ id: growthAnnualSurveySets.id })
+        .from(growthAnnualSurveySets)
+        .where(eq(growthAnnualSurveySets.diaryId, diary.id))
+        .orderBy(desc(growthAnnualSurveySets.id))
+        .limit(1);
+      if (!restoredSurvey) throw new Error("無法還原年度問卷題組。 ");
+      const questionIds = new Map<string, number>();
+      for (const question of survey.questions) {
+        await tx.insert(growthAnnualSurveyQuestions).values({
+          surveyId: restoredSurvey.id,
+          prompt: question.prompt,
+          position: question.position,
+        });
+        const [restoredQuestion] = await tx
+          .select({ id: growthAnnualSurveyQuestions.id })
+          .from(growthAnnualSurveyQuestions)
+          .where(and(eq(growthAnnualSurveyQuestions.surveyId, restoredSurvey.id), eq(growthAnnualSurveyQuestions.position, question.position)))
+          .limit(1);
+        if (!restoredQuestion) throw new Error("無法還原年度問卷題目。 ");
+        questionIds.set(question.archiveQuestionId, restoredQuestion.id);
+      }
+      if (survey.answers.length) {
+        await tx.insert(growthAnnualSurveyAnswers).values(survey.answers.flatMap(answer =>
+          (answer.bodies ?? [answer.body]).map((body, responseSlot) => ({
+            surveyId: restoredSurvey.id,
+            questionId: questionIds.get(answer.archiveQuestionId)!,
+            authorUserId: userId,
+            responseSlot: responseSlot + 1,
+            year: answer.year,
+            body,
+          }))
+        ));
+      }
+    }
     const cover = data.diary.publicCoverAssetId ? assetById.get(data.diary.publicCoverAssetId) : null;
     await tx.update(growthDiaries).set({ title: data.diary.title, subtitle: data.diary.subtitle, birthYear: data.diary.birthYear ?? null, educationStartYear: data.diary.educationStartYear ?? null, educationEndYear: data.diary.educationEndYear ?? null, careerStartYear: data.diary.careerStartYear ?? null, careerEndYear: data.diary.careerEndYear ?? null, childhoodStartYear: data.diary.childhoodStartYear ?? null, childhoodEndYear: data.diary.childhoodEndYear ?? null, aiEnabled: data.diary.aiEnabled, shareMode: "private", shareSlug: null, shareTokenHash: null, sharePasswordHash: null, shareExpiresAt: null, publicCoverStorageKey: cover?.storageKey ?? null, publicCoverUrl: cover?.url ?? null, publicCoverTitle: data.diary.publicCoverTitle, publicStoryLayout: data.diary.publicStoryLayout, shareAccessCount: 0, lastSharedAt: null }).where(eq(growthDiaries.id, diary.id));
     await tx.delete(growthShareAccessLogs).where(eq(growthShareAccessLogs.diaryId, diary.id));
     await tx.update(growthArchiveRestoreSessions).set({ status: "committed" }).where(eq(growthArchiveRestoreSessions.id, session.id));
   });
-  return { restoredEventCount: data.events.length, restoredAssetCount: assets.length };
+  return { restoredEventCount: data.events.length, restoredAssetCount: assets.length, restoredAnnualSurveyCount: data.annualSurveys.length };
 }

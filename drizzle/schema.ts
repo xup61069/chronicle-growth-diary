@@ -407,6 +407,58 @@ export const growthDiaryAuditLogs = mysqlTable(
   (table) => [index("growth_diary_audit_diary_idx").on(table.diaryId, table.createdAt)],
 );
 
+/** Owner-managed, family-private recurring question set. Reminder execution remains opt-in and disabled by default. */
+export const growthAnnualSurveySets = mysqlTable(
+  "growth_annual_survey_sets",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    diaryId: int("diaryId").notNull().references(() => growthDiaries.id, { onDelete: "cascade" }),
+    title: varchar("title", { length: 120 }).notNull().default("家庭年度問卷"),
+    targetMonth: int("targetMonth").notNull().default(12),
+    targetDay: int("targetDay").notNull().default(31),
+    remindersEnabled: boolean("remindersEnabled").notNull().default(false),
+    createdByUserId: int("createdByUserId").notNull().references(() => users.id, { onDelete: "cascade" }),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [index("growth_annual_survey_sets_diary_idx").on(table.diaryId)]
+);
+
+export const growthAnnualSurveyQuestions = mysqlTable(
+  "growth_annual_survey_questions",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    surveyId: int("surveyId").notNull().references(() => growthAnnualSurveySets.id, { onDelete: "cascade" }),
+    prompt: varchar("prompt", { length: 240 }).notNull(),
+    position: int("position").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [
+    uniqueIndex("growth_annual_survey_questions_position_unique_idx").on(table.surveyId, table.position),
+    index("growth_annual_survey_questions_survey_idx").on(table.surveyId),
+  ]
+);
+
+export const growthAnnualSurveyAnswers = mysqlTable(
+  "growth_annual_survey_answers",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    surveyId: int("surveyId").notNull().references(() => growthAnnualSurveySets.id, { onDelete: "cascade" }),
+    questionId: int("questionId").notNull().references(() => growthAnnualSurveyQuestions.id, { onDelete: "cascade" }),
+    authorUserId: int("authorUserId").notNull().references(() => users.id, { onDelete: "cascade" }),
+    responseSlot: int("responseSlot").notNull().default(0),
+    year: int("year").notNull(),
+    body: text("body").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => [
+    uniqueIndex("growth_annual_survey_answers_unique_idx").on(table.surveyId, table.questionId, table.authorUserId, table.year, table.responseSlot),
+    index("growth_annual_survey_answers_survey_year_idx").on(table.surveyId, table.year),
+  ]
+);
+
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 export type GrowthDiary = typeof growthDiaries.$inferSelect;
@@ -420,6 +472,9 @@ export type GrowthArchiveRestoreSession = typeof growthArchiveRestoreSessions.$i
 export type GrowthArchiveRestoreAsset = typeof growthArchiveRestoreAssets.$inferSelect;
 export type GrowthPhaseReflection = typeof growthPhaseReflections.$inferSelect;
 export type GrowthDiaryMember = typeof growthDiaryMembers.$inferSelect;
+export type GrowthAnnualSurveySet = typeof growthAnnualSurveySets.$inferSelect;
+export type GrowthAnnualSurveyQuestion = typeof growthAnnualSurveyQuestions.$inferSelect;
+export type GrowthAnnualSurveyAnswer = typeof growthAnnualSurveyAnswers.$inferSelect;
 export type GrowthFamilyMilestone = typeof growthFamilyMilestones.$inferSelect;
 export type GrowthFamilyMilestoneAudience = typeof growthFamilyMilestoneAudiences.$inferSelect;
 export type GrowthDiaryInvite = typeof growthDiaryInvites.$inferSelect;

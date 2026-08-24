@@ -2,6 +2,9 @@ import { asc, eq, inArray } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import {
   growthEventRevisions,
+  growthAnnualSurveyAnswers,
+  growthAnnualSurveyQuestions,
+  growthAnnualSurveySets,
   growthPhaseReflections,
   growthTags,
   type GrowthDiary,
@@ -40,8 +43,32 @@ export type FullDiaryArchiveSource = {
     };
     tags: Array<{ name: string; color: string; kind: "general" | "skill" }>;
     events: Array<Record<string, unknown>>;
-    reflections: Array<{ phaseKey: string; recap: string; reflection: string; model: string; createdAt: string | null; updatedAt: string | null }>;
-    revisions: Array<{ eventArchiveId: string; version: number; changeType: "create" | "update" | "restore"; snapshot: ReturnType<typeof parseDiaryEventRevisionSnapshot>; createdAt: string | null }>;
+    reflections: Array<{
+      phaseKey: string;
+      recap: string;
+      reflection: string;
+      model: string;
+      createdAt: string | null;
+      updatedAt: string | null;
+    }>;
+    revisions: Array<{
+      eventArchiveId: string;
+      version: number;
+      changeType: "create" | "update" | "restore";
+      snapshot: ReturnType<typeof parseDiaryEventRevisionSnapshot>;
+      createdAt: string | null;
+    }>;
+    annualSurveys: Array<{
+      title: string;
+      targetMonth: number;
+      targetDay: number;
+      questions: Array<{
+        archiveQuestionId: string;
+        prompt: string;
+        position: number;
+      }>;
+      answers: Array<{ archiveQuestionId: string; year: number; body: string }>;
+    }>;
     exclusions: string[];
   };
   assets: FullArchiveAssetSource[];
@@ -52,30 +79,108 @@ function iso(value: Date | null) {
 }
 
 /**
+ * A portable archive intentionally excludes author identities. The live schema
+ * permits multiple family answers for a question/year, while a restore has only
+ * one owner identity. Preserve every body in one deterministic, de-identified
+ * restored answer rather than selecting a family member or failing the restore.
+ */
+export function deidentifyAnnualSurveyAnswers(
+  answers: Array<{ questionId: number; year: number; body: string }>
+) {
+  const grouped = new Map<string, { questionId: number; year: number; bodies: string[] }>();
+  for (const answer of answers) {
+    const key = `${answer.questionId}:${answer.year}`;
+    const current = grouped.get(key) ?? { questionId: answer.questionId, year: answer.year, bodies: [] };
+    current.bodies.push(answer.body);
+    grouped.set(key, current);
+  }
+  return Array.from(grouped.values())
+    .sort((left, right) => left.questionId - right.questionId || left.year - right.year)
+    .map(answer => ({
+      questionId: answer.questionId,
+      year: answer.year,
+      bodies: answer.bodies,
+    }));
+}
+
+/**
  * Produces a content-only, owner-scoped export source. Private URLs are kept
  * solely in this short-lived response so the browser can fetch selected assets;
  * the portable payload itself references archive IDs and never serializes URLs.
  */
-export async function buildFullDiaryArchiveForDiary(db: DbClient, diary: GrowthDiary): Promise<FullDiaryArchiveSource> {
-  const [events, tags, reflections] = await Promise.all([
+export async function buildFullDiaryArchiveForDiary(
+  db: DbClient,
+  diary: GrowthDiary
+): Promise<FullDiaryArchiveSource> {
+  const [events, tags, reflections, annualSurveys] = await Promise.all([
     getEnrichedDiaryEvents(db, diary.id),
-    db.select().from(growthTags).where(eq(growthTags.userId, diary.userId)).orderBy(asc(growthTags.name)),
-    db.select().from(growthPhaseReflections).where(eq(growthPhaseReflections.diaryId, diary.id)).orderBy(asc(growthPhaseReflections.phaseKey)),
+    db
+      .select()
+      .from(growthTags)
+      .where(eq(growthTags.userId, diary.userId))
+      .orderBy(asc(growthTags.name)),
+    db
+      .select()
+      .from(growthPhaseReflections)
+      .where(eq(growthPhaseReflections.diaryId, diary.id))
+      .orderBy(asc(growthPhaseReflections.phaseKey)),
+    db
+      .select()
+      .from(growthAnnualSurveySets)
+      .where(eq(growthAnnualSurveySets.diaryId, diary.id))
+      .orderBy(asc(growthAnnualSurveySets.id)),
   ]);
-  const eventIds = events.map((event) => event.id);
+  const eventIds = events.map(event => event.id);
   const revisions = eventIds.length
-    ? await db.select().from(growthEventRevisions).where(inArray(growthEventRevisions.eventId, eventIds)).orderBy(asc(growthEventRevisions.eventId), asc(growthEventRevisions.version))
+    ? await db
+        .select()
+        .from(growthEventRevisions)
+        .where(inArray(growthEventRevisions.eventId, eventIds))
+        .orderBy(
+          asc(growthEventRevisions.eventId),
+          asc(growthEventRevisions.version)
+        )
     : [];
+  const annualSurveyIds = annualSurveys.map(survey => survey.id);
+  const [annualQuestions, annualAnswers] = annualSurveyIds.length
+    ? await Promise.all([
+        db
+          .select()
+          .from(growthAnnualSurveyQuestions)
+          .where(inArray(growthAnnualSurveyQuestions.surveyId, annualSurveyIds))
+          .orderBy(asc(growthAnnualSurveyQuestions.position)),
+        db
+          .select()
+          .from(growthAnnualSurveyAnswers)
+          .where(inArray(growthAnnualSurveyAnswers.surveyId, annualSurveyIds))
+          .orderBy(
+            asc(growthAnnualSurveyAnswers.year),
+            asc(growthAnnualSurveyAnswers.questionId)
+          ),
+      ])
+    : [[], []];
   const assets: FullArchiveAssetSource[] = [];
   const coverAssetId = diary.publicCoverUrl ? "public-cover" : null;
   if (coverAssetId && diary.publicCoverUrl) {
-    assets.push({ id: coverAssetId, kind: "cover", sourceUrl: diary.publicCoverUrl, fileName: "public-cover", mimeType: null });
+    assets.push({
+      id: coverAssetId,
+      kind: "cover",
+      sourceUrl: diary.publicCoverUrl,
+      fileName: "public-cover",
+      mimeType: null,
+    });
   }
 
-  const archiveEvents = events.map((event) => {
-    const media = event.media.map((item) => {
+  const archiveEvents = events.map(event => {
+    const media = event.media.map(item => {
       const assetId = `event-${event.id}-media-${item.id}`;
-      assets.push({ id: assetId, kind: item.mediaKind, sourceUrl: item.url, fileName: item.fileName, mimeType: item.mimeType });
+      assets.push({
+        id: assetId,
+        kind: item.mediaKind,
+        sourceUrl: item.url,
+        fileName: item.fileName,
+        mimeType: item.mimeType,
+      });
       return {
         assetId,
         mediaKind: item.mediaKind,
@@ -86,9 +191,15 @@ export async function buildFullDiaryArchiveForDiary(db: DbClient, diary: GrowthD
         createdAt: iso(item.createdAt),
       };
     });
-    const voiceNotes = event.voiceNotes.map((item) => {
+    const voiceNotes = event.voiceNotes.map(item => {
       const assetId = `event-${event.id}-voice-${item.id}`;
-      assets.push({ id: assetId, kind: "voice", sourceUrl: item.url, fileName: item.fileName, mimeType: item.mimeType });
+      assets.push({
+        id: assetId,
+        kind: "voice",
+        sourceUrl: item.url,
+        fileName: item.fileName,
+        mimeType: item.mimeType,
+      });
       return {
         assetId,
         fileName: item.fileName,
@@ -127,8 +238,11 @@ export async function buildFullDiaryArchiveForDiary(db: DbClient, diary: GrowthD
       timelinePosition: event.timelinePosition,
       createdAt: iso(event.createdAt),
       updatedAt: iso(event.updatedAt),
-      tags: event.tags.map((tag) => ({ name: tag.name, color: tag.color })),
-      skills: event.skills.map((skill) => ({ name: skill.name, color: skill.color })),
+      tags: event.tags.map(tag => ({ name: tag.name, color: tag.color })),
+      skills: event.skills.map(skill => ({
+        name: skill.name,
+        color: skill.color,
+      })),
       media,
       voiceNotes,
     };
@@ -153,9 +267,13 @@ export async function buildFullDiaryArchiveForDiary(db: DbClient, diary: GrowthD
         publicStoryLayout: diary.publicStoryLayout,
         publicCoverAssetId: coverAssetId,
       },
-      tags: tags.map((tag) => ({ name: tag.name, color: tag.color, kind: tag.kind })),
+      tags: tags.map(tag => ({
+        name: tag.name,
+        color: tag.color,
+        kind: tag.kind,
+      })),
       events: archiveEvents,
-      reflections: reflections.map((reflection) => ({
+      reflections: reflections.map(reflection => ({
         phaseKey: reflection.phaseKey,
         recap: reflection.recap,
         reflection: reflection.reflection,
@@ -163,18 +281,42 @@ export async function buildFullDiaryArchiveForDiary(db: DbClient, diary: GrowthD
         createdAt: iso(reflection.createdAt),
         updatedAt: iso(reflection.updatedAt),
       })),
-      revisions: revisions.map((revision) => ({
+      revisions: revisions.map(revision => ({
         eventArchiveId: `event-${revision.eventId}`,
         version: revision.version,
         changeType: revision.changeType,
         snapshot: parseDiaryEventRevisionSnapshot(revision.snapshot),
         createdAt: iso(revision.createdAt),
       })),
+      annualSurveys: annualSurveys.map(survey => {
+        const questions = annualQuestions.filter(
+          question => question.surveyId === survey.id
+        );
+        return {
+          title: survey.title,
+          targetMonth: survey.targetMonth,
+          targetDay: survey.targetDay,
+          questions: questions.map(question => ({
+            archiveQuestionId: `survey-${survey.id}-question-${question.id}`,
+            prompt: question.prompt,
+            position: question.position,
+          })),
+          answers: deidentifyAnnualSurveyAnswers(annualAnswers
+            .filter(answer => answer.surveyId === survey.id)
+            .map(answer => ({ questionId: answer.questionId, year: answer.year, body: answer.body })))
+            .map(answer => ({
+              archiveQuestionId: `survey-${survey.id}-question-${answer.questionId}`,
+              year: answer.year,
+              body: answer.bodies[0]!,
+              bodies: answer.bodies,
+            })),
+        };
+      }),
       exclusions: [
         "分享 token、分享密碼雜湊、session 與 OAuth state",
         "媒體與語音的來源 URL、private storage key 與 share-safe storage key",
-        "分享存取紀錄、邀請、協作稽核紀錄與協作者識別資料",
-        "排程 task UID 與通知執行狀態",
+        "分享存取紀錄、邀請、協作稽核紀錄與協作者識別資料；年度回答不含 author user ID 或名稱，還原時一律歸屬封存還原 owner",
+        "排程 task UID、年度問卷提醒偏好與通知執行狀態；還原後年度提醒維持關閉",
       ],
     },
     assets,

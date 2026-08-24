@@ -25,4 +25,23 @@ describe("A5 private print book", () => {
     expect(document).not.toContain("也不應出現");
     expect(document).toContain("時空膠囊 · 未解鎖");
   });
+
+  it("adds an owner-only, de-identified annual survey appendix", () => {
+    const document = createPrintBookDocument({
+      title: "我的成長史",
+      phases: [],
+      annualSurveyAppendix: [{
+        title: "家庭年度問卷",
+        questions: [{
+          prompt: "今年最想記住什麼？",
+          answers: [{ year: 2026, body: "留下 & 私人回答" }],
+        }],
+      }],
+    });
+    expect(document).toContain("APPENDIX / PRIVATE FAMILY");
+    expect(document).toContain("今年最想記住什麼？");
+    expect(document).toContain("留下 &amp; 私人回答");
+    expect(document).toContain("2026</b>");
+    expect(document).not.toContain("家庭成員");
+  });
 });

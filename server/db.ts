@@ -58,6 +58,8 @@ export { fullArchiveRestoreInput } from "./db/archiveRestore";
 import type { FullArchiveRestoreInput } from "./db/archiveRestore";
 import { getOwnerOnThisDayMemoriesForDiary } from "./db/onThisDay";
 import type { OnThisDayRequest } from "./db/onThisDay";
+import { createAnnualSurveyForDiary, listAnnualSurveysForDiary, saveAnnualSurveyAnswerForDiary } from "./db/annualSurveys";
+import type { AnnualSurveySetInput } from "./db/annualSurveys";
 import {
   getRecallPreferenceByTaskUid,
   getRecallPreferencesForDiary,
@@ -512,6 +514,35 @@ export async function getFamilyMilestoneAudienceAudit(userId: number, range?: { 
   const db = await requireDb();
   const diary = await getOwnedDiary(userId);
   return getFamilyMilestoneAudienceAuditForDiary(db, diary.id, range);
+}
+
+/** Owner and accepted members may read family survey answers; no public/link projection exists. */
+export async function getAnnualSurveys(userId: number, requestedDiaryId?: number) {
+  const db = await requireDb();
+  const access = await getDiaryAccessForUser(userId, requestedDiaryId);
+  const diary = access?.diary ?? (requestedDiaryId ? undefined : await getOrCreateDiary(userId));
+  if (!diary) throw new Error("找不到這本家庭成長史，或你沒有檢視權限。");
+  return listAnnualSurveysForDiary(db, diary.id);
+}
+
+export async function createAnnualSurvey(userId: number, input: AnnualSurveySetInput) {
+  const db = await requireDb();
+  const diary = await getOrCreateDiary(userId);
+  return createAnnualSurveyForDiary(db, diary.id, userId, input);
+}
+
+export async function saveAnnualSurveyAnswer(userId: number, input: {
+  surveyId: number;
+  questionId: number;
+  year: number;
+  body: string;
+  diaryId?: number;
+}) {
+  const db = await requireDb();
+  const access = await getDiaryAccessForUser(userId, input.diaryId);
+  const diary = access?.diary ?? (input.diaryId ? undefined : await getOrCreateDiary(userId));
+  if (!diary) throw new Error("找不到這本家庭成長史，或你沒有作答權限。");
+  return saveAnnualSurveyAnswerForDiary(db, { diaryId: diary.id, userId, role: access?.role ?? "owner" }, input);
 }
 
 /** Dashboard statistics are intentionally limited to the diary owner. */
