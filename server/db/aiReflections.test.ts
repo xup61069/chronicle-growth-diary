@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   getEnrichedDiaryEvents: vi.fn(),
   invokeLLM: vi.fn(),
+  env: { aiModelReflection: "test-reflection-model" },
 }));
 
 vi.mock("./diaryRead", () => ({
@@ -12,6 +13,7 @@ vi.mock("./diaryRead", () => ({
 vi.mock("../_core/llm", () => ({
   invokeLLM: mocks.invokeLLM,
 }));
+vi.mock("../_core/env", () => ({ ENV: mocks.env }));
 
 import { generateAnnualReflectionForDiary } from "./aiReflections";
 
@@ -78,7 +80,7 @@ describe("AI reflection data access", () => {
       },
     ]);
     mocks.invokeLLM.mockResolvedValueOnce({
-      model: "claude-haiku-4-5",
+      model: "test-reflection-model",
       choices: [{ message: { content: "===RECAP===\n年度回顧\n===REFLECTION===\n來年提問" } }],
     });
 
@@ -88,9 +90,10 @@ describe("AI reflection data access", () => {
       year: 2025,
       recap: "年度回顧",
       reflection: "來年提問",
-      model: "claude-haiku-4-5",
+      model: "test-reflection-model",
     });
     const llmInput = mocks.invokeLLM.mock.calls[0]?.[0];
+    expect(llmInput.model).toBe("test-reflection-model");
     const prompt = llmInput.messages[1].content as string;
     expect(prompt).toContain("本年度的突破");
     expect(prompt).not.toContain("不應送出的舊事件");

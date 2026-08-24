@@ -44,4 +44,18 @@ describe("documentation governance", () => {
     expect(selfHosting).toContain("全量封存 ZIP 的從零演練");
     expect(selfHosting).toContain("還原我的成長史");
   });
+
+  it("keeps the Chinese quality commands aligned with the English README", () => {
+    const chineseReadme = readProjectFile("README.md");
+    const englishReadme = readProjectFile("README.en.md");
+    const start = "```bash\ncorepack pnpm lint";
+    const readQualityBlock = (readme: string) =>
+      readme.split(start)[1]?.split("\n```")[0] ?? "";
+    const chineseQuality = readQualityBlock(chineseReadme);
+    const englishQuality = readQualityBlock(englishReadme);
+
+    expect(chineseQuality).toContain("corepack pnpm check");
+    expect(chineseQuality.match(/corepack pnpm test/g)).toHaveLength(1);
+    expect(chineseQuality).toBe(englishQuality);
+  });
 });

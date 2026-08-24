@@ -83,6 +83,8 @@ corepack pnpm install --frozen-lockfile
 
 `server/db/aiHighlights.ts` 與 `diary.suggestHighlights` 只供 owner 使用。每次呼叫都要求 `confirmAiProcessing: true`，且 diary 的 `aiEnabled` 必須已啟用；否則在讀取事件或呼叫模型前 fail-closed。輸入最多 80 段**尚未精選的 private 事件**，每段只含事件 ID、年份、標題、最多 320 字本文、標籤、事件類型與軌道。不得送出 public／link 事件、媒體、語音、GPS、分享設定、帳號資料、storage key 或時空膠囊的未解鎖內容。
 
+模型 ID 只從 `server/_core/env.ts` 的 `ENV.aiModelHighlights` 與 `ENV.aiModelReflection` 讀取，再由呼叫方傳入唯一的 `invokeLLM` 入口；功能模組不得硬編碼 provider model ID。自架者可設定 `CHRONICLE_AI_MODEL_HIGHLIGHTS` 或 `CHRONICLE_AI_MODEL_REFLECTION`；未設定或空白時分別回退至 `gpt-5-mini` 與 `claude-haiku-4-5`。這只改變模型路由，不改變 owner 同意、AI enabled、private-only source、暫態候選或公開／連結隔離邊界。
+
 模型以 strict JSON schema 回傳最多八個 `{ eventId, reason, confidence }`。伺服器必須重新驗證 ID 屬於本次 private source，並去除未知或重複 ID；候選只存在目前瀏覽器工作階段，不能寫入資料庫、不能作為公開／連結投影，也不得在頁面載入、排程或背景工作中產生。`PrivateHighlightAssistant` 必須顯示逐次同意與「採用為精選」的個別按鈕。
 
 採用走 `diary.adoptHighlightSuggestion`：資料層再次確認 owner 與事件仍為 private，才把 milestone 更新為 `highlight`（weight 至少 4），並建立一般 event revision。不得依 AI 候選自動標記、調整內容、變更分享範圍或加入圖片；已是精選的事件應回報而非再寫入。最低回歸為 `server/db/aiHighlights.test.ts`、`server/routers/diary.test.ts` 的同意 gate，及隔離 desktop E2E 的精選同意控制；E2E 不得實際扣用模型呼叫。
