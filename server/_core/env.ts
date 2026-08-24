@@ -1,3 +1,10 @@
+export const DEFAULT_AI_MODEL_HIGHLIGHTS = "gpt-5-mini";
+export const DEFAULT_AI_MODEL_REFLECTION = "claude-haiku-4-5";
+
+function optionalModel(value: string | undefined, fallback: string) {
+  return value?.trim() || fallback;
+}
+
 export const ENV = {
   appId: process.env.VITE_APP_ID ?? "",
   cookieSecret: process.env.JWT_SECRET ?? "",
@@ -17,4 +24,12 @@ export const ENV = {
   llmDriver: process.env.LLM_DRIVER ?? "forge",
   llmBaseUrl: process.env.LLM_BASE_URL ?? "",
   llmApiKey: process.env.LLM_API_KEY ?? "",
+  aiModelHighlights: optionalModel(
+    process.env.CHRONICLE_AI_MODEL_HIGHLIGHTS,
+    DEFAULT_AI_MODEL_HIGHLIGHTS
+  ),
+  aiModelReflection: optionalModel(
+    process.env.CHRONICLE_AI_MODEL_REFLECTION,
+    DEFAULT_AI_MODEL_REFLECTION
+  ),
 };

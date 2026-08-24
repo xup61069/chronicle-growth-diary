@@ -3,10 +3,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   getEnrichedDiaryEvents: vi.fn(),
   invokeLLM: vi.fn(),
+  env: { aiModelHighlights: "test-highlights-model" },
 }));
 
 vi.mock("./diaryRead", () => ({ getEnrichedDiaryEvents: mocks.getEnrichedDiaryEvents }));
 vi.mock("../_core/llm", () => ({ invokeLLM: mocks.invokeLLM }));
+vi.mock("../_core/env", () => ({ ENV: mocks.env }));
 
 import { suggestHighlightsForDiary } from "./aiHighlights";
 
@@ -30,7 +32,7 @@ describe("AI highlight suggestions", () => {
       { id: 14, occurredAt: Date.UTC(2025, 7, 1), title: "連結事件", body: "不應送往私人 AI 候選。", tags: [], shareScope: "link", milestoneType: "standard", eventType: "memory", track: "life" },
     ]);
     mocks.invokeLLM.mockResolvedValueOnce({
-      model: "gpt-5-mini",
+      model: "test-highlights-model",
       choices: [{ message: { content: JSON.stringify({ candidates: [
         { eventId: 11, reason: "完成可交付作品集，清楚呈現從整理到交付的成長轉折。", confidence: "high" },
         { eventId: 11, reason: "重複候選應被濾除。", confidence: "medium" },
@@ -40,8 +42,9 @@ describe("AI highlight suggestions", () => {
 
     const result = await suggestHighlightsForDiary({} as never, diary);
 
-    expect(result).toEqual([{ eventId: 11, title: "完成作品集", reason: "完成可交付作品集，清楚呈現從整理到交付的成長轉折。", confidence: "high", model: "gpt-5-mini" }]);
+    expect(result).toEqual([{ eventId: 11, title: "完成作品集", reason: "完成可交付作品集，清楚呈現從整理到交付的成長轉折。", confidence: "high", model: "test-highlights-model" }]);
     const request = mocks.invokeLLM.mock.calls[0]?.[0];
+    expect(request.model).toBe("test-highlights-model");
     const prompt = request.messages[1].content as string;
     expect(prompt).toContain("ID=11");
     expect(prompt).not.toContain("既有精選");

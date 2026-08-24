@@ -73,7 +73,7 @@ Windows PowerShell 若未找到 `pnpm`，可直接改用 `corepack.cmd pnpm`。�
 
 ```bash
 corepack pnpm lint
-corepack pnpm test
+corepack pnpm check
 corepack pnpm test
 corepack pnpm verify:secrets
 corepack pnpm audit:prod
